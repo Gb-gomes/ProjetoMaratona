@@ -50,7 +50,7 @@ function EfficiencyIndicator({ done, total, units }) {
 
 export default function CommunicationPanel({
   mode = 'demo', phase, result, traditionalText, propertyMapped = true, notice, onNoticeChange, onGenerate, onCopy, onApprove,
-  selectedCount, pendingUnits = [], approvalBlocker,
+  selectedCount, pendingUnits = [], approvalBlocker, notes = [],
 }) {
   const done = phase === 'done' && result;
   const isReal = mode === 'real';
@@ -131,6 +131,16 @@ export default function CommunicationPanel({
                     {pendingUnits.length > 0 && ` Sem nome: região(ões) ${pendingUnits.map((u) => String(u.order).padStart(2, '0')).join(', ')}.`}
                   </span>
                 </p>
+              )}
+              {!noSelection && notes.length > 0 && (
+                <ul className="mb-1.5 space-y-0.5 rounded-md border border-petrol-100 bg-petrol-50 px-2.5 py-1.5 text-[11.5px] leading-snug text-petrol-800" aria-label="Observações da carta">
+                  {notes.map((n) => (
+                    <li key={n} className="flex gap-1.5">
+                      <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+                      {n}
+                    </li>
+                  ))}
+                </ul>
               )}
               <label htmlFor="regional-text" className="sr-only">Texto do aviso por região (editável)</label>
               <textarea

@@ -70,6 +70,8 @@ export function resolveSpeakableName(unit, { correspondence = {}, officialNameAp
   const entry = correspondence[unit.code] ?? correspondence[unit.id];
   if (entry?.name) return { name: entry.name, origin: entry.origin ?? 'correspondence', entry };
   if (officialNameApproved && unit.name) return { name: unit.name, origin: 'official' };
+  // Nome automático da área do IBGE (distrito + situação), derivado de atributos oficiais.
+  if (unit.fallbackName) return { name: unit.fallbackName, origin: 'ibge' };
   return { name: null, origin: null };
 }
 
@@ -142,18 +144,10 @@ export function pendingRegionLabel(unit) {
  * @returns {{text:string, pendingUnits:object[], missingOutage:string[], names:string[]}}
  */
 export function buildRadioLetter(units, outage, { nameOf = (u) => u.name ?? null } = {}) {
-  const missingOutage = [
-    !outage?.letterDate && 'data',
-    !outage?.letterStart && 'horário inicial',
-    !outage?.letterEnd && 'horário final',
-    !outage?.audience && 'público (Pessoal de …)',
-  ].filter(Boolean);
-  if (!units?.length) return { text: '', pendingUnits: [], missingOutage, names: [] };
-
   const pendingUnits = [];
   const seen = new Set();
   const lines = [];
-  units.forEach((u) => {
+  (units ?? []).forEach((u) => {
     const name = nameOf(u);
     if (!name) {
       pendingUnits.push(u);
@@ -165,6 +159,22 @@ export function buildRadioLetter(units, outage, { nameOf = (u) => u.name ?? null
     seen.add(key);
     lines.push(name);
   });
+  return { ...buildRadioLetterFromLines(lines, outage), pendingUnits };
+}
+
+/**
+ * Monta a carta a partir da lista de ENDEREÇOS já decidida (nomes de região
+ * ou de propriedades; ver lib/announcement.js).
+ * @returns {{text:string, missingOutage:string[], names:string[]}}
+ */
+export function buildRadioLetterFromLines(lines, outage) {
+  const missingOutage = [
+    !outage?.letterDate && 'data',
+    !outage?.letterStart && 'horário inicial',
+    !outage?.letterEnd && 'horário final',
+    !outage?.audience && 'público (Pessoal de …)',
+  ].filter(Boolean);
+  if (!lines?.length) return { text: '', missingOutage, names: [] };
 
   const body = RADIO_LETTER.body
     .replace('{PUBLICO}', outage?.audience ?? '[PÚBLICO NÃO INFORMADO]')
@@ -183,5 +193,5 @@ export function buildRadioLetter(units, outage, { nameOf = (u) => u.name ?? null
     ...RADIO_LETTER.closing.flatMap((c, i) => (i ? ['', c] : [c])),
   ].join('\n');
 
-  return { text, pendingUnits, missingOutage, names: lines.filter((l) => !PLACEHOLDER_RE.test(l)) };
+  return { text, missingOutage, names: lines.filter((l) => !PLACEHOLDER_RE.test(l)) };
 }

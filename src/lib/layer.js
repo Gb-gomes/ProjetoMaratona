@@ -81,6 +81,7 @@ export function validateLayer(geojson, fields) {
         label: name ?? code,
         order: features.length,
         official: props,
+        fallbackName: typeof fields.fallbackLabel === 'function' ? (fields.fallbackLabel(props) || null) : null,
         context: (fields.contextFields ?? [])
           .map(({ field, label }) => ({ label, value: props[field] == null ? '' : String(props[field]).trim() }))
           .filter((c) => c.value !== ''),

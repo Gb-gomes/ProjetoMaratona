@@ -107,6 +107,17 @@ export const PILOT_CONFIG = {
         { field: 'NM_DIST', label: 'Distrito' },
         { field: 'SITUACAO', label: 'Situação' },
       ],
+      // Nome automático da área, montado só com atributos oficiais do IBGE.
+      // Usado na carta quando a região não tem nome definido pelo operador
+      // nem correspondência validada. Ex.: "Zona rural de Sereno".
+      fallbackLabel: (props) => {
+        const dist = String(props.NM_DIST ?? '').trim();
+        if (!dist) return null;
+        const sit = String(props.SITUACAO ?? '').trim().toLowerCase();
+        if (sit === 'rural') return `Zona rural de ${dist}`;
+        if (sit === 'urbana') return `${dist} (área urbana)`;
+        return dist;
+      },
     },
     // true somente se o nome oficial (nameField) puder ir para a locução.
     officialNameApproved: false,
@@ -152,4 +163,19 @@ export const RADIO_LETTER = {
     'A energia poderá ser restabelecida antes do horário previsto. Programação sujeita a alterações ou cancelamentos sem aviso prévio.',
     'Para mais comodidade, receba os comunicados de desligamento programado diretamente no seu celular. Cadastre seu número na Energisa para receber SMS ou baixe o aplicativo Energisa ON. Em caso de dúvida, entre em contato com a Energisa pelo facebook ou pelo site.',
   ],
+};
+
+/* ------------------------------------------------------------------ */
+/* Regras de citação na carta                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Regiões com MENOS clientes que este limite são citadas pelo nome das
+ * propriedades (coluna "propriedade" do CSV), e não pelo nome da região,
+ * para que a região inteira não espere um desligamento que não é dela.
+ * Clientes = valores distintos da coluna de cliente, quando mapeada; senão, pontos.
+ * O operador pode trocar a forma de citação de cada região na lista.
+ */
+export const ANNOUNCEMENT_RULES = {
+  minClientsForRegion: 3,
 };

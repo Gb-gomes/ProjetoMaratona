@@ -94,7 +94,16 @@ Pré-requisito: camada do piloto preparada e `PILOT_CONFIG.status` diferente de 
 ## Carta para as rádios e nomes de região
 
 - O painel inferior gera a **carta padrão Energisa** (texto fixo em `RADIO_LETTER`, `src/config.js`). Ela é preenchida com o público ("Pessoal de…", que por padrão é o município do piloto e pode ser alterado no formulário), a data no formato `20 DEZEMBRO 2025`, os horários no formato `08:00h` e a lista de **ENDEREÇOS**, que traz somente **nomes** de região, sem códigos e sem repetição.
-- Região sem nome aparece como `[NOMEAR REGIÃO nn — distrito | situação]` e **bloqueia a aprovação**.
+- **A carta é sempre gerada.** Ordem de escolha do nome de cada região:
+  1. nome definido pelo operador;
+  2. tabela de correspondência validada;
+  3. **nome automático da área do IBGE**, montado com distrito e situação (ex.: "Zona rural de Sereno", "Sereno (área urbana)"; regra `fallbackLabel` em `PILOT_CONFIG`).
+
+  Só se nada disso existir aparece `[NOMEAR REGIÃO nn]`, que bloqueia a aprovação.
+- **Regra de poucos clientes** (`ANNOUNCEMENT_RULES.minClientsForRegion`, padrão 3): região com **menos de 3 clientes** afetados é citada pelo **nome das propriedades** (coluna "propriedade" do CSV), não pela região, para a região inteira não esperar um desligamento que não é dela.
+  - Contam-se clientes distintos quando a coluna de cliente está mapeada; senão, pontos.
+  - Sem coluna de propriedade, ou com propriedade sem nome, a região também é citada e a carta mostra uma observação. Nenhum nome é inventado.
+  - Nos detalhes de cada região, **"Como citar no aviso"** permite escolher Automático, Nome da região ou Nome das propriedades.
 - **Nomear região:** na lista de regiões, use **Nomear** ou **Renomear**. São obrigatórios o nome conhecido pela comunidade e o responsável; a observação (como o nome foi confirmado) é opcional. A região passa a mostrar o selo "nome alterado", e os detalhes mostram quem alterou, quando e o **histórico** completo (definido, alterado, removido, importado). O histórico nunca é apagado.
 - **Onde ficam salvos:** no navegador desta máquina (`localStorage`). Só os nomes de região são guardados, sem coordenadas ou dados de cliente. Use **Exportar** para gerar um JSON (backup, outra máquina ou `public/data/ibge/correspondencia_nomes.json`) e **Importar** para carregá-lo. Limpar os dados do navegador apaga os nomes não exportados.
 - Nomes do operador têm prioridade sobre a tabela de correspondência do projeto.
@@ -144,6 +153,7 @@ src/
     ├── summary.js              Indicadores e linhas de auditoria (fonte única)
     ├── outage.js               Formulário do desligamento → dados exibidos
     ├── communicationUtils.js   Carta para as rádios e textos dos avisos
+    ├── announcement.js         Regra de citação: região × propriedades (menos de 3 clientes)
     ├── regionNames.js          Nomes de região do operador: histórico, armazenamento, exportação/importação
     ├── theme.js                Preferência de tema (claro, escuro, sistema)
     ├── geo.js                  Utilitários geométricos
@@ -169,7 +179,7 @@ docs/
 
 - Não há backend. O cruzamento real roda no navegador e foi pensado para um município e uma quantidade controlada de pontos.
 - A camada de Cataguases foi convertida sem GDAL; falta a conferência visual independente no QGIS.
-- O setor censitário não tem nome próprio. O aviso depende de uma correspondência de nomes validada, que ainda não existe.
+- O setor censitário não tem nome próprio. Sem nome definido, a carta usa o nome automático da área do IBGE (distrito + situação), que pode ser amplo; por exemplo, setores rurais vizinhos podem receber o mesmo nome "Zona rural de Sereno". Nomear as regiões resolve isso.
 - Coordenadas UTM não são convertidas.
 - Não há versão simplificada da camada só para exibição.
 - A camada "Rede elétrica" está desabilitada por falta de dados.

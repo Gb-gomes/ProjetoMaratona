@@ -15,14 +15,15 @@ import {
   OUTAGE, DEMO_FILE_NAME, DEMO_POINTS, DEMO_TERRITORIES,
 } from './data/mockData.js';
 import {
-  TERRITORIAL_LAYER, PROCESSING_STEPS, PROCESSING_DURATION_MS, PILOT_CONFIG, PILOT_STATUS_LABEL,
+  TERRITORIAL_LAYER, PROCESSING_STEPS, PROCESSING_DURATION_MS, PILOT_CONFIG, PILOT_STATUS_LABEL, ANNOUNCEMENT_RULES,
 } from './config.js';
 import { mockSpatialJoin } from './lib/mockSpatialJoin.js';
 import { spatialJoin } from './lib/spatialJoin.js';
 import { loadLayer, loadNameCorrespondence } from './lib/layer.js';
 import {
-  buildTraditionalNotice, buildTraditionalFromNames, buildRadioLetter, hasPlaceholders, resolveSpeakableName,
+  buildTraditionalNotice, buildTraditionalFromNames, buildRadioLetterFromLines, hasPlaceholders, resolveSpeakableName,
 } from './lib/communicationUtils.js';
+import { buildAnnouncement } from './lib/announcement.js';
 import {
   renameRegion, removeRegionName, storeToCorrespondence, exportStore, importStore,
   loadStore, saveStore, loadOperator, saveOperator,
@@ -78,6 +79,8 @@ export default function App() {
   const [notice, setNotice] = useState(EMPTY_NOTICE);
   const [toasts, setToasts] = useState([]);
   const [auditOpen, setAuditOpen] = useState(false);
+  // Forma de citação escolhida pelo operador por região ('region' | 'properties'); vale para este processamento.
+  const [announceOverrides, setAnnounceOverrides] = useState({});
 
   // Somente modo real (mantidos em memória; nunca em localStorage).
   const [imp, setImp] = useState(EMPTY_IMPORT);
@@ -170,29 +173,58 @@ export default function App() {
   );
 
   /** Carta para as rádios a partir de um conjunto de unidades (na ordem da lista). */
-  const letterFor = useCallback((joined, ids, outageView) => {
-    if (!joined) return { text: '', pendingUnits: [], missingOutage: [] };
+  const letterFor = useCallback((joined, ids, outageView, overrides = announceOverrides) => {
+    if (!joined) return { text: '', pendingUnits: [], missingOutage: [], notes: [], items: [] };
     const units = joined.units.filter((u) => ids.includes(u.id));
-    const nameOf = joined.source === 'demo' ? (u) => u.name : (u) => resolveSpeakableName(u, nameOptions).name;
-    return buildRadioLetter(units, outageView, { nameOf });
-  }, [nameOptions]);
+    const demo = joined.source === 'demo';
+    const announcement = buildAnnouncement(units, joined.points, {
+      nameOf: demo ? (u) => u.name : (u) => resolveSpeakableName(u, nameOptions).name,
+      threshold: ANNOUNCEMENT_RULES.minClientsForRegion,
+      overrides,
+      clientMapped: !demo && imp.mapping.client != null,
+      propertyMapped: demo || imp.mapping.property != null,
+    });
+    return {
+      ...buildRadioLetterFromLines(announcement.lines, outageView),
+      pendingUnits: announcement.pendingUnits,
+      notes: announcement.notes,
+      items: announcement.items,
+    };
+  }, [nameOptions, announceOverrides, imp.mapping.client, imp.mapping.property]);
   const noticeFor = useCallback((ids) => letterFor(result, ids, outage), [letterFor, result, outage]);
 
   const currentNotice = useMemo(() => noticeFor(selectedIds), [noticeFor, selectedIds]);
 
-  // Modo real: atualiza o texto não editado quando os dados do desligamento ou os nomes mudam.
+  // Atualiza a carta não editada quando dados do desligamento, nomes ou forma de citação mudam.
   useEffect(() => {
-    if (!isReal || phase !== 'done') return;
+    if (phase !== 'done') return;
     setNotice((prev) => (prev.dirty || prev.text === currentNotice.text
       ? prev
       : { text: currentNotice.text, status: 'draft', dirty: false, stale: false }));
-  }, [isReal, phase, currentNotice.text]);
+  }, [phase, currentNotice.text]);
+
+  /** Forma de citação de cada unidade (para a lista de regiões). */
+  const announcementByUnit = useMemo(() => {
+    if (!result) return {};
+    const all = letterFor(result, result.units.map((u) => u.id), outage);
+    return Object.fromEntries(all.items.map((it) => [it.unit.id, it]));
+  }, [result, letterFor, outage]);
+
+  const handleAnnounceMode = (unitId, mode) => {
+    setAnnounceOverrides((o) => {
+      const next = { ...o };
+      if (mode === 'auto') delete next[unitId]; else next[unitId] = mode;
+      return next;
+    });
+    if (notice.status === 'approved') notify('info', 'Forma de citação alterada: a carta voltou para rascunho.');
+    if (notice.dirty) setNotice((prev) => ({ ...prev, stale: true, status: 'edited' }));
+  };
 
   const approvalBlocker = useMemo(() => {
     if (!isReal) return null;
     if (hasPlaceholders(notice.text)) {
       return currentNotice.pendingUnits.length
-        ? 'Há regiões sem nome. Use "Nomear região" na lista de regiões ou retire-as da seleção.'
+        ? 'Há regiões sem nome nem área do IBGE. Use "Nomear" na lista de regiões ou retire-as da seleção.'
         : 'O texto contém informações pendentes entre colchetes (data, horário ou público). Preencha os dados do desligamento.';
     }
     if (outage.problems?.length) return outage.problems[0];
@@ -268,6 +300,7 @@ export default function App() {
     setErrorMessage('');
     setAuditOpen(false);
     setPointFilter(DEFAULT_POINT_FILTER);
+    setAnnounceOverrides({});
   };
 
   /** Troca de modo: nenhum resultado é compartilhado entre os modos. */
@@ -419,7 +452,7 @@ export default function App() {
     const outageView = joined.source === 'demo'
       ? OUTAGE
       : buildOutageView(outageForm, { defaultAudience: PILOT_CONFIG.territory.name });
-    const { text } = letterFor(joined, ids, outageView);
+    const { text } = letterFor(joined, ids, outageView, {});
     setNotice({ text, status: 'draft', dirty: false, stale: false });
   };
 
@@ -642,6 +675,9 @@ export default function App() {
           layerState={layerState}
           nameOptions={nameOptions}
           regionStore={regionStore}
+          announcementByUnit={announcementByUnit}
+          announceThreshold={ANNOUNCEMENT_RULES.minClientsForRegion}
+          onAnnounceMode={handleAnnounceMode}
           operator={operator}
           onRenameRegion={handleRenameRegion}
           onRemoveRegionName={handleRemoveRegionName}
@@ -665,6 +701,7 @@ export default function App() {
             onApprove={handleApprove}
             selectedCount={selectedUnits.length}
             pendingUnits={isReal ? currentNotice.pendingUnits : []}
+            notes={currentNotice.notes}
             approvalBlocker={approvalBlocker}
           />
         </div>

@@ -104,13 +104,16 @@ export function spatialJoin(validation, layer, { mapping = {}, source = 'real' }
   const units = [...groups.entries()]
     .map(([id, pointKeys]) => {
       const f = byId.get(id);
-      const { code, name, label, context = [] } = f.properties;
+      const {
+        code, name, label, context = [], fallbackName = null,
+      } = f.properties;
       return {
         id,
         code,
         name,
         label,
         context,
+        fallbackName,
         count: pointKeys.length,
         pct: Math.round((pointKeys.length / matched) * 1000) / 10,
         pointIds: pointKeys,

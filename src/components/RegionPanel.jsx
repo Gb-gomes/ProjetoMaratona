@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ChevronDown, Database, CircleCheck, TriangleAlert, LoaderCircle, MapPinned, ListChecks, Pencil, Download, Upload, History,
+  Tractor,
 } from 'lucide-react';
 import { resolveSpeakableName } from '../lib/communicationUtils.js';
 
@@ -17,6 +18,7 @@ const ORIGIN_LABEL = {
   operator: 'nome definido pelo operador',
   correspondence: 'correspondência validada',
   official: 'nome oficial aprovado',
+  ibge: 'nome automático da área do IBGE',
 };
 const ACTION_LABEL = {
   definido: 'Nome definido', alterado: 'Nome alterado', removido: 'Nome removido', importado: 'Nome importado',
@@ -36,6 +38,7 @@ export default function RegionPanel({
   mode = 'demo', phase, result, summary, focusId, onFocus, selectedIds, onToggleSelected, onSelectAll, onClearSelection,
   layerInfo, layerState, nameOptions, onOpenAudit,
   regionStore = {}, operator = '', onRenameRegion, onRemoveRegionName, onExportNames, onImportNames,
+  announcementByUnit = {}, announceThreshold = 3, onAnnounceMode,
 }) {
   const done = phase === 'done' && result;
   const isReal = mode === 'real';
@@ -151,6 +154,8 @@ export default function RegionPanel({
                 const panelId = `unit-details-${u.id}`;
                 const speak = speakOf(u);
                 const unnamed = isReal && !speak.name;
+                const announce = announcementByUnit[u.id];
+                const byProperty = announce?.mode === 'properties';
                 const editing = editingId === u.id;
                 return (
                   <li
@@ -189,11 +194,22 @@ export default function RegionPanel({
                                 nome alterado
                               </span>
                             )}
+                            {speak.origin === 'ibge' && (
+                              <span className="ml-1.5 rounded bg-slate-100 px-1 py-px align-middle text-[10px] font-medium text-slate-600 ring-1 ring-inset ring-slate-200">
+                                nome IBGE
+                              </span>
+                            )}
                           </span>
                           <span className="block text-[11.5px] text-slate-500">
                             {isReal && u.context?.length > 0 && `${u.context.map((c) => c.value).join(' | ')} | `}
                             {u.count} pontos | {u.pct.toLocaleString('pt-BR')}%
                           </span>
+                          {byProperty && (
+                            <span className="mt-0.5 inline-flex items-center gap-1 rounded bg-accent-50 px-1.5 py-px text-[10.5px] font-medium text-accent-800 ring-1 ring-inset ring-accent-200">
+                              <Tractor className="h-3 w-3" aria-hidden="true" />
+                              Aviso pelas propriedades | {announce.countLabel}
+                            </span>
+                          )}
                         </span>
                         <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
                       </button>
@@ -227,6 +243,13 @@ export default function RegionPanel({
                       />
                     )}
 
+                    {expanded && announce && (
+                      <AnnounceControl
+                        item={announce}
+                        threshold={announceThreshold}
+                        onChange={(mode) => onAnnounceMode(u.id, mode)}
+                      />
+                    )}
                     {expanded && isReal && (
                       <RealDetails
                         u={u}
@@ -278,6 +301,48 @@ export default function RegionPanel({
         </div>
       </div>
     </section>
+  );
+}
+
+/** Escolha de como a região é citada na carta (regra automática ou escolha do operador). */
+function AnnounceControl({ item, threshold, onChange }) {
+  const options = [
+    { value: 'auto', label: 'Automático', hint: `Propriedades se houver menos de ${threshold} clientes; senão, a região` },
+    { value: 'region', label: 'Nome da região' },
+    { value: 'properties', label: 'Nome das propriedades' },
+  ];
+  const current = item.automatic ? 'auto' : item.mode;
+  return (
+    <div className="mx-2.5 mb-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11.5px]">
+      <p className="font-semibold text-petrol-900">Como citar no aviso</p>
+      <div role="radiogroup" aria-label="Como citar esta região no aviso" className="mt-1 flex flex-wrap gap-1">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={current === o.value}
+            title={o.hint}
+            onClick={() => onChange(o.value)}
+            className={`rounded border px-2 py-0.5 font-medium ${
+              current === o.value ? 'border-petrol-700 bg-petrol-700 text-white' : 'border-slate-300 bg-white text-petrol-800 hover:border-petrol-400'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1.5 text-slate-600">
+        {item.countLabel} afetado(s). Na carta: <span className="font-medium text-petrol-900">{item.lines.join('; ')}</span>
+        {item.automatic && <span className="text-slate-500"> (regra automática)</span>}
+      </p>
+      {item.notes.map((n) => (
+        <p key={n} className="mt-1 flex gap-1 text-amber-800">
+          <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+          {n}
+        </p>
+      ))}
+    </div>
   );
 }
 
@@ -363,13 +428,16 @@ function RealDetails({
           : (
             <span className="inline-flex items-start gap-1 text-amber-700">
               <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              Sem nome. Use &quot;Nomear&quot; para registrar o nome conhecido pela comunidade.
+              Sem nome e sem área do IBGE. Use &quot;Nomear&quot; para registrar o nome conhecido pela comunidade.
             </span>
           )}
         {current && (
           <span className="block text-slate-500">
             Alterado por {current.validatedBy} em {fmtDateTime(current.validatedOn)}
           </span>
+        )}
+        {speak.origin === 'ibge' && (
+          <span className="block text-slate-500">Se a comunidade conhece a área por outro nome, use &quot;Nomear&quot;.</span>
         )}
       </Detail>
       <Detail label="Denominação IBGE">{u.name ?? <span className="text-slate-500">Sem denominação na camada oficial</span>}</Detail>
