@@ -1,0 +1,12 @@
+{
+  "_leia_me": "MODELO. Copie para correspondencia_nomes.json somente com entradas validadas. Os códigos abaixo são fictícios. Entradas sem name, validatedBy ou validatedOn são ignoradas pela aplicação.",
+  "entries": [
+    {
+      "code": "000000000000000",
+      "name": "Nome da comunidade como reconhecido pelos moradores",
+      "validatedBy": "Nome/área de quem validou",
+      "validatedOn": "AAAA-MM-DD",
+      "source": "Como a correspondência foi confirmada (ex.: equipe de campo, prefeitura, lista operacional)"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Privacidade: requisições fetch/XHR/WebSocket só podem ir para a própria
+      aplicação (camada local e HMR do Vite). Os tiles do OpenStreetMap são
+      imagens e continuam permitidos; nenhuma coordenada de cliente é enviada.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="connect-src 'self' ws://localhost:* ws://127.0.0.1:*; form-action 'none'" />
+    <title>Conecta Rural — Inteligência Geográfica</title>
+    <!-- Aplica o tema salvo (ou o do sistema) antes da primeira pintura; ver src/lib/theme.js. -->
+    <script>
+      (function () {
+        var pref = null;
+        try { pref = localStorage.getItem('conecta-rural:tema'); } catch (e) {}
+        var dark = pref === 'dark' || (pref !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+      })();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

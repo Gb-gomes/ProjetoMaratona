@@ -1,0 +1,101 @@
+id;latitude;longitude;propriedade
+PT-001;-13,744311;-56,264054;Fazenda Boa Esperança
+PT-002;-13,713681;-56,176409;Fazenda São José
+PT-003;-13,742209;-56,248805;Fazenda Água Limpa
+PT-004;-13,662625;-56,184267;Sítio Santa Rita
+PT-005;-13,735561;-56,209829;Sítio do João
+PT-006;-13,731902;-56,279753;Sítio Nossa Senhora
+PT-007;-13,687541;-56,270826;Fazenda Santa Clara
+PT-008;-13,69665;-56,192553;Sítio Bela Vista
+PT-009;-13,67957;-56,271203;Fazenda Três Irmãos
+PT-010;-13,695406;-56,269462;Chácara Primavera
+PT-011;-13,663076;-56,177648;Fazenda São Bento
+PT-012;-13,754016;-56,225042;Sítio Recanto Verde
+PT-013;-13,756633;-56,287729;Fazenda Ouro Branco
+PT-014;-13,715995;-56,284761;Estância Bom Retiro
+PT-015;-13,710239;-56,271143;Fazenda Santa Luzia
+PT-016;-13,692605;-56,201807;Sítio Paraíso
+PT-017;-13,742694;-56,270916;Fazenda Estrela do Sul
+PT-018;-13,674079;-56,198556;Chácara Alvorada
+PT-019;-13,697805;-56,180926;Fazenda Rio Claro
+PT-020;-13,684965;-56,277174;Sítio Monte Alegre
+PT-021;-13,69348;-56,276719;Fazenda Sossego
+PT-022;-13,720545;-56,170024;Estância Boa Sorte
+PT-023;-13,669357;-56,263764;Fazenda Santa Fé
+PT-024;-13,674174;-56,177366;Sítio Vale Verde
+PT-025;-13,674758;-56,051881;Fazenda São Francisco
+PT-026;-13,748895;-56,025071;Chácara Canaã
+PT-027;-13,746089;-56,048399;Fazenda Jatobá
+PT-028;-13,766123;-56,148248;Sítio Ipê Amarelo
+PT-029;-13,693485;-56,098571;Fazenda Aroeira
+PT-030;-13,667092;-56,138556;Estância Serrinha
+PT-031;-13,689386;-56,15388;Fazenda Cambará
+PT-032;-13,743156;-56,082621;Sítio Santo Expedito
+PT-033;-13,698666;-56,144209;Fazenda Dois Córregos
+PT-034;-13,746551;-56,117528;Chácara Lagoa Seca
+PT-035;-13,669886;-56,155915;Fazenda Santa Helena
+PT-036;-13,705959;-56,050497;Sítio Mangueiral
+PT-037;-13,766986;-56,07557;Fazenda Água Doce
+PT-038;-13,671665;-56,084348;Estância Morro Alto
+PT-039;-13,682258;-56,149162;Fazenda Pedra Branca
+PT-040;-13,720851;-56,14077;Sítio Vista Alegre
+PT-041;-13,709258;-56,132452;Fazenda Esperança
+PT-042;-13,698814;-56,044246;Chácara Brejão
+PT-043;-13,761281;-56,048028;Fazenda Ponte Alta
+PT-044;-13,661542;-56,120341;Sítio Capim Branco
+PT-045;-13,678097;-56,135787;Fazenda Taboca
+PT-046;-13,69567;-56,059902;Estância Guarita
+PT-047;-13,69769;-56,117112;Fazenda Mutum
+PT-048;-13,668208;-56,091313;Sítio Seriema
+PT-049;-13,737798;-56,102503;Fazenda Bom Sucesso
+PT-050;-13,749191;-56,106096;Chácara Floresta
+PT-051;-13,747245;-56,058529;Fazenda Querência
+PT-052;-13,662697;-56,153048;Sítio Tapera
+PT-053;-13,736526;-56,091974;Fazenda Coqueiral
+PT-054;-13,726954;-56,0358;Estância Cascata
+PT-055;-13,711923;-56,061201;Fazenda Saudade
+PT-056;-13,837788;-56,222903;Sítio Santa Marta
+PT-057;-13,839268;-56,275667;Fazenda Boa Fé
+PT-058;-13,797915;-56,249898;Chácara Gameleira
+PT-059;-13,803224;-56,278586;Fazenda Sucupira
+PT-060;-13,814519;-56,285086;Sítio Buritizal
+PT-061;-13,856307;-56,274322;Fazenda Pedra Lisa
+PT-062;-13,847096;-56,229281;Estância Novo Horizonte
+PT-063;-13,770135;-56,282028;Fazenda Santa Maria
+PT-064;-13,787779;-56,255674;Sítio Palmeiras
+PT-065;-13,778905;-56,263517;Fazenda São Miguel
+PT-066;-13,77799;-56,22767;Chácara Cachoeira
+PT-067;-13,796048;-56,180478;Fazenda Rio Bonito
+PT-068;-13,836217;-56,175379;Sítio Paineira
+PT-069;-13,823381;-56,263059;Fazenda Laranjal
+PT-070;-13,768149;-56,170092;Estância Pindorama
+PT-071;-13,789988;-56,290011;Fazenda Vereda
+PT-072;-13,861512;-56,268488;Sítio Boqueirão
+PT-073;-13,810461;-56,197942;Fazenda Arapuá
+PT-074;-13,770448;-56,298586;Chácara Soledade
+PT-075;-13,852019;-56,197779;Fazenda Malhada
+PT-076;-13,775606;-56,275772;Sítio Pontal
+PT-077;-13,812416;-56,271567;Fazenda Santa Inês
+PT-078;-13,823664;-56,274804;Estância Bonança
+PT-079;-13,810886;-56,290376;Fazenda Retiro Feliz
+PT-080;-13,834669;-56,283881;Sítio Lagoa Dourada
+PT-081;-13,840747;-56,182283;Fazenda Três Marias
+PT-082;-13,843784;-56,281652;Chácara Bacuri
+PT-083;-13,845388;-56,21977;Fazenda Imbaúba
+PT-084;-13,767608;-56,163657;Sítio Rio Preto
+PT-085;-13,790979;-56,087457;Fazenda Tucano
+PT-086;-13,788627;-56,140029;Estância Araras
+PT-087;-13,850828;-56,046986;Fazenda Capivara
+PT-088;-13,848084;-56,169334;Sítio Cedro
+PT-089;-13,786807;-56,105281;Fazenda Baliza
+PT-090;-13,788182;-56,074968;Chácara Jacarandá
+PT-091;-13,858306;-56,10953;Fazenda Angico
+PT-092;-13,7869;-56,034559;Sítio Pequi
+PT-093;-13,851859;-56,135863;Fazenda Mangabeira
+PT-094;-13,844907;-56,106378;Estância Barro Preto
+PT-095;-13,812719;-56,143309;Fazenda Olho d’Água
+PT-096;-13,845039;-56,132685;Sítio Ribeirão Claro
+PT-097;-13,783931;-56,117849;Fazenda Santa Tereza
+PT-098;-13,804763;-56,134651;Chácara Poço Fundo
+PT-099;-13,837266;-56,081414;Fazenda Campina Verde
+PT-100;-13,792291;-56,127576;Sítio Bom Destino

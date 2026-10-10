@@ -1,0 +1,56 @@
+@import './theme.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; }
+  body { font-variant-numeric: tabular-nums; background: rgb(var(--c-slate-100)); }
+  :focus-visible { outline: 2px solid #EE7A12; outline-offset: 2px; border-radius: 3px; }
+  textarea:focus-visible { outline-offset: 0; }
+}
+
+/* Fundo cartográfico em tons neutros para dar contraste às camadas. */
+.leaflet-tile-pane { filter: grayscale(0.85) brightness(1.05) contrast(0.92); }
+/* Modo escuro: inverte só a aparência dos tiles no navegador (nenhuma requisição muda). */
+.dark .leaflet-tile-pane { filter: grayscale(0.9) invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.88); }
+.leaflet-container { font-family: inherit; background: var(--map-bg) !important; }
+.leaflet-control-zoom { border: 1px solid rgb(var(--c-slate-200)) !important; border-radius: 6px !important; overflow: hidden; box-shadow: 0 2px 6px rgba(11,34,51,.12) !important; }
+.leaflet-control-zoom a { color: rgb(var(--c-petrol-800)) !important; background: rgb(var(--c-white)) !important; border-color: rgb(var(--c-slate-200)) !important; }
+.leaflet-control-zoom a:hover { background: rgb(var(--c-slate-50)) !important; }
+.leaflet-control-attribution { font-size: 10.5px; }
+.dark .leaflet-control-attribution { background: rgba(19,36,48,.85) !important; color: rgb(var(--c-slate-500)); }
+.dark .leaflet-control-attribution a { color: rgb(var(--c-petrol-500)); }
+
+/* Rótulos permanentes das unidades territoriais */
+.leaflet-tooltip.cr-region-label {
+  background: transparent; border: 0; box-shadow: none; padding: 0;
+}
+.leaflet-tooltip.cr-region-label::before { display: none; }
+.cr-region-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgb(var(--c-white) / .95); color: rgb(var(--c-petrol-800));
+  border: 1px solid rgb(var(--c-accent-200)); border-radius: 4px;
+  padding: 2px 8px 2px 2px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(11,34,51,.18);
+}
+.cr-region-chip b { background: #EE7A12; color: #fff; border-radius: 3px; padding: 1px 5px; font-size: 11px; }
+.cr-region-chip.is-focused { background: rgb(var(--c-petrol-800)); color: rgb(var(--c-white)); border-color: rgb(var(--c-petrol-800)); }
+.cr-region-chip.is-focused b { background: #EE7A12; color: #fff; }
+
+.leaflet-tooltip.cr-point-tip { font-size: 12px; border-radius: 4px; padding: 5px 8px; color: rgb(var(--c-petrol-900)); }
+.dark .leaflet-tooltip { background: rgb(var(--c-white)); color: rgb(var(--c-petrol-900)); border-color: rgb(var(--c-slate-200)); }
+.dark .leaflet-tooltip-top::before { border-top-color: rgb(var(--c-white)); }
+.dark .leaflet-tooltip-bottom::before { border-bottom-color: rgb(var(--c-white)); }
+.dark .leaflet-tooltip-left::before { border-left-color: rgb(var(--c-white)); }
+.dark .leaflet-tooltip-right::before { border-right-color: rgb(var(--c-white)); }
+
+/* Transição suave na troca de tema (desligada para quem prefere menos movimento). */
+html.theme-transition, html.theme-transition * {
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

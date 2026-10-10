@@ -1,0 +1,26 @@
+{
+  "fonte": "IBGE — Malha de Setores Censitários — Censo 2022",
+  "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/censo_2022/setores/shp/UF/MG_setores_CD2022.zip",
+  "arquivo": "MG_setores_CD2022.zip",
+  "tamanhoBytes": 96003091,
+  "sha256": "5e001cb4149fad84a8a7491aaec7b97dd6f80c5e01b797bdd0851ff8bc0ff18c",
+  "dataObtencao": "2026-10-10",
+  "crsOrigem": "GCS_SIRGAS_2000 (geográfico, graus) — conforme MG_setores_CD2022.prj",
+  "codificacaoOrigem": "UTF-8 — conforme MG_setores_CD2022.cpg",
+  "municipio": { "nome": "Cataguases", "uf": "MG", "CD_MUN": "3115300" },
+  "filtro": "CD_MUN = '3115300'",
+  "feicoes": 140,
+  "conversao": {
+    "metodo": "Leitor de Shapefile em Python (sem dependências), pois GDAL não estava disponível na máquina de preparação. Coordenadas copiadas sem transformação (SIRGAS 2000 → EPSG:4326 tratado como identidade, como faz o ogr2ogr), arredondadas a 7 casas decimais, anéis externos anti-horários e buracos horários (RFC 7946). Sem simplificação.",
+    "procedimentoRecomendado": "scripts/preparar_camada_ibge.sh MG 3115300 (GDAL) — reexecutar quando GDAL estiver disponível e comparar com este arquivo.",
+    "verificacoes": [
+      "Atributos oficiais preservados integralmente (29 campos).",
+      "CD_SETOR único nas 140 feições.",
+      "Validade: anéis fechados, ≥ 4 pontos, sem autointerseção, buracos dentro do anel externo — 0 problemas.",
+      "Sobreposição: 20.000 pontos sorteados na caixa envolvente — 0 pontos em mais de uma unidade.",
+      "Validação da aplicação (scripts/inspecionar_camada.mjs) — camada utilizável."
+    ]
+  },
+  "status": "official-unvalidated — conferência visual independente (QGIS) ainda não registrada",
+  "geradoEm": "2026-10-10"
+}

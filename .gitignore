@@ -1,0 +1,17 @@
+node_modules
+dist
+.DS_Store
+*.log
+
+# ---- Dados operacionais (NUNCA versionar) ----
+# CSVs reais da engenharia: mantenha-os fora do projeto ou nestas pastas.
+dados/
+dados_reais/
+data/private/
+*.real.csv
+*.local.csv
+# Exportações de auditoria geradas pela aplicação
+auditoria_conecta_rural_*.csv
+# Downloads brutos do IBGE (grandes; reobtidos pelo script de preparação)
+scripts/ibge/raw/
+scripts/ibge/tmp/
