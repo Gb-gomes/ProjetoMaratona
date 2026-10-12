@@ -108,6 +108,29 @@ Pré-requisito: camada do piloto preparada e `PILOT_CONFIG.status` diferente de 
 - **Onde ficam salvos:** no navegador desta máquina (`localStorage`). Só os nomes de região são guardados, sem coordenadas ou dados de cliente. Use **Exportar** para gerar um JSON (backup, outra máquina ou `public/data/ibge/correspondencia_nomes.json`) e **Importar** para carregá-lo. Limpar os dados do navegador apaga os nomes não exportados.
 - Nomes do operador têm prioridade sobre a tabela de correspondência do projeto.
 
+## Pontos prioritários (cadastro manual e alertas)
+
+Etapa **demonstrativa**: o armazenamento é local e não há controle de acesso; não use com dados reais de clientes. Detalhes em [docs/PONTOS_PRIORITARIOS.md](docs/PONTOS_PRIORITARIOS.md).
+
+- No painel **"Alertas de pontos prioritários"** (coluna esquerda):
+  - **Cadastrar ponto prioritário** abre o formulário.
+  - **Cadastro (N)** abre a consulta: pesquisa por identificador, filtros de categoria e status, data de atualização, Editar, Desativar/Reativar, Ver no mapa e Excluir (este último só para registros que nunca geraram alerta).
+- **Categorias:**
+  - **A — Equipamento vital** (vermelho): registre só o mínimo necessário.
+  - **B — Atividade produtiva crítica** (violeta): exige atividade e impacto.
+- **Comparação automática** a cada processamento:
+  - usa a distância calculada (Haversine) com tolerância configurável, padrão 30 m (`PRIORITY_MATCH`), que é um **parâmetro de teste**;
+  - **confirmada** só com código da UC igual à coluna de cliente do CSV e ponto dentro da tolerância;
+  - **possível** quando há só proximidade;
+  - **exige revisão** em ambiguidades e divergências.
+- **Alertas rastreáveis:**
+  - status Pendente → Em análise → Encaminhado → Análise concluída, sempre com responsável;
+  - a conclusão exige decisão;
+  - o histórico nunca é apagado.
+- **Aprovação:** enquanto houver alerta de **equipamento vital** sem análise concluída, a carta não pode ser aprovada e o desligamento não aparece como validado.
+- **Mapa:** camada própria (liga/desliga sem perder resultados). Ao selecionar um alerta, o mapa centraliza e liga o cadastro aos pontos do CSV envolvidos.
+- **Separação dos modos:** Demonstração e Teste real têm cadastros separados. A demonstração vem com registros **fictícios** ("Restaurar exemplos" recria esses registros).
+
 ## Tema claro e escuro
 
 - O seletor no cabeçalho (sol, lua e monitor) alterna entre **Claro**, **Escuro** e **Seguir o sistema** (padrão). A escolha fica salva neste navegador.
@@ -116,9 +139,10 @@ Pré-requisito: camada do piloto preparada e `PILOT_CONFIG.status` diferente de 
 
 ## Privacidade
 
-- O CSV é lido com `FileReader` e processado em memória. Não vai para `localStorage` nem é enviado a nenhum serviço. O `localStorage` guarda apenas os nomes de região definidos pelo operador, o último nome de responsável digitado e a preferência de tema.
+- O CSV é lido com `FileReader` e processado em memória. Não vai para `localStorage` nem é enviado a nenhum serviço. O `localStorage` guarda os nomes de região definidos pelo operador, o último nome de responsável digitado, a preferência de tema e o **cadastro de pontos prioritários** com seu histórico de alertas. Este cadastro é a única exceção que guarda coordenadas, porque a persistência foi pedida; é provisório, sem controle de acesso e não serve para dados reais (ver docs/PONTOS_PRIORITARIOS.md).
 - `index.html` declara uma CSP com `connect-src 'self'`, que impede `fetch`/XHR para outros domínios. Os tiles do OpenStreetMap são imagens de fundo e não recebem as coordenadas dos pontos.
-- Nenhuma coordenada é registrada no console.
+- Nenhuma coordenada é registrada no console. O histórico de alertas não guarda coordenadas do CSV.
+- Dados do cadastro prioritário nunca entram na carta para as rádios nem na auditoria.
 - O `.gitignore` bloqueia `dados/`, `dados_reais/`, `data/private/`, `*.real.csv`, `*.local.csv`, exportações de auditoria e os downloads brutos do IBGE.
 - Não use dados reais de clientes em capturas de tela ou demonstrações públicas.
 
@@ -143,8 +167,10 @@ src/
 │   ├── RegionPanel.jsx         Lista de unidades, seleção e detalhes
 │   ├── CommunicationPanel.jsx  Comparação, indicador e ações do aviso
 │   ├── AuditDialog.jsx         Auditoria: resumo, consistência, rastreio, exportação
+│   ├── PriorityAlertsPanel.jsx Alertas de pontos prioritários: resumo, lista e revisão
+│   ├── PriorityRegistry.jsx    Painel lateral do cadastro (consulta e formulário)
 │   └── StatusBadge.jsx, Toasts.jsx
-├── data/                       Dados FICTÍCIOS do modo Demonstração
+├── data/                       Dados FICTÍCIOS do modo Demonstração (inclui demoPriority.js)
 └── lib/
     ├── csv.js                  Leitura (separador, BOM, codificação), mapeamento, validação
     ├── layer.js                Carga e validação da camada GeoJSON e da correspondência de nomes
@@ -156,6 +182,11 @@ src/
     ├── announcement.js         Regra de citação: região × propriedades (menos de 3 clientes)
     ├── regionNames.js          Nomes de região do operador: histórico, armazenamento, exportação/importação
     ├── theme.js                Preferência de tema (claro, escuro, sistema)
+    ├── priorityRecords.js      Pontos prioritários: estrutura, validação, histórico
+    ├── priorityRepository.js   Persistência provisória (localStorage) com contrato trocável por API
+    ├── usePriorityRegistry.js  Hook usado pela interface (cadastro + alertas)
+    ├── priorityMatch.js        Comparação CSV × cadastro (Haversine + tolerância + identificador)
+    ├── priorityAlerts.js       Fluxo de revisão, histórico e bloqueio de validação
     ├── geo.js                  Utilitários geométricos
     └── __tests__/              Testes automatizados
 public/data/ibge/               Camada oficial do piloto (a ser gerada) e correspondência de nomes
@@ -166,6 +197,7 @@ scripts/
 └── validar_cruzamento.mjs      Pipeline da aplicação em linha de comando + comparação com setor de referência
 docs/
 ├── CAMADA_TERRITORIAL.md       Fonte, campos, unidade escolhida, procedimento, limitações
+├── PONTOS_PRIORITARIOS.md      Cadastro manual, regra de comparação, alertas, persistência e limites
 └── RELATORIO_VALIDACAO.md      Relatório do teste técnico e modelo para o primeiro teste real
 ```
 
@@ -181,6 +213,7 @@ docs/
 - A camada de Cataguases foi convertida sem GDAL; falta a conferência visual independente no QGIS.
 - O setor censitário não tem nome próprio. Sem nome definido, a carta usa o nome automático da área do IBGE (distrito + situação), que pode ser amplo; por exemplo, setores rurais vizinhos podem receber o mesmo nome "Zona rural de Sereno". Nomear as regiões resolve isso.
 - Coordenadas UTM não são convertidas.
+- Pontos prioritários: cadastro só no navegador local, sem autenticação nem controle de acesso. A tolerância de 30 m não foi validada operacionalmente, e sem coluna de cliente/UC no CSV nenhuma correspondência é confirmada. A ausência de alerta não comprova que não há cliente prioritário afetado.
 - Não há versão simplificada da camada só para exibição.
 - A camada "Rede elétrica" está desabilitada por falta de dados.
 - O indicador de transformação compara apenas a quantidade de itens do aviso. Ele não estima economia financeira.

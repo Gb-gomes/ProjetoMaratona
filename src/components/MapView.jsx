@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  MapContainer, TileLayer, Polygon, CircleMarker, Tooltip, ZoomControl, useMap,
+  MapContainer, TileLayer, Polygon, CircleMarker, Marker, Polyline, Tooltip, ZoomControl, useMap,
 } from 'react-leaflet';
+import L from 'leaflet';
 import {
   LoaderCircle, MapPinned, CircleAlert, TriangleAlert, FlaskConical, CircleCheck, Database,
 } from 'lucide-react';
@@ -14,6 +15,8 @@ import {
 import { geometryToLatLngs, mergeBounds, padBounds } from '../lib/geo.js';
 import { BRAZIL_BBOX } from '../lib/csv.js';
 import { pointsForMap } from '../lib/summary.js';
+import { PRIORITY_CATEGORIES } from '../lib/priorityRecords.js';
+import { MATCH_LABEL } from '../lib/priorityMatch.js';
 
 const DEMO_BOUNDS = [[DEMO_AREA.south, DEMO_AREA.west], [DEMO_AREA.north, DEMO_AREA.east]];
 const DEMO_MAX_BOUNDS = [
@@ -72,6 +75,20 @@ function pointStyle({
   };
 }
 
+/** Ícones DOM dos pontos prioritários (forma = categoria; anel = situação da análise). */
+const prioIconCache = new Map();
+function priorityIcon({ category, status, focused }) {
+  const key = `${category}|${status ?? ''}|${focused ? 1 : 0}`;
+  if (!prioIconCache.has(key)) {
+    const cls = ['cr-prio-mark', `cat-${category}`, status ? `st-${status}` : '', focused ? 'is-focused' : '']
+      .filter(Boolean).join(' ');
+    prioIconCache.set(key, L.divIcon({
+      className: 'cr-prio', html: `<div class="${cls}"><span>${category}</span></div>`, iconSize: [18, 18], iconAnchor: [9, 9],
+    }));
+  }
+  return prioIconCache.get(key);
+}
+
 const STATUS_TEXT = { matched: null, unmatched: 'Sem correspondência territorial', ambiguous: 'Associação ambígua — revisar' };
 
 /**
@@ -80,7 +97,7 @@ const STATUS_TEXT = { matched: null, unmatched: 'Sem correspondência territoria
  * - Voa até a área de interesse quando a fase ou a região em foco mudam.
  * A câmera é limitada por maxBounds no MapContainer.
  */
-function MapController({ viewKey, targetBounds }) {
+function MapController({ viewKey, targetBounds, maxZoom = 13 }) {
   const map = useMap();
 
   useEffect(() => {
@@ -95,7 +112,7 @@ function MapController({ viewKey, targetBounds }) {
     map.flyToBounds(targetBounds, {
       paddingTopLeft: [240, 56],
       paddingBottomRight: [32, 32],
-      maxZoom: 13,
+      maxZoom,
       duration: animate ? 0.7 : 0,
       animate,
     });
@@ -112,6 +129,7 @@ function MapController({ viewKey, targetBounds }) {
 export default function MapView({
   mode = 'demo', phase, result, territories, layerState, layers, onToggleLayer, pointFilter, onTogglePointFilter,
   focusId, onFocus, selectedIds, layerInfo, nameOf = (u) => u.name, dark = false,
+  priorityRecords = [], priorityAnalysis = null, priorityFocus = null, onPriorityFocus,
 }) {
   const pal = MAP_PALETTE[dark ? 'dark' : 'light'];
   const [tileErrors, setTileErrors] = useState(0);
@@ -139,6 +157,24 @@ export default function MapView({
     if (!result.units.length) return areaBounds;
     return padBounds(mergeBounds(result.units.map((u) => u.bounds)), 0.12);
   }, [done, focusId, unitsById, result, areaBounds]);
+
+  // Pontos prioritários: cadastros ativos + situação na análise atual.
+  const alertByRecord = useMemo(
+    () => new Map((priorityAnalysis && !priorityAnalysis.blocked ? priorityAnalysis.alerts : []).map((a) => [a.recordId, a])),
+    [priorityAnalysis],
+  );
+  const pointByKey = useMemo(() => new Map((done ? result.points : []).map((p) => [p.key, p])), [done, result]);
+  const focusedRecord = priorityFocus ? priorityRecords.find((r) => r.id === priorityFocus.recordId) : null;
+  const prioFocusKeys = useMemo(() => new Set(priorityFocus?.pointKeys ?? []), [priorityFocus]);
+  const prioTarget = useMemo(() => {
+    if (!focusedRecord) return null;
+    const pts = [[focusedRecord.lat, focusedRecord.lng],
+      ...[...prioFocusKeys].map((k) => pointByKey.get(k)).filter(Boolean).map((p) => [p.lat, p.lng])];
+    const lats = pts.map((p) => p[0]);
+    const lngs = pts.map((p) => p[1]);
+    const m = 0.0015;
+    return [[Math.min(...lats) - m, Math.min(...lngs) - m], [Math.max(...lats) + m, Math.max(...lngs) + m]];
+  }, [focusedRecord, prioFocusKeys, pointByKey]);
 
   const tilesUnavailable = tileErrors >= 4 && !tileLoaded;
   // Polígonos: no demo, só após o processamento; no real, assim que a camada carrega.
@@ -191,7 +227,11 @@ export default function MapView({
             }}
           />
           <ZoomControl position="bottomright" />
-          <MapController viewKey={`${phase}|${focusId ?? ''}`} targetBounds={targetBounds} />
+          <MapController
+            viewKey={`${phase}|${focusId ?? ''}|${priorityFocus?.recordId ?? ''}|${priorityFocus?.nonce ?? ''}`}
+            targetBounds={prioTarget ?? targetBounds}
+            maxZoom={prioTarget ? 16 : 13}
+          />
 
           {showTerritories && territories.features.map((feature) => {
             const { id } = feature.properties;
@@ -238,13 +278,18 @@ export default function MapView({
             const related = p.unitId === focusId || p.candidates?.includes(focusId);
             const inFocus = !focusId || related;
             const unit = p.unitId ? unitsById.get(p.unitId) : null;
+            const style = pointStyle({
+              focused: !!focusId && inFocus, dimmed: !inFocus, status: p.status, pal,
+            });
+            // Pontos do CSV envolvidos no alerta selecionado.
+            const prioHit = prioFocusKeys.has(p.key);
             return (
               <CircleMarker
                 key={p.key}
                 center={[p.lat, p.lng]}
-                pathOptions={pointStyle({
-                  focused: !!focusId && inFocus, dimmed: !inFocus, status: p.status, pal,
-                })}
+                pathOptions={prioHit ? {
+                  ...style, radius: 7, color: '#EE7A12', weight: 3, opacity: 1, fillOpacity: 1,
+                } : style}
               >
                 <Tooltip direction="top" offset={[0, -4]} className="cr-point-tip">
                   {isDemo ? (
@@ -265,6 +310,37 @@ export default function MapView({
               </CircleMarker>
             );
           })}
+          {layers.priority && focusedRecord && [...prioFocusKeys].map((k) => pointByKey.get(k)).filter(Boolean).map((p) => (
+            <Polyline
+              key={`l-${p.key}`}
+              positions={[[focusedRecord.lat, focusedRecord.lng], [p.lat, p.lng]]}
+              pathOptions={{ color: '#EE7A12', weight: 2, dashArray: '4 4' }}
+              interactive={false}
+            />
+          ))}
+
+          {layers.priority && priorityRecords.map((r) => {
+            const a = alertByRecord.get(r.id);
+            const focused = priorityFocus?.recordId === r.id;
+            return (
+              <Marker
+                key={`pp-${r.id}`}
+                position={[r.lat, r.lng]}
+                icon={priorityIcon({ category: r.category, status: a?.matchStatus, focused })}
+                zIndexOffset={focused ? 1000 : a ? 500 : 0}
+                keyboard={false}
+                eventHandlers={onPriorityFocus ? { click: () => onPriorityFocus(r.id) } : undefined}
+              >
+                <Tooltip direction="top" offset={[0, -12]} className="cr-point-tip">
+                  <strong>{r.id}</strong> | {PRIORITY_CATEGORIES[r.category]?.label}
+                  <br />
+                  {a
+                    ? `${MATCH_LABEL[a.matchStatus]}: ${a.distanceMeters.toLocaleString('pt-BR')} m de ${a.primaryPointLabel}`
+                    : (done ? 'Sem alerta nesta análise' : 'Ponto prioritário cadastrado')}
+                </Tooltip>
+              </Marker>
+            );
+          })}
         </MapContainer>
 
         {/* Controles flutuantes (telas médias e grandes) */}
@@ -277,11 +353,12 @@ export default function MapView({
               pointFilter={isReal ? pointFilter : null}
               onTogglePointFilter={onTogglePointFilter}
               counts={counts}
+              priorityCount={priorityRecords.length}
             />
           </div>
         </div>
         <div className="pointer-events-none absolute bottom-3 left-3 z-[500] hidden md:block">
-          <div className="pointer-events-auto"><MapLegend demo={isDemo} layerInfo={layerInfo} /></div>
+          <div className="pointer-events-auto"><MapLegend demo={isDemo} layerInfo={layerInfo} showPriority={layers.priority && priorityRecords.length > 0} /></div>
         </div>
 
         <div className="pointer-events-none absolute left-3 right-3 top-3 z-[500] flex justify-end md:left-auto md:max-w-[calc(100%-260px)]">
@@ -353,8 +430,9 @@ export default function MapView({
           pointFilter={isReal ? pointFilter : null}
           onTogglePointFilter={onTogglePointFilter}
           counts={counts}
+              priorityCount={priorityRecords.length}
         />
-        <MapLegend demo={isDemo} layerInfo={layerInfo} />
+        <MapLegend demo={isDemo} layerInfo={layerInfo} showPriority={layers.priority && priorityRecords.length > 0} />
       </div>
     </section>
   );

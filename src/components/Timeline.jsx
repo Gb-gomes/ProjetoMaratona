@@ -4,7 +4,9 @@ import { Check } from 'lucide-react';
  * Linha do tempo operacional. A etapa atual é derivada do estado da
  * interface; nenhum envio real de aviso é simulado.
  */
-export default function Timeline({ outage, phase, noticeStatus, mode = 'demo' }) {
+export default function Timeline({
+  outage, phase, noticeStatus, mode = 'demo', priorityPending = false,
+}) {
   const isReal = mode === 'real';
   const approved = noticeStatus === 'approved';
 
@@ -27,7 +29,9 @@ export default function Timeline({ outage, phase, noticeStatus, mode = 'demo' })
       when: outage.noticeDaysBefore != null ? `${outage.noticeDaysBefore} dias antes (${outage.noticeDate})` : 'Antecedência não informada',
       text: 'O operador revisa o aviso e prepara a comunicação.',
       state: phase !== 'done' ? 'upcoming' : approved ? 'done' : 'current',
-      tag: phase !== 'done' ? null : approved ? (isReal ? 'Aprovado no teste, sem envio' : 'Aprovado para demonstração, sem envio') : 'Em revisão',
+      tag: phase !== 'done' ? null
+        : priorityPending ? 'Revisão de pontos prioritários pendente'
+          : approved ? (isReal ? 'Aprovado no teste, sem envio' : 'Aprovado para demonstração, sem envio') : 'Em revisão',
     },
     {
       title: 'Desligamento',

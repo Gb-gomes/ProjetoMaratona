@@ -11,11 +11,14 @@ import RegionPanel from './components/RegionPanel.jsx';
 import CommunicationPanel from './components/CommunicationPanel.jsx';
 import AuditDialog from './components/AuditDialog.jsx';
 import Toasts from './components/Toasts.jsx';
+import PriorityAlertsPanel from './components/PriorityAlertsPanel.jsx';
+import PriorityRegistry from './components/PriorityRegistry.jsx';
+import { buildDemoPriorityRecords } from './data/demoPriority.js';
 import {
   OUTAGE, DEMO_FILE_NAME, DEMO_POINTS, DEMO_TERRITORIES,
 } from './data/mockData.js';
 import {
-  TERRITORIAL_LAYER, PROCESSING_STEPS, PROCESSING_DURATION_MS, PILOT_CONFIG, PILOT_STATUS_LABEL, ANNOUNCEMENT_RULES,
+  TERRITORIAL_LAYER, PROCESSING_STEPS, PROCESSING_DURATION_MS, PILOT_CONFIG, PILOT_STATUS_LABEL, ANNOUNCEMENT_RULES, PRIORITY_MATCH,
 } from './config.js';
 import { mockSpatialJoin } from './lib/mockSpatialJoin.js';
 import { spatialJoin } from './lib/spatialJoin.js';
@@ -34,6 +37,13 @@ import {
 import { buildOutageView, EMPTY_OUTAGE_FORM } from './lib/outage.js';
 import { summarize, DEFAULT_POINT_FILTER } from './lib/summary.js';
 import { useTheme } from './lib/theme.js';
+import { usePriorityRegistry } from './lib/usePriorityRegistry.js';
+import { priorityScope } from './lib/priorityRepository.js';
+import { upsertRecord, setRecordStatus, deleteRecord } from './lib/priorityRecords.js';
+import { matchPriorityPoints } from './lib/priorityMatch.js';
+import {
+  buildAnalysisRef, syncAlerts, transitionAlert, alertGate,
+} from './lib/priorityAlerts.js';
 
 const DEMO_FILE = {
   source: 'demo',
@@ -43,7 +53,7 @@ const DEMO_FILE = {
   validation: null,
 };
 const EMPTY_NOTICE = { text: '', status: 'draft', dirty: false, stale: false };
-const DEFAULT_LAYERS = { points: true, territories: true };
+const DEFAULT_LAYERS = { points: true, territories: true, priority: true };
 const EMPTY_IMPORT = {
   status: 'empty', fileName: '', encoding: '', parsed: null, mapping: {}, crs: '', validation: null, error: '',
 };
@@ -89,6 +99,16 @@ export default function App() {
   // Nomes de região definidos pelo operador (salvos neste navegador, com histórico).
   const [regionStore, setRegionStore] = useState(() => loadStore(PILOT_CONFIG.territory.ibgeCode));
   const [operator, setOperator] = useState(() => loadOperator());
+
+  // Pontos prioritários: cadastro e histórico de alertas persistidos por escopo (demo / real).
+  const priorityRegistry = usePriorityRegistry(priorityScope(mode, PILOT_CONFIG.territory.ibgeCode), {
+    seed: mode === 'demo' ? buildDemoPriorityRecords : null,
+    onError: (msg) => notify('error', msg),
+  });
+  const [priorityTolerance, setPriorityTolerance] = useState(PRIORITY_MATCH.toleranceMeters);
+  const [analysisRef, setAnalysisRef] = useState(null); // desligamento analisado (congelado no processamento)
+  const [priorityFocus, setPriorityFocus] = useState(null); // { recordId, pointKeys, nonce }
+  const [registryNav, setRegistryNav] = useState(null); // null | { view: 'list' } | { view: 'form', editingId }
 
   const isReal = mode === 'real';
   const timers = useRef([]);
@@ -220,7 +240,46 @@ export default function App() {
     if (notice.dirty) setNotice((prev) => ({ ...prev, stale: true, status: 'edited' }));
   };
 
+  /* ---------------- Pontos prioritários ---------------- */
+  const priorityRecordsActive = useMemo(
+    () => priorityRegistry.records.filter((r) => r.status === 'active' && Number.isFinite(r.lat) && Number.isFinite(r.lng)),
+    [priorityRegistry.records],
+  );
+  const priorityAnalysis = useMemo(() => {
+    if (!result || !analysisRef || priorityRegistry.status !== 'ready') return null;
+    return matchPriorityPoints({
+      points: result.points,
+      invalidCount: result.invalid ?? 0,
+      crs: result.source === 'demo' ? null : analysisRef.crs,
+      records: priorityRegistry.records,
+      toleranceMeters: Math.min(Number(priorityTolerance), PRIORITY_MATCH.maxToleranceMeters),
+      sharedIdField: PRIORITY_MATCH.sharedIdField,
+      sharedIdMapped: result.source !== 'demo' && analysisRef.sharedIdMapped,
+    });
+  }, [result, analysisRef, priorityRegistry.status, priorityRegistry.records, priorityTolerance]);
+  const priorityGate = useMemo(
+    () => alertGate(priorityAnalysis, priorityRegistry.alerts, analysisRef),
+    [priorityAnalysis, priorityRegistry.alerts, analysisRef],
+  );
+
+  // Cada alerta da análise atual ganha uma entrada rastreável no histórico.
+  const { alerts: priorityAlerts, commitAlerts } = priorityRegistry;
+  useEffect(() => {
+    if (!priorityAnalysis || !analysisRef) return;
+    const next = syncAlerts(priorityAlerts, priorityAnalysis, analysisRef);
+    if (next !== priorityAlerts) commitAlerts(next);
+  }, [priorityAnalysis, analysisRef, priorityAlerts, commitAlerts]);
+
+  // Um novo alerta de equipamento vital pendente tira a carta do estado "aprovada".
+  useEffect(() => {
+    if (priorityGate.blocked && notice.status === 'approved') {
+      setNotice((prev) => ({ ...prev, status: prev.dirty ? 'edited' : 'draft' }));
+      notify('warning', 'Há alerta de equipamento vital pendente: a carta voltou para rascunho.');
+    }
+  }, [priorityGate.blocked, notice.status, notify]);
+
   const approvalBlocker = useMemo(() => {
+    if (priorityGate.blocked) return priorityGate.message;
     if (!isReal) return null;
     if (hasPlaceholders(notice.text)) {
       return currentNotice.pendingUnits.length
@@ -229,7 +288,93 @@ export default function App() {
     }
     if (outage.problems?.length) return outage.problems[0];
     return null;
-  }, [isReal, notice.text, currentNotice.pendingUnits.length, outage.problems]);
+  }, [isReal, notice.text, currentNotice.pendingUnits.length, outage.problems, priorityGate]);
+
+  const focusPriority = useCallback((recordId, force) => {
+    setPriorityFocus((cur) => {
+      const close = force === false || (force === undefined && cur?.recordId === recordId);
+      if (close) return null;
+      const alert = priorityAnalysis?.alerts.find((a) => a.recordId === recordId);
+      return { recordId, pointKeys: alert?.pointKeys ?? [], nonce: Date.now() };
+    });
+    if (force !== false) setFocusId(null);
+  }, [priorityAnalysis]);
+
+  const handleSaveRecord = (value, editingId, by) => {
+    try {
+      const next = upsertRecord(priorityRegistry.records, value, { by, editingId });
+      if (next === priorityRegistry.records) {
+        notify('info', 'Nenhuma alteração para salvar.');
+      } else {
+        priorityRegistry.commitRecords(next);
+        notify('success', editingId ? `Registro ${editingId} atualizado.` : `Ponto prioritário ${value.id} cadastrado.`);
+      }
+      setOperator(by.trim());
+      saveOperator(by);
+      setRegistryNav({ view: 'list' });
+      return true;
+    } catch (err) {
+      notify('error', err.message);
+      return false;
+    }
+  };
+
+  const handleRecordStatus = (id, status, by) => {
+    try {
+      priorityRegistry.commitRecords(setRecordStatus(priorityRegistry.records, id, status, { by }));
+      setOperator(by.trim());
+      saveOperator(by);
+      notify('success', status === 'active' ? `Registro ${id} reativado.` : `Registro ${id} desativado. O histórico foi mantido.`);
+      if (status !== 'active' && priorityFocus?.recordId === id) setPriorityFocus(null);
+    } catch (err) {
+      notify('error', err.message);
+    }
+  };
+
+  const handleDeleteRecord = (id) => {
+    // eslint-disable-next-line no-alert
+    if (!window.confirm(`Excluir definitivamente o registro ${id}? Ele nunca gerou alerta.`)) return;
+    try {
+      priorityRegistry.commitRecords(deleteRecord(priorityRegistry.records, id, priorityRegistry.alerts));
+      notify('info', `Registro ${id} excluído.`);
+    } catch (err) {
+      notify('error', err.message);
+    }
+  };
+
+  const handleViewRecord = (id) => {
+    setRegistryNav(null);
+    setLayers((l) => ({ ...l, priority: true }));
+    focusPriority(id, true);
+  };
+
+  const handleAlertAction = (key, payload) => {
+    try {
+      priorityRegistry.commitAlerts(transitionAlert(priorityRegistry.alerts, key, payload));
+      setOperator(payload.by.trim());
+      saveOperator(payload.by);
+      notify('success', 'Revisão registrada no histórico do alerta.');
+      return true;
+    } catch (err) {
+      notify('error', err.message);
+      return false;
+    }
+  };
+
+  const handleResetDemoPriority = async () => {
+    // eslint-disable-next-line no-alert
+    if (!window.confirm('Restaurar os pontos prioritários fictícios da demonstração? Alterações e histórico da demonstração serão descartados.')) return;
+    await priorityRegistry.reset();
+    setPriorityFocus(null);
+    notify('info', 'Exemplos fictícios restaurados.');
+  };
+
+  const unitLabel = useCallback((unitId) => {
+    const u = result?.units.find((x) => x.id === unitId);
+    if (!u) return null;
+    const name = result.source === 'demo' ? u.name : resolveSpeakableName(u, nameOptions).name;
+    return `Região ${String(u.order).padStart(2, '0')}${name ? ` (${name})` : ''}`;
+  }, [result, nameOptions]);
 
   /* ---------------- Nomes de região ---------------- */
   const persistStore = (next) => {
@@ -301,6 +446,8 @@ export default function App() {
     setAuditOpen(false);
     setPointFilter(DEFAULT_POINT_FILTER);
     setAnnounceOverrides({});
+    setAnalysisRef(null);
+    setPriorityFocus(null);
   };
 
   /** Troca de modo: nenhum resultado é compartilhado entre os modos. */
@@ -454,6 +601,17 @@ export default function App() {
       : buildOutageView(outageForm, { defaultAudience: PILOT_CONFIG.territory.name });
     const { text } = letterFor(joined, ids, outageView, {});
     setNotice({ text, status: 'draft', dirty: false, stale: false });
+    // Referência do desligamento usada nos alertas de pontos prioritários.
+    setAnalysisRef({
+      ...buildAnalysisRef({
+        outageId: outageView.id,
+        dateLabel: outageView.dateLabel,
+        fileName: joined.source === 'demo' ? DEMO_FILE_NAME : imp.fileName,
+        processedAt: joined.processedAt ?? new Date().toISOString(),
+      }),
+      crs: joined.source === 'demo' ? null : imp.crs,
+      sharedIdMapped: joined.source !== 'demo' && imp.mapping[PRIORITY_MATCH.sharedIdField] != null,
+    });
   };
 
   const failProcessing = (err) => {
@@ -501,7 +659,10 @@ export default function App() {
   };
 
   /* ---------------- Seleção de regiões ---------------- */
-  const handleFocus = useCallback((id) => setFocusId((cur) => (cur === id ? null : id)), []);
+  const handleFocus = useCallback((id) => {
+    setFocusId((cur) => (cur === id ? null : id));
+    setPriorityFocus(null);
+  }, []);
 
   /** Aplica uma nova seleção e mantém o aviso coerente com ela. */
   const applySelection = (ids) => {
@@ -524,11 +685,13 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape' && focusId && !auditOpen) setFocusId(null);
+      if (e.key !== 'Escape' || auditOpen || registryNav) return;
+      if (focusId) setFocusId(null);
+      if (priorityFocus) setPriorityFocus(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [focusId, auditOpen]);
+  }, [focusId, auditOpen, registryNav, priorityFocus]);
 
   /* ---------------- Aviso ---------------- */
   const handleNoticeChange = (text) => {
@@ -579,6 +742,8 @@ export default function App() {
       : 'Carta aprovada para demonstração. Nenhuma mensagem foi enviada.');
   };
 
+  const closeRegistry = useCallback(() => setRegistryNav(null), []);
+
   /* ---------------- Layout ---------------- */
   const territories = isReal ? layerState.layer : DEMO_TERRITORIES;
 
@@ -623,6 +788,23 @@ export default function App() {
               onReset={handleReset}
             />
           )}
+          <PriorityAlertsPanel
+            mode={mode}
+            phase={phase}
+            registry={priorityRegistry}
+            analysis={priorityAnalysis}
+            analysisRef={analysisRef}
+            gate={priorityGate}
+            tolerance={priorityTolerance}
+            onToleranceChange={setPriorityTolerance}
+            toleranceLimits={{ max: PRIORITY_MATCH.maxToleranceMeters }}
+            focusedRecordId={priorityFocus?.recordId ?? null}
+            onFocusRecord={focusPriority}
+            onAction={handleAlertAction}
+            operator={operator}
+            onOpenRegistry={setRegistryNav}
+            unitLabel={unitLabel}
+          />
           {isReal
             ? (
               <OutageForm
@@ -633,7 +815,7 @@ export default function App() {
               />
             )
             : <OutageInfo outage={OUTAGE} />}
-          <Timeline outage={outage} phase={phase} noticeStatus={notice.status} mode={mode} />
+          <Timeline outage={outage} phase={phase} noticeStatus={notice.status} mode={mode} priorityPending={priorityGate.blocked} />
         </aside>
 
         {/* Centro: indicadores e mapa */}
@@ -656,6 +838,10 @@ export default function App() {
             layerInfo={layerInfo}
             nameOf={isReal ? (u) => resolveSpeakableName(u, nameOptions).name : (u) => u.name}
             dark={theme === 'dark'}
+            priorityRecords={priorityRecordsActive}
+            priorityAnalysis={priorityAnalysis}
+            priorityFocus={priorityFocus}
+            onPriorityFocus={(id) => focusPriority(id)}
           />
         </div>
 
@@ -717,6 +903,23 @@ export default function App() {
           onFocusUnit={(id) => setFocusId(id)}
         />
       )}
+      <PriorityRegistry
+        open={!!registryNav}
+        view={registryNav?.view ?? 'list'}
+        editingId={registryNav?.editingId ?? null}
+        mode={mode}
+        records={priorityRegistry.records}
+        alerts={priorityRegistry.alerts}
+        operator={operator}
+        duplicateWarningMeters={PRIORITY_MATCH.duplicateWarningMeters}
+        onClose={closeRegistry}
+        onNavigate={setRegistryNav}
+        onSave={handleSaveRecord}
+        onSetStatus={handleRecordStatus}
+        onDelete={handleDeleteRecord}
+        onViewOnMap={handleViewRecord}
+        onResetDemo={isReal ? null : handleResetDemoPriority}
+      />
       <Toasts toasts={toasts} onDismiss={dismissToast} />
     </div>
   );

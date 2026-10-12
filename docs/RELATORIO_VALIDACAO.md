@@ -138,6 +138,61 @@ Este teste confere o funcionamento da cadeia completa com **geometria oficial re
 
 **Arquivo `exemplos/desligamento_alimentador_CAT04.csv`:** é fictício, com coordenadas em Mato Grosso. Com a camada de Cataguases, resultou em 100 válidos e **100 sem correspondência**, o comportamento correto. Ele não serve para testar o piloto.
 
+## 2c. Pontos prioritários (cadastro manual e alertas): teste com dados FICTÍCIOS
+
+Executado em 10/10/2026. **Não é teste com dados reais de clientes.**
+
+### Testes automatizados
+
+`src/lib/__tests__/priority.test.js` tem 21 testes, todos passando, e cobre os 15 cenários exigidos:
+
+| Cenário | Teste |
+|---|---|
+| 1. Cadastro válido | › 1 |
+| 2. Coordenadas inválidas | › 2 |
+| 3. Aviso de duplicidade | › 3 |
+| 4. Edição, desativação e exclusão | › 4 |
+| 5. Persistência após recarregar | › 5 |
+| 6. Dentro da tolerância | › 6 |
+| 7. Fora da tolerância | › 7 |
+| 8. Coordenadas inválidas no CSV / referencial | › 8 |
+| 9. Dois cadastros próximos do mesmo ponto | › 9 |
+| 10. Um ponto perto de vários cadastros | › 10 |
+| 11. CSV sem correspondências | › 11 |
+| 12. Cadastro inativo | › 12 |
+| 13. Demo × real separados | › 13 |
+| 14. Mapa × painel consistentes | › 14 |
+| 15. Pendência de vital sem falsa aprovação | › 15 |
+| Reabertura quando a correspondência muda | reavaliação |
+
+### Teste de interface (navegador Edge automatizado, perfil limpo)
+
+**Demonstração** (6 registros fictícios):
+- Resumo: 100 pontos analisados, 0 confirmados, 2 possíveis, 2 em revisão, 97 sem correspondência, 0 não comparados.
+  - Alertas: DEMO-A-01 possível (7,2 m), DEMO-B-01 possível (12,8 m), DEMO-A-02 e DEMO-B-02 em revisão (ambos perto do ponto PT-071).
+  - O cadastro inativo DEMO-A-03 e o distante DEMO-B-03 não geraram alerta.
+- "Aprovar carta" ficou desabilitado e a linha do tempo mostrou "Revisão de pontos prioritários pendente".
+- Abrir detalhes e copiar a carta não alterou o status.
+- Depois de concluir os dois alertas A, a aprovação foi liberada.
+- Latitude 95 foi rejeitada.
+- Um novo registro a ~4 m de DEMO-A-01 gerou o aviso de duplicidade e foi salvo com "Salvar mesmo assim". Com ele:
+  - DEMO-A-01 passou a "exige revisão" e a conclusão anterior foi reaberta;
+  - a carta aprovada voltou para rascunho.
+- Depois de recarregar a página, o cadastro continuou com 7 registros.
+
+**Teste real** (`dados/teste_cnefe_sereno_com_cliente_e_propriedade_SINTETICOS.csv`, coordenadas CNEFE com clientes **sintéticos**; 3 registros fictícios):
+- O cadastro do modo real começou vazio, separado da demonstração.
+- Resumo: 108 analisados, 1 confirmado, 1 possível, 0 em revisão, 104 sem correspondência.
+  - PP-0001 (A, código UC-TESTE-001, a 6,8 m): confirmado.
+  - PP-0002 (B, sem código, a 8,5 m): possível.
+  - PP-0003, distante: sem alerta.
+- A carta não contém nenhum dado do cadastro.
+- Com tolerância de 5 m, PP-0001 passou a "exige revisão" (código coincide, mas fora da tolerância) e PP-0002 saiu da lista.
+- Desligar a camada de prioritários removeu os marcadores e manteve os alertas.
+- Nenhum erro no console.
+
+**Não verificado:** regra de tolerância com dados reais da engenharia, uso com o cadastro corporativo e controle de acesso (inexistente).
+
 ## 3. Testes automatizados
 
 `npm test` (Vitest 2.1.8): **39 testes, 4 arquivos, todos passando** em 10/10/2026.

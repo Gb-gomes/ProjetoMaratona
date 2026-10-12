@@ -1,5 +1,5 @@
 /** Legenda flutuante do mapa. */
-export default function MapLegend({ demo, layerInfo }) {
+export default function MapLegend({ demo, layerInfo, showPriority = false }) {
   return (
     <div className="w-[236px] rounded-md border border-slate-200 bg-white/95 px-3 py-2.5 text-[12px] text-petrol-900 shadow-md backdrop-blur-sm">
       <p className="mb-1.5 font-semibold">Legenda</p>
@@ -25,6 +25,19 @@ export default function MapLegend({ demo, layerInfo }) {
           Unidade selecionada
         </li>
       </ul>
+      {showPriority && (
+        <div className="mt-1.5 border-t border-slate-100 pt-1.5 text-[11.5px]">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-red-600" aria-hidden="true" />A vital</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rotate-45 bg-violet-600" aria-hidden="true" />B produtiva</span>
+          </p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-slate-600">
+            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full border-2 border-petrol-900" aria-hidden="true" />confirmada</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full border-2 border-dashed border-amber-600" aria-hidden="true" />possível</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full border-2 border-dotted border-red-600" aria-hidden="true" />revisão</span>
+          </p>
+        </div>
+      )}
       {demo && (
         <p className="mt-2 border-t border-slate-100 pt-1.5 text-[11px] leading-snug text-slate-500">
           Visualização demonstrativa: os polígonos não são fronteiras oficiais.

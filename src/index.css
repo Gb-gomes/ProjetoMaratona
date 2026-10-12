@@ -54,3 +54,27 @@ html.theme-transition, html.theme-transition * {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ---------------- Pontos prioritários (marcadores DOM do Leaflet) ---------------- */
+.cr-prio { background: transparent; border: 0; }
+.cr-prio-mark {
+  position: relative; display: grid; place-items: center; width: 18px; height: 18px;
+  font: 700 10px/1 "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; color: #fff;
+  border: 2px solid rgb(var(--c-white)); box-shadow: 0 1px 4px rgba(0,0,0,.35);
+}
+.cr-prio-mark.cat-A { background: #DC2626; border-radius: 4px; }
+.cr-prio-mark.cat-B { background: #7C3AED; border-radius: 3px; transform: rotate(45deg); }
+.cr-prio-mark.cat-B span { transform: rotate(-45deg); }
+.cr-prio-mark.is-inactive { opacity: .45; filter: grayscale(.6); }
+/* Anel por situação da análise */
+.cr-prio-mark::after {
+  content: ""; position: absolute; inset: -7px; border-radius: 50%; pointer-events: none;
+}
+.cr-prio-mark.cat-B::after { transform: rotate(-45deg); }
+.cr-prio-mark.st-confirmed::after { border: 2.5px solid rgb(var(--c-petrol-900)); }
+.cr-prio-mark.st-possible::after { border: 2.5px dashed #D97706; }
+.cr-prio-mark.st-review::after { border: 2.5px dotted #DC2626; animation: cr-prio-pulse 1.6s ease-in-out infinite; }
+.cr-prio-mark.is-focused { outline: 3px solid #EE7A12; outline-offset: 7px; }
+.cr-prio-mark.cat-B.is-focused { outline-offset: 5px; }
+@keyframes cr-prio-pulse { 50% { transform: scale(1.18); opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .cr-prio-mark.st-review::after { animation: none; } }

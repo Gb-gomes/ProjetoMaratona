@@ -29,6 +29,8 @@ export default {
         emerald: scale('emerald'),
         amber: scale('amber'),
         red: scale('red'),
+        // Categoria B dos pontos prioritários (atividade produtiva crítica)
+        violet: scale('violet'),
       },
       fontFamily: {
         sans: ['"IBM Plex Sans"', '"Segoe UI"', 'system-ui', 'sans-serif'],

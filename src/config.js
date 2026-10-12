@@ -179,3 +179,26 @@ export const RADIO_LETTER = {
 export const ANNOUNCEMENT_RULES = {
   minClientsForRegion: 3,
 };
+
+/* ------------------------------------------------------------------ */
+/* Pontos prioritários (cadastro manual provisório)                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * PARÂMETROS DE TESTE — não são regras operacionais validadas.
+ *
+ * toleranceMeters: distância máxima (Haversine) para um ponto do CSV ser
+ *   considerado próximo de um cadastro prioritário. Pode ser ajustada na
+ *   tela (vale só para a sessão).
+ * duplicateWarningMeters: distância para avisar possível duplicidade no cadastro.
+ * sharedIdField: coluna do CSV comparada ao "código da UC" do cadastro. Só
+ *   um identificador coincidente (e dentro da tolerância) confirma uma
+ *   correspondência; proximidade sozinha gera "possível correspondência".
+ */
+export const PRIORITY_MATCH = {
+  status: 'parâmetro de teste',
+  toleranceMeters: 30,
+  maxToleranceMeters: 500,
+  duplicateWarningMeters: 15,
+  sharedIdField: 'client',
+};

@@ -11,7 +11,7 @@ const POINT_FILTERS = [
 ];
 
 export default function LayerControl({
-  layers, onToggle, territorialTitle, pointFilter, onTogglePointFilter, counts,
+  layers, onToggle, territorialTitle, pointFilter, onTogglePointFilter, counts, priorityCount = 0,
 }) {
   return (
     <fieldset className="w-[230px] rounded-md border border-slate-200 bg-white/95 px-3 py-2.5 shadow-md backdrop-blur-sm">
@@ -46,6 +46,15 @@ export default function LayerControl({
           ))}
         </div>
       )}
+      <label className="flex cursor-pointer items-center gap-2 py-1 text-[12.5px] text-petrol-900">
+        <input
+          type="checkbox"
+          checked={layers.priority}
+          onChange={() => onToggle('priority')}
+          className="h-3.5 w-3.5 accent-accent-500"
+        />
+        Pontos prioritários ({priorityCount})
+      </label>
       <label className="flex cursor-pointer items-start gap-2 py-1 text-[12.5px] text-petrol-900">
         <input
           type="checkbox"
