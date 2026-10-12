@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   MapContainer, TileLayer, Polygon, CircleMarker, Marker, Polyline, Tooltip, ZoomControl, useMap,
 } from 'react-leaflet';
 import L from 'leaflet';
 import {
-  LoaderCircle, MapPinned, CircleAlert, TriangleAlert, FlaskConical, CircleCheck, Database,
+  LoaderCircle, MapPinned, CircleAlert, TriangleAlert, FlaskConical, CircleCheck, Database, Layers, List, X, ChevronRight,
 } from 'lucide-react';
 import LayerControl from './LayerControl.jsx';
 import MapLegend from './MapLegend.jsx';
@@ -91,14 +91,31 @@ function priorityIcon({ category, status, focused }) {
 
 const STATUS_TEXT = { matched: null, unmatched: 'Sem correspondência territorial', ambiguous: 'Associação ambígua — revisar' };
 
+/** Folga da câmera: no desktop, espaço para o painel de camadas; no celular, para os botões e o cartão. */
+const CAMERA_PADDING = {
+  desktop: { paddingTopLeft: [240, 56], paddingBottomRight: [32, 32] },
+  compact: { paddingTopLeft: [20, 64], paddingBottomRight: [20, 96] },
+  // Celular em paisagem (mapa baixo): folga mínima para a região caber.
+  short: { paddingTopLeft: [16, 16], paddingBottomRight: [16, 16] },
+};
+const cameraPadding = (map, compact) => {
+  if (!compact) return CAMERA_PADDING.desktop;
+  return map.getSize().y < 420 ? CAMERA_PADDING.short : CAMERA_PADDING.compact;
+};
+
 /**
  * Controla a câmera do mapa a partir do estado da interface.
  * - Reajusta o tamanho do mapa quando o contêiner muda (layout responsivo).
  * - Voa até a área de interesse quando a fase ou a região em foco mudam.
+ * - Celular: quando a tela Mapa volta a aparecer, chama map.invalidateSize().
+ *   (Oculto, o mapa continua com o tamanho real; ver App.jsx.)
  * A câmera é limitada por maxBounds no MapContainer.
  */
-function MapController({ viewKey, targetBounds, maxZoom = 13 }) {
+function MapController({
+  viewKey, targetBounds, maxZoom = 13, visible = true, compact = false,
+}) {
   const map = useMap();
+  const wasVisible = useRef(visible);
 
   useEffect(() => {
     const observer = new ResizeObserver(() => map.invalidateSize());
@@ -110,8 +127,7 @@ function MapController({ viewKey, targetBounds, maxZoom = 13 }) {
     if (!targetBounds) return;
     const animate = !prefersReducedMotion();
     map.flyToBounds(targetBounds, {
-      paddingTopLeft: [240, 56],
-      paddingBottomRight: [32, 32],
+      ...cameraPadding(map, compact),
       maxZoom,
       duration: animate ? 0.7 : 0,
       animate,
@@ -119,6 +135,12 @@ function MapController({ viewKey, targetBounds, maxZoom = 13 }) {
     // viewKey resume tudo o que deve disparar o movimento da câmera.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewKey]);
+
+  useEffect(() => {
+    const appeared = visible && !wasVisible.current;
+    wasVisible.current = visible;
+    if (appeared) map.invalidateSize();
+  }, [visible, map]);
 
   return null;
 }
@@ -130,8 +152,10 @@ export default function MapView({
   mode = 'demo', phase, result, territories, layerState, layers, onToggleLayer, pointFilter, onTogglePointFilter,
   focusId, onFocus, selectedIds, layerInfo, nameOf = (u) => u.name, dark = false,
   priorityRecords = [], priorityAnalysis = null, priorityFocus = null, onPriorityFocus,
+  visible = true, compact = false, onOpenDetails, className = '',
 }) {
   const pal = MAP_PALETTE[dark ? 'dark' : 'light'];
+  const [sheet, setSheet] = useState(null); // celular: null | 'layers' | 'legend'
   const [tileErrors, setTileErrors] = useState(0);
   const [tileLoaded, setTileLoaded] = useState(false);
   const isReal = mode === 'real';
@@ -193,14 +217,14 @@ export default function MapView({
   const showOverlay = isDemo ? phase !== 'done' : (!layerLoaded || phase === 'processing' || phase === 'error');
 
   return (
-    <section className="flex min-h-[520px] flex-1 flex-col overflow-hidden 2xl:min-h-[360px] rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="map-title">
-      <div className="flex items-center gap-3 border-b border-slate-100 px-3.5 py-2">
+    <section className={`flex min-h-[520px] flex-1 flex-col overflow-hidden 2xl:min-h-[360px] rounded-md border border-slate-200 bg-white shadow-panel ${className}`} aria-labelledby="map-title">
+      <div className="flex items-center gap-3 border-b border-slate-100 px-3.5 py-2 max-lg:gap-2 max-lg:px-3 max-lg:[@media(max-height:500px)]:hidden">
         <h2 id="map-title" className="flex items-center gap-2 text-[13.5px] font-semibold text-petrol-900">
           <MapPinned className="h-4 w-4 text-petrol-500" aria-hidden="true" />
           Mapa do desligamento
         </h2>
         {phaseBadge}
-        <span className="ml-auto truncate text-[12px] text-slate-500">
+        <span className="ml-auto truncate text-[12px] text-slate-500 max-sm:hidden">
           {layerInfo.title}
         </span>
       </div>
@@ -231,6 +255,8 @@ export default function MapView({
             viewKey={`${phase}|${focusId ?? ''}|${priorityFocus?.recordId ?? ''}|${priorityFocus?.nonce ?? ''}`}
             targetBounds={prioTarget ?? targetBounds}
             maxZoom={prioTarget ? 16 : 13}
+            visible={visible}
+            compact={compact}
           />
 
           {showTerritories && territories.features.map((feature) => {
@@ -343,8 +369,8 @@ export default function MapView({
           })}
         </MapContainer>
 
-        {/* Controles flutuantes (telas médias e grandes) */}
-        <div className="pointer-events-none absolute left-3 top-3 z-[500] hidden md:block">
+        {/* Controles flutuantes (desktop) */}
+        <div className="pointer-events-none absolute left-3 top-3 z-[500] hidden lg:block">
           <div className="pointer-events-auto">
             <LayerControl
               layers={layers}
@@ -357,11 +383,49 @@ export default function MapView({
             />
           </div>
         </div>
-        <div className="pointer-events-none absolute bottom-3 left-3 z-[500] hidden md:block">
+        <div className="pointer-events-none absolute bottom-3 left-3 z-[500] hidden lg:block">
           <div className="pointer-events-auto"><MapLegend demo={isDemo} layerInfo={layerInfo} showPriority={layers.priority && priorityRecords.length > 0} /></div>
         </div>
 
-        <div className="pointer-events-none absolute left-3 right-3 top-3 z-[500] flex justify-end md:left-auto md:max-w-[calc(100%-260px)]">
+        {/* Celular/tablet: camadas e legenda recolhíveis */}
+        <div className="pointer-events-none absolute bottom-3 left-3 top-3 z-[600] flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2 lg:hidden">
+          <div className="pointer-events-auto flex gap-2">
+            {[['layers', 'Camadas', Layers], ['legend', 'Legenda', List]].map(([key, label, Icon]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSheet((cur) => (cur === key ? null : key))}
+                aria-expanded={sheet === key}
+                aria-controls={`map-sheet-${key}`}
+                className={`inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-[14px] font-medium shadow-md ${
+                  sheet === key ? 'border-petrol-700 bg-petrol-700 text-white' : 'border-slate-200 bg-white text-petrol-800'
+                }`}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </div>
+          {sheet && (
+            <div id={`map-sheet-${sheet}`} className="pointer-events-auto min-h-0 overflow-y-auto rounded-md">
+              {sheet === 'layers' ? (
+                <LayerControl
+                  layers={layers}
+                  onToggle={onToggleLayer}
+                  territorialTitle={isDemo ? 'Demonstrativa' : `${layerInfo.unitType} — IBGE ${layerInfo.referenceYear}`}
+                  pointFilter={isReal ? pointFilter : null}
+                  onTogglePointFilter={onTogglePointFilter}
+                  counts={counts}
+                  priorityCount={priorityRecords.length}
+                />
+              ) : (
+                <MapLegend demo={isDemo} layerInfo={layerInfo} showPriority={layers.priority && priorityRecords.length > 0} />
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className={`pointer-events-none absolute left-3 right-3 top-3 z-[500] flex justify-end md:left-auto md:max-w-[calc(100%-260px)] max-md:top-[4.25rem] ${sheet ? 'max-lg:hidden' : ''}`}>
           {isDemo ? (
             <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-1.5 text-[12px] font-medium text-amber-900 shadow-sm">
               <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
@@ -375,6 +439,28 @@ export default function MapView({
           )}
         </div>
 
+        {/* Celular: região em foco, com atalho para os detalhes */}
+        {compact && focusId && unitsById.has(focusId) && (() => {
+          const unit = unitsById.get(focusId);
+          return (
+            <div className="absolute bottom-3 left-3 right-[4.25rem] z-[600] flex items-center gap-2 rounded-md border border-slate-200 bg-white py-1.5 pl-3 pr-1 shadow-lg lg:hidden">
+              <span className="grid h-8 w-9 shrink-0 place-items-center rounded bg-petrol-800 text-[14px] font-semibold text-white">
+                {String(unit.number).padStart(2, '0')}
+              </span>
+              <button type="button" onClick={() => onOpenDetails?.(focusId)} className="flex min-h-11 min-w-0 flex-1 items-center gap-1 text-left">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14px] font-semibold text-petrol-900">{nameOf(unit) ?? `Região ${String(unit.number).padStart(2, '0')}`}</span>
+                  <span className="block text-[12.5px] text-slate-500">{unit.count} pontos | Ver detalhes</span>
+                </span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+              </button>
+              <button type="button" onClick={() => onFocus(focusId)} aria-label="Limpar foco da região" className="grid h-11 w-11 shrink-0 place-items-center rounded text-slate-500">
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+          );
+        })()}
+
         {tilesUnavailable && (
           <div className="absolute bottom-3 left-1/2 z-[500] -translate-x-1/2" role="alert">
             <span className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-1.5 text-[12px] text-red-700 shadow-sm">
@@ -387,7 +473,7 @@ export default function MapView({
         {/* Estados sem resultado */}
         {showOverlay && (
           <div className="pointer-events-none absolute inset-0 z-[450] grid place-items-center bg-white/25">
-            <div className="max-w-[360px] rounded-md border border-slate-200 bg-white/95 px-5 py-4 text-center shadow-lg" role="status" aria-live="polite">
+            <div className="max-w-[360px] rounded-md border border-slate-200 bg-white/95 px-5 py-4 text-center shadow-lg max-lg:mx-4" role="status" aria-live="polite">
               {isReal && phase !== 'processing' && phase !== 'error' && !layerLoaded && (
                 <RealLayerStatus layerState={layerState} />
               )}
@@ -421,19 +507,6 @@ export default function MapView({
         )}
       </div>
 
-      {/* Em telas pequenas, camadas e legenda ficam abaixo do mapa */}
-      <div className="flex flex-wrap gap-2 border-t border-slate-100 p-2 md:hidden">
-        <LayerControl
-          layers={layers}
-          onToggle={onToggleLayer}
-          territorialTitle={isDemo ? 'Demonstrativa' : `${layerInfo.unitType} — IBGE ${layerInfo.referenceYear}`}
-          pointFilter={isReal ? pointFilter : null}
-          onTogglePointFilter={onTogglePointFilter}
-          counts={counts}
-              priorityCount={priorityRecords.length}
-        />
-        <MapLegend demo={isDemo} layerInfo={layerInfo} showPriority={layers.priority && priorityRecords.length > 0} />
-      </div>
     </section>
   );
 }

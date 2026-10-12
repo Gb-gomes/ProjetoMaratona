@@ -1,9 +1,9 @@
 /** Legenda flutuante do mapa. */
 export default function MapLegend({ demo, layerInfo, showPriority = false }) {
   return (
-    <div className="w-[236px] rounded-md border border-slate-200 bg-white/95 px-3 py-2.5 text-[12px] text-petrol-900 shadow-md backdrop-blur-sm">
+    <div className="w-[236px] max-lg:w-[min(272px,calc(100vw-1.5rem))] rounded-md border border-slate-200 bg-white/95 px-3 py-2.5 text-[12px] max-lg:text-[13.5px] text-petrol-900 shadow-md backdrop-blur-sm">
       <p className="mb-1.5 font-semibold">Legenda</p>
-      <ul className="space-y-1">
+      <ul className="space-y-1 max-lg:space-y-1.5">
         <li className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full border-[1.5px] border-white bg-petrol-800 ring-1 ring-petrol-800" aria-hidden="true" />
           {demo ? 'Registro geográfico importado' : 'Ponto importado'}

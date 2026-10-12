@@ -26,7 +26,7 @@ export default function OutageForm({
       </h2>
       <div className="space-y-1.5 px-3.5 py-2.5">
         {FIELDS.map((f) => (
-          <label key={f.key} className="grid grid-cols-[96px_1fr] items-center gap-2 text-[12px]">
+          <label key={f.key} className="grid grid-cols-[96px_1fr] items-center gap-2 text-[12px] max-lg:grid-cols-[104px_minmax(0,1fr)] max-lg:text-[13.5px]">
             <span className="text-slate-500">{f.label}</span>
             <input
               type={f.type}
@@ -34,7 +34,7 @@ export default function OutageForm({
               placeholder={f.key === 'audience' ? (defaultAudience ?? '').toUpperCase() : f.placeholder}
               title={f.hint}
               onChange={(e) => onChange(f.key, e.target.value)}
-              className="min-w-0 rounded border border-slate-300 px-1.5 py-1 text-[12px] font-medium text-petrol-900 placeholder:font-normal placeholder:text-slate-400"
+              className="min-w-0 rounded border border-slate-300 px-1.5 py-1 text-[12px] font-medium max-lg:min-h-11 text-petrol-900 placeholder:font-normal placeholder:text-slate-400"
             />
           </label>
         ))}

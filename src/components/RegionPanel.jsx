@@ -4,12 +4,13 @@ import {
   Tractor,
 } from 'lucide-react';
 import { resolveSpeakableName } from '../lib/communicationUtils.js';
+import RegionDetailScreen from './RegionDetailScreen.jsx';
 
-function Detail({ label, children }) {
+export function Detail({ label, children }) {
   return (
     <div className="contents">
       <dt className="text-slate-500">{label}</dt>
-      <dd className="text-petrol-900">{children}</dd>
+      <dd className="text-petrol-900 max-lg:min-w-0 max-lg:break-words">{children}</dd>
     </div>
   );
 }
@@ -39,6 +40,7 @@ export default function RegionPanel({
   layerInfo, layerState, nameOptions, onOpenAudit,
   regionStore = {}, operator = '', operatorLocked = false, onRenameRegion, onRemoveRegionName, onExportNames, onImportNames,
   announcementByUnit = {}, announceThreshold = 3, onAnnounceMode,
+  className = '', mobile = false, detailId = null, onOpenDetail, onCloseDetail, onShowOnMap,
 }) {
   const done = phase === 'done' && result;
   const isReal = mode === 'real';
@@ -57,11 +59,44 @@ export default function RegionPanel({
 
   useEffect(() => { if (!done) setEditingId(null); }, [done]);
 
+  // Celular: os detalhes da região ocupam a tela inteira (com Voltar).
+  const detailIndex = mobile && done && detailId ? result.units.findIndex((u) => u.id === detailId) : -1;
+  if (detailIndex >= 0) {
+    const u = result.units[detailIndex];
+    return (
+      <RegionDetailScreen
+        className={className}
+        unit={u}
+        index={detailIndex}
+        isReal={isReal}
+        title={unitTitle(u)}
+        speak={speakOf(u)}
+        included={selectedIds.includes(u.id)}
+        onToggleSelected={() => onToggleSelected(u.id)}
+        announce={announcementByUnit[u.id]}
+        announceThreshold={announceThreshold}
+        onAnnounceMode={(m) => onAnnounceMode(u.id, m)}
+        history={regionStore[u.code]?.history ?? []}
+        result={result}
+        layerInfo={layerInfo}
+        operator={operator}
+        operatorLocked={operatorLocked}
+        onRenameRegion={onRenameRegion}
+        onRemoveRegionName={onRemoveRegionName}
+        onBack={onCloseDetail}
+        onShowOnMap={() => onShowOnMap(u.id)}
+      />
+    );
+  }
+
   return (
-    <section className="flex min-h-0 flex-col rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="regions-title">
+    <section className={`flex min-h-0 flex-col rounded-md border border-slate-200 bg-white shadow-panel ${className}`} aria-labelledby="regions-title">
       <div className="border-b border-slate-100 px-3.5 py-2.5">
-        <h2 id="regions-title" className="text-[13.5px] font-semibold text-petrol-900">Regiões identificadas</h2>
-        <p className="text-[12px] text-slate-500">Unidades territoriais associadas aos pontos importados</p>
+        <h2 id="regions-title" className="text-[13.5px] font-semibold text-petrol-900 max-lg:text-[16px]">Regiões identificadas</h2>
+        <p className="text-[12px] text-slate-500 max-lg:text-[13px]">
+          <span className="max-lg:hidden">Unidades territoriais associadas aos pontos importados</span>
+          <span className="lg:hidden">Toque numa região para ver os detalhes. A caixa inclui a região no aviso.</span>
+        </p>
       </div>
 
       {/* Status da camada usada */}
@@ -86,10 +121,10 @@ export default function RegionPanel({
         <div className="mx-3.5 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-slate-600">
           <span>{savedCount} nome(s) de região salvo(s) neste navegador</span>
           <span className="ml-auto flex gap-2">
-            <button type="button" onClick={onExportNames} disabled={!savedCount} className="inline-flex items-center gap-1 font-medium text-petrol-600 hover:underline disabled:text-slate-400 disabled:no-underline">
+            <button type="button" onClick={onExportNames} disabled={!savedCount} className="inline-flex items-center gap-1 font-medium max-lg:min-h-11 max-lg:text-[13px] text-petrol-600 hover:underline disabled:text-slate-400 disabled:no-underline">
               <Download className="h-3 w-3" aria-hidden="true" />Exportar
             </button>
-            <button type="button" onClick={() => importRef.current?.click()} className="inline-flex items-center gap-1 font-medium text-petrol-600 hover:underline">
+            <button type="button" onClick={() => importRef.current?.click()} className="inline-flex items-center gap-1 font-medium max-lg:min-h-11 max-lg:text-[13px] text-petrol-600 hover:underline">
               <Upload className="h-3 w-3" aria-hidden="true" />Importar
             </button>
             <input
@@ -117,7 +152,7 @@ export default function RegionPanel({
             <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <p className="flex-1">
               {summary.unmatched} ponto(s) sem correspondência e {summary.ambiguous} ambíguo(s) não entram nas contagens abaixo.
-              <button type="button" onClick={onOpenAudit} className="ml-1 inline-flex items-center gap-1 font-medium underline underline-offset-2">
+              <button type="button" onClick={onOpenAudit} className="ml-1 inline-flex items-center gap-1 font-medium underline underline-offset-2 max-lg:min-h-11">
                 <ListChecks className="h-3 w-3" aria-hidden="true" />Revisar
               </button>
             </p>
@@ -138,19 +173,18 @@ export default function RegionPanel({
 
         {done && (
           <>
-            <div className="mb-2 flex items-center justify-between text-[11.5px] text-slate-500">
+            <div className="mb-2 flex items-center justify-between text-[11.5px] text-slate-500 max-lg:text-[13px]">
               <span>No aviso</span>
-              <span className="flex gap-2">
-                <button type="button" onClick={onSelectAll} className="font-medium text-petrol-600 hover:underline">Selecionar todas</button>
+              <span className="flex items-center gap-2">
+                <button type="button" onClick={onSelectAll} className="font-medium text-petrol-600 hover:underline max-lg:min-h-11 max-lg:px-1">Selecionar todas</button>
                 <span aria-hidden="true">|</span>
-                <button type="button" onClick={onClearSelection} className="font-medium text-petrol-600 hover:underline">Limpar</button>
+                <button type="button" onClick={onClearSelection} className="font-medium text-petrol-600 hover:underline max-lg:min-h-11 max-lg:px-1">Limpar</button>
               </span>
             </div>
-            <ul className="space-y-2">
+            <ul className="space-y-2 max-lg:space-y-2.5">
               {result.units.map((u, i) => {
                 const expanded = focusId === u.id;
                 const included = selectedIds.includes(u.id);
-                const geomOk = u.insideCount === u.count;
                 const panelId = `unit-details-${u.id}`;
                 const speak = speakOf(u);
                 const unnamed = isReal && !speak.name;
@@ -165,29 +199,31 @@ export default function RegionPanel({
                       expanded ? 'border-petrol-700 bg-petrol-50/60' : unnamed ? 'border-amber-300' : 'border-slate-200 hover:border-accent-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 px-2.5 py-2">
-                      <input
-                        type="checkbox"
-                        checked={included}
-                        onChange={() => onToggleSelected(u.id)}
-                        aria-label={`Incluir ${unitTitle(u)} no aviso`}
-                        className="h-4 w-4 shrink-0 accent-accent-500"
-                      />
+                    <div className="flex items-center gap-2.5 px-2.5 py-2 max-lg:gap-1 max-lg:py-1.5 max-lg:pl-0.5">
+                      <label className="contents max-lg:grid max-lg:shrink-0 max-lg:h-12 max-lg:w-11 max-lg:place-items-center">
+                        <input
+                          type="checkbox"
+                          checked={included}
+                          onChange={() => onToggleSelected(u.id)}
+                          aria-label={`Incluir ${unitTitle(u)} no aviso`}
+                          className="h-4 w-4 shrink-0 accent-accent-500 max-lg:h-6 max-lg:w-6"
+                        />
+                      </label>
                       <button
                         type="button"
-                        onClick={() => onFocus(u.id)}
-                        aria-expanded={expanded}
-                        aria-controls={panelId}
-                        className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+                        onClick={() => (mobile ? onOpenDetail(u.id) : onFocus(u.id))}
+                        aria-expanded={mobile ? undefined : expanded}
+                        aria-controls={mobile ? undefined : panelId}
+                        className="flex min-w-0 flex-1 items-center gap-2.5 text-left max-lg:min-h-12"
                       >
-                        <span className={`grid h-6 w-7 shrink-0 place-items-center rounded text-[11.5px] font-semibold ${
+                        <span className={`grid h-6 w-7 shrink-0 place-items-center rounded text-[11.5px] font-semibold max-lg:h-8 max-lg:w-9 max-lg:text-[14px] ${
                           expanded ? 'bg-petrol-800 text-white' : 'bg-accent-100 text-accent-800'
                         }`}
                         >
                           {String(i + 1).padStart(2, '0')}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className={`block text-[12.5px] font-semibold leading-snug ${unnamed ? 'text-amber-700' : 'text-petrol-900'}`}>
+                          <span className={`block text-[12.5px] font-semibold leading-snug max-lg:text-[15px] ${unnamed ? 'text-amber-700' : 'text-petrol-900'}`}>
                             {unitTitle(u)}
                             {speak.origin === 'operator' && (
                               <span className="ml-1.5 rounded bg-petrol-50 px-1 py-px align-middle text-[10px] font-medium text-petrol-700 ring-1 ring-inset ring-petrol-100">
@@ -200,24 +236,24 @@ export default function RegionPanel({
                               </span>
                             )}
                           </span>
-                          <span className="block text-[11.5px] text-slate-500">
+                          <span className="block text-[11.5px] text-slate-500 max-lg:text-[13px]">
                             {isReal && u.context?.length > 0 && `${u.context.map((c) => c.value).join(' | ')} | `}
                             {u.count} pontos | {u.pct.toLocaleString('pt-BR')}%
                           </span>
                           {byProperty && (
-                            <span className="mt-0.5 inline-flex items-center gap-1 rounded bg-accent-50 px-1.5 py-px text-[10.5px] font-medium text-accent-800 ring-1 ring-inset ring-accent-200">
+                            <span className="mt-0.5 inline-flex items-center gap-1 rounded bg-accent-50 px-1.5 py-px text-[10.5px] font-medium max-lg:text-[12px] text-accent-800 ring-1 ring-inset ring-accent-200">
                               <Tractor className="h-3 w-3" aria-hidden="true" />
                               Aviso pelas propriedades | {announce.countLabel}
                             </span>
                           )}
                         </span>
-                        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+                        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform max-lg:h-5 max-lg:w-5 max-lg:-rotate-90 ${expanded && !mobile ? 'rotate-180' : ''}`} aria-hidden="true" />
                       </button>
                       {isReal && (
                         <button
                           type="button"
                           onClick={() => setEditingId(editing ? null : u.id)}
-                          className={`inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-1 text-[11px] font-medium ${
+                          className={`inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-1 text-[11px] font-medium max-lg:min-h-11 max-lg:px-2.5 max-lg:text-[13px] ${
                             unnamed ? 'border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100' : 'border-slate-300 text-petrol-700 hover:bg-slate-50'
                           }`}
                           aria-label={`${speak.name ? 'Renomear' : 'Nomear'} região ${String(i + 1).padStart(2, '0')}`}
@@ -231,7 +267,7 @@ export default function RegionPanel({
                       <div className="h-full rounded bg-accent-400" style={{ width: `${u.pct}%` }} />
                     </div>
 
-                    {editing && (
+                    {editing && !mobile && (
                       <NameEditor
                         unit={u}
                         currentName={speak.name}
@@ -244,14 +280,14 @@ export default function RegionPanel({
                       />
                     )}
 
-                    {expanded && announce && (
+                    {expanded && !mobile && announce && (
                       <AnnounceControl
                         item={announce}
                         threshold={announceThreshold}
                         onChange={(mode) => onAnnounceMode(u.id, mode)}
                       />
                     )}
-                    {expanded && isReal && (
+                    {expanded && !mobile && isReal && (
                       <RealDetails
                         u={u}
                         speak={speak}
@@ -261,22 +297,8 @@ export default function RegionPanel({
                         panelId={panelId}
                       />
                     )}
-                    {expanded && !isReal && (
-                      <dl id={panelId} className="grid grid-cols-[104px_1fr] gap-x-2 gap-y-1 border-t border-slate-200 px-2.5 py-2 text-[11.5px]">
-                        <Detail label="Nome">{u.label}</Detail>
-                        <Detail label="Tipo">{layerInfo.unitType}</Detail>
-                        <Detail label="Código">{u.code}</Detail>
-                        <Detail label="Pontos">{u.count} de {result.total} ({u.pct.toLocaleString('pt-BR')}%)</Detail>
-                        <Detail label="Camada">{layerInfo.title} ({layerInfo.code})</Detail>
-                        <Detail label="Fonte">{layerInfo.source}</Detail>
-                        <Detail label="Correspondência">
-                          <span className={`inline-flex items-center gap-1 ${geomOk ? 'text-emerald-700' : 'text-amber-700'}`}>
-                            {geomOk ? <CircleCheck className="h-3.5 w-3.5" aria-hidden="true" /> : <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" />}
-                            {u.insideCount} de {u.count} pontos dentro do polígono
-                          </span>
-                          <span className="block text-slate-500">Associação predefinida, conferida por teste geométrico local.</span>
-                        </Detail>
-                      </dl>
+                    {expanded && !mobile && !isReal && (
+                      <DemoDetails u={u} result={result} layerInfo={layerInfo} panelId={panelId} />
                     )}
                   </li>
                 );
@@ -290,15 +312,15 @@ export default function RegionPanel({
       <div className="grid grid-cols-3 border-t border-slate-200 bg-slate-50 text-center">
         <div className="px-2 py-2">
           <p className="text-[16px] font-semibold text-petrol-900">{done ? summary.unitCount : '—'}</p>
-          <p className="text-[11px] text-slate-500">regiões</p>
+          <p className="text-[11px] text-slate-500 max-lg:text-[12px]">regiões</p>
         </div>
         <div className="border-l border-slate-200 px-2 py-2">
           <p className="text-[16px] font-semibold text-petrol-900">{done ? summary.matched : '—'}</p>
-          <p className="text-[11px] text-slate-500">pontos associados</p>
+          <p className="text-[11px] text-slate-500 max-lg:text-[12px]">pontos associados</p>
         </div>
         <div className="border-l border-slate-200 px-2 py-2">
           <p className="text-[16px] font-semibold text-accent-700">{done ? `${summary.selectedCount}/${summary.unitCount}` : '—'}</p>
-          <p className="text-[11px] text-slate-500">{done ? `no aviso (${summary.selectedPoints} pts)` : 'no aviso'}</p>
+          <p className="text-[11px] text-slate-500 max-lg:text-[12px]">{done ? `no aviso (${summary.selectedPoints} pts)` : 'no aviso'}</p>
         </div>
       </div>
     </section>
@@ -306,7 +328,7 @@ export default function RegionPanel({
 }
 
 /** Escolha de como a região é citada na carta (regra automática ou escolha do operador). */
-function AnnounceControl({ item, threshold, onChange }) {
+export function AnnounceControl({ item, threshold, onChange }) {
   const options = [
     { value: 'auto', label: 'Automático', hint: `Propriedades se houver menos de ${threshold} clientes; senão, a região` },
     { value: 'region', label: 'Nome da região' },
@@ -314,9 +336,9 @@ function AnnounceControl({ item, threshold, onChange }) {
   ];
   const current = item.automatic ? 'auto' : item.mode;
   return (
-    <div className="mx-2.5 mb-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11.5px]">
+    <div className="mx-2.5 mb-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11.5px] max-lg:mx-0 max-lg:px-3 max-lg:py-3 max-lg:text-[14px]">
       <p className="font-semibold text-petrol-900">Como citar no aviso</p>
-      <div role="radiogroup" aria-label="Como citar esta região no aviso" className="mt-1 flex flex-wrap gap-1">
+      <div role="radiogroup" aria-label="Como citar esta região no aviso" className="mt-1 flex flex-wrap gap-1 max-lg:gap-1.5">
         {options.map((o) => (
           <button
             key={o.value}
@@ -325,7 +347,7 @@ function AnnounceControl({ item, threshold, onChange }) {
             aria-checked={current === o.value}
             title={o.hint}
             onClick={() => onChange(o.value)}
-            className={`rounded border px-2 py-0.5 font-medium ${
+            className={`rounded border px-2 py-0.5 font-medium max-lg:min-h-11 max-lg:flex-1 max-lg:px-2.5 ${
               current === o.value ? 'border-petrol-700 bg-petrol-700 text-white' : 'border-slate-300 bg-white text-petrol-800 hover:border-petrol-400'
             }`}
           >
@@ -348,7 +370,7 @@ function AnnounceControl({ item, threshold, onChange }) {
 }
 
 /** Formulário para nomear/renomear uma região. */
-function NameEditor({
+export function NameEditor({
   unit, currentName, canRemove, operator, operatorLocked, onCancel, onSave, onRemove,
 }) {
   const [name, setName] = useState(currentName ?? '');
@@ -364,7 +386,7 @@ function NameEditor({
   const context = (unit.context ?? []).map((c) => c.value).join(' | ');
 
   return (
-    <form onSubmit={submit} className="mx-2.5 mb-2 space-y-1.5 rounded-md border border-petrol-200 bg-white p-2.5 text-[11.5px]">
+    <form onSubmit={submit} className="mx-2.5 mb-2 space-y-1.5 rounded-md border border-petrol-200 bg-white p-2.5 text-[11.5px] max-lg:mx-0 max-lg:space-y-2.5 max-lg:p-3 max-lg:text-[14px]">
       <p className="font-semibold text-petrol-900">
         {currentName ? 'Renomear região' : 'Nomear região'} {String(unit.order).padStart(2, '0')}
         {context && <span className="font-normal text-slate-500"> — {context} (IBGE)</span>}
@@ -377,7 +399,7 @@ function NameEditor({
           onChange={(e) => setName(e.target.value)}
           maxLength={80}
           placeholder="Ex.: Córrego Bela Vista"
-          className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[12.5px] text-petrol-900"
+          className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[12.5px] text-petrol-900 max-lg:min-h-11"
         />
       </label>
       <label className="block">
@@ -387,7 +409,7 @@ function NameEditor({
             value={operator}
             readOnly
             title="Identificado pelo login do Cloudflare Access"
-            className="mt-0.5 w-full cursor-default rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[12.5px] text-petrol-800"
+            className="mt-0.5 w-full cursor-default rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[12.5px] text-petrol-800 max-lg:min-h-11"
           />
         ) : (
           <input
@@ -395,7 +417,7 @@ function NameEditor({
             onChange={(e) => setBy(e.target.value)}
             maxLength={80}
             placeholder="Nome e área"
-            className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[12.5px] text-petrol-900"
+            className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[12.5px] text-petrol-900 max-lg:min-h-11"
           />
         )}
       </label>
@@ -406,17 +428,17 @@ function NameEditor({
           onChange={(e) => setNote(e.target.value)}
           maxLength={200}
           placeholder="Ex.: confirmado com a equipe de campo"
-          className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[12.5px] text-petrol-900"
+          className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[12.5px] text-petrol-900 max-lg:min-h-11"
         />
       </label>
-      <p className="text-[11px] leading-snug text-slate-500">
+      <p className="text-[11px] leading-snug text-slate-500 max-lg:text-[13px]">
         O nome vale para esta região em todos os avisos e fica registrado no histórico com o responsável e a data.
       </p>
       <div className="flex flex-wrap gap-2 pt-0.5">
-        <button type="submit" className="rounded-md bg-petrol-700 px-2.5 py-1 font-semibold text-white hover:bg-petrol-800">Salvar nome</button>
-        <button type="button" onClick={onCancel} className="rounded-md border border-slate-300 px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50">Cancelar</button>
+        <button type="submit" className="rounded-md bg-petrol-700 px-2.5 py-1 font-semibold text-white hover:bg-petrol-800 max-lg:min-h-11 max-lg:px-4">Salvar nome</button>
+        <button type="button" onClick={onCancel} className="rounded-md border border-slate-300 px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-4">Cancelar</button>
         {canRemove && (
-          <button type="button" onClick={() => onRemove(by)} className="ml-auto rounded-md border border-red-200 px-2.5 py-1 font-medium text-red-700 hover:bg-red-50">
+          <button type="button" onClick={() => onRemove(by)} className="ml-auto rounded-md border border-red-200 px-2.5 py-1 font-medium text-red-700 hover:bg-red-50 max-lg:min-h-11 max-lg:px-4">
             Remover nome
           </button>
         )}
@@ -426,12 +448,12 @@ function NameEditor({
 }
 
 /** Detalhes de uma unidade da camada oficial (modo real). */
-function RealDetails({
+export function RealDetails({
   u, speak, history, result, layerInfo, panelId,
 }) {
   const current = speak.origin === 'operator' ? speak.entry : null;
   return (
-    <dl id={panelId} className="grid grid-cols-[104px_1fr] gap-x-2 gap-y-1 border-t border-slate-200 px-2.5 py-2 text-[11.5px]">
+    <dl id={panelId} className="grid grid-cols-[104px_1fr] gap-x-2 gap-y-1 border-t border-slate-200 px-2.5 py-2 text-[11.5px] max-lg:grid-cols-[112px_minmax(0,1fr)] max-lg:gap-y-2 max-lg:px-0 max-lg:text-[14px]">
       <Detail label="Nome no aviso">
         {speak.name
           ? <>{speak.name} <span className="text-slate-500">({ORIGIN_LABEL[speak.origin]})</span></>
@@ -467,7 +489,7 @@ function RealDetails({
       {history.length > 0 && (
         <Detail label="Histórico">
           <details>
-            <summary className="inline-flex cursor-pointer items-center gap-1 font-medium text-petrol-700">
+            <summary className="inline-flex cursor-pointer items-center gap-1 font-medium text-petrol-700 max-lg:min-h-11">
               <History className="h-3 w-3" aria-hidden="true" />{history.length} alteração(ões)
             </summary>
             <ol className="mt-1 space-y-1 border-l border-slate-200 pl-2">
@@ -485,6 +507,30 @@ function RealDetails({
           </details>
         </Detail>
       )}
+    </dl>
+  );
+}
+
+/** Detalhes de uma unidade demonstrativa. */
+export function DemoDetails({
+  u, result, layerInfo, panelId,
+}) {
+  const geomOk = u.insideCount === u.count;
+  return (
+    <dl id={panelId} className="grid grid-cols-[104px_1fr] gap-x-2 gap-y-1 border-t border-slate-200 px-2.5 py-2 text-[11.5px] max-lg:grid-cols-[112px_minmax(0,1fr)] max-lg:gap-y-2 max-lg:px-0 max-lg:text-[14px]">
+      <Detail label="Nome">{u.label}</Detail>
+      <Detail label="Tipo">{layerInfo.unitType}</Detail>
+      <Detail label="Código">{u.code}</Detail>
+      <Detail label="Pontos">{u.count} de {result.total} ({u.pct.toLocaleString('pt-BR')}%)</Detail>
+      <Detail label="Camada">{layerInfo.title} ({layerInfo.code})</Detail>
+      <Detail label="Fonte">{layerInfo.source}</Detail>
+      <Detail label="Correspondência">
+        <span className={`inline-flex items-center gap-1 ${geomOk ? 'text-emerald-700' : 'text-amber-700'}`}>
+          {geomOk ? <CircleCheck className="h-3.5 w-3.5" aria-hidden="true" /> : <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" />}
+          {u.insideCount} de {u.count} pontos dentro do polígono
+        </span>
+        <span className="block text-slate-500">Associação predefinida, conferida por teste geométrico local.</span>
+      </Detail>
     </dl>
   );
 }

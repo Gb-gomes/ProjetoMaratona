@@ -146,6 +146,41 @@ Etapa **demonstrativa**: o armazenamento é local e não há controle de acesso;
 - As cores dos componentes são variáveis CSS (`src/theme.css`) usadas pelo Tailwind (`tailwind.config.js`). Para ajustar uma cor nos dois temas, edite só esse arquivo; os componentes não usam variantes `dark:`.
 - No escuro, os tiles do OpenStreetMap são invertidos por filtro CSS, só na tela. As cores de polígonos e pontos do mapa ficam em `MAP_PALETTE` (`MapView.jsx`).
 
+## Uso no celular
+
+O endereço e o código são os mesmos. Abaixo de 1024 px de largura (celular, tablet ou janela estreita), a interface muda de organização; a partir de 1024 px, a versão de computador continua igual.
+
+- **Barra inferior com 5 telas:**
+  - **Dados:** modo, importação, desligamento e **Processar Coordenadas**, fixo na parte de baixo da tela.
+  - **Regiões:** indicadores compactos e regiões em cartões grandes.
+  - **Mapa:** em tela cheia.
+  - **Aviso:** carta para as rádios com as ações.
+  - **Alertas:** pontos prioritários.
+- **Selos nas abas:** quantidade de regiões, alertas pendentes e ponto vermelho no Aviso quando há pendência.
+- **Depois do processamento** a tela muda sozinha para **Regiões**, desde que haja ao menos uma região. Com erro ou sem regiões, permanece em **Dados** e mostra o motivo.
+- **Regiões:**
+  - tocar no cartão abre os detalhes em tela cheia: Voltar, **Ver no mapa**, Nomear/Renomear (modo real), Como citar no aviso e dados da unidade;
+  - a caixa de seleção do cartão inclui ou retira a região do aviso.
+- **Mapa:**
+  - "Camadas" e "Legenda" abrem e fecham;
+  - tocar numa região mostra um cartão com "Ver detalhes".
+  - "Ver no mapa" (região ou alerta prioritário) troca para o Mapa já focado.
+- **Aviso:**
+  - o resumo do indicador de transformação fica sempre visível no topo;
+  - a comunicação tradicional fica recolhida em "Comparar com a comunicação tradicional";
+  - Gerar carta, Copiar texto e Aprovar carta ficam fixos acima da barra.
+- **Menu do cabeçalho (☰):** modo, tema (claro, escuro ou seguir o sistema) e usuário, com o link **Sair** quando há Cloudflare Access.
+- **Tela cheia:**
+  - auditoria e cadastro de pontos prioritários ocupam a tela inteira, com o botão **Fechar** visível;
+  - tabelas largas rolam dentro do próprio quadro.
+- **Importação:** no celular não há arrastar e soltar; use **Escolher arquivo CSV**.
+- **Toque e leitura:**
+  - áreas de toque de pelo menos 44 px;
+  - campos com 16 px de fonte, para o iOS não aplicar zoom;
+  - respeito às áreas seguras (notch e barra de gestos);
+  - funciona em retrato e paisagem.
+- **Estado preservado:** trocar de tela não perde nada. O estado continua no `App.jsx` e todas as telas ficam montadas. Fora da aba Mapa, o mapa fica invisível mas mantém o tamanho, para o Leaflet não se perder; ao reaparecer, recebe `invalidateSize()`.
+
 ## Privacidade
 
 - O CSV é lido com `FileReader` e processado em memória. Não vai para `localStorage` nem é enviado a nenhum serviço. O `localStorage` guarda os nomes de região definidos pelo operador, o último nome de responsável digitado, a preferência de tema e o **cadastro de pontos prioritários** com seu histórico de alertas. Este cadastro é a única exceção que guarda coordenadas, porque a persistência foi pedida; é provisório, sem controle de acesso e não serve para dados reais (ver docs/PONTOS_PRIORITARIOS.md).
@@ -172,7 +207,9 @@ src/
 ├── config.js                   Área demo, tiles, PILOT_CONFIG (território, camada, campos), carta para as rádios
 ├── theme.css                   Cores dos temas claro e escuro (variáveis CSS)
 ├── components/
-│   ├── Header.jsx              Cabeçalho e seletor de modo
+│   ├── Header.jsx              Cabeçalho e seletor de modo (no celular: cabeçalho compacto com menu)
+│   ├── MobileNav.jsx           Barra de abas inferior do celular (Dados, Regiões, Mapa, Aviso, Alertas)
+│   ├── RegionDetailScreen.jsx  Detalhes da região em tela cheia (celular)
 │   ├── CsvUpload.jsx           Importação do modo Demonstração
 │   ├── RealImportPanel.jsx     Importação real: prévia, mapeamento, referencial, validação
 │   ├── OutageInfo.jsx          Desligamento (demonstração)
@@ -188,6 +225,7 @@ src/
 │   ├── PriorityAlertsPanel.jsx Alertas de pontos prioritários: resumo, lista e revisão
 │   ├── PriorityRegistry.jsx    Painel lateral do cadastro (consulta e formulário)
 │   └── StatusBadge.jsx, Toasts.jsx
+├── hooks/useIsMobile.js        Detecta o layout de celular (abaixo de 1024 px); só apresentação
 ├── data/                       Dados FICTÍCIOS do modo Demonstração (inclui demoPriority.js)
 └── lib/
     ├── csv.js                  Leitura (separador, BOM, codificação), mapeamento, validação

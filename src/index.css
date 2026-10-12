@@ -55,6 +55,21 @@ html.theme-transition, html.theme-transition * {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
+/* ---------------- Celular e tablet (abaixo de lg = 1024 px) ----------------
+ * O app vira uma "casca" da altura da tela: cabeçalho, área rolável e barra
+ * de abas embaixo (fora da área rolável, então nada fica escondido atrás dela).
+ */
+:root { --cr-nav-h: 60px; }
+@media (max-width: 1023.98px) {
+  .cr-app { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+  /* 16 px evita o zoom automático do iOS ao tocar num campo. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { font-size: 16px !important; }
+  /* Botões de zoom do mapa com área de toque de 44 px. */
+  .leaflet-touch .leaflet-bar a { width: 44px !important; height: 44px !important; line-height: 44px !important; font-size: 22px !important; }
+  /* Toques rápidos sem o atraso/realce cinza do navegador. */
+  button, a, label, summary { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+}
+
 /* ---------------- Pontos prioritários (marcadores DOM do Leaflet) ---------------- */
 .cr-prio { background: transparent; border: 0; }
 .cr-prio-mark {

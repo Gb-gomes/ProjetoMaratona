@@ -66,20 +66,21 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
   const pages = Math.max(1, Math.ceil(rows.length / PAGE));
 
   return (
-    <div className="fixed inset-0 z-[2000] grid place-items-center bg-black/50 p-3" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" aria-labelledby="audit-title" className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-md bg-white shadow-xl">
-        <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2.5">
+    <div className="fixed inset-0 z-[2000] grid place-items-center bg-black/50 p-3 max-lg:p-0" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-modal="true" aria-labelledby="audit-title" className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-md bg-white shadow-xl max-lg:h-[100dvh] max-lg:max-h-none max-lg:max-w-none max-lg:rounded-none">
+        <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2.5 max-lg:flex-wrap max-lg:gap-x-2 max-lg:gap-y-0 max-lg:pl-[max(1rem,env(safe-area-inset-left))] max-lg:pr-[max(0.25rem,env(safe-area-inset-right))] max-lg:pt-[max(0.25rem,env(safe-area-inset-top))] max-lg:pb-1">
           <ListChecks className="h-4 w-4 text-petrol-500" aria-hidden="true" />
           <h2 id="audit-title" className="text-[14px] font-semibold text-petrol-900">Auditoria do processamento</h2>
-          <span className="text-[11.5px] text-slate-500">
+          <span className="text-[11.5px] text-slate-500 max-lg:order-last max-lg:w-full max-lg:pb-1.5 max-lg:text-[12.5px]">
             {new Date(result.processedAt).toLocaleString('pt-BR')} | {layerInfo.title}
           </span>
-          <button ref={closeRef} type="button" onClick={onClose} className="ml-auto rounded p-1 text-slate-500 hover:bg-slate-100" aria-label="Fechar auditoria">
-            <X className="h-4 w-4" />
+          <button ref={closeRef} type="button" onClick={onClose} className="ml-auto rounded p-1 text-slate-500 hover:bg-slate-100 max-lg:inline-flex max-lg:min-h-11 max-lg:items-center max-lg:gap-1 max-lg:px-3 max-lg:text-[15px] max-lg:font-medium max-lg:text-petrol-700" aria-label="Fechar auditoria">
+            <X className="h-4 w-4 max-lg:h-5 max-lg:w-5" />
+            <span className="lg:hidden" aria-hidden="true">Fechar</span>
           </button>
         </div>
 
-        <div className="space-y-3 overflow-y-auto p-4">
+        <div className="space-y-3 overflow-y-auto p-4 max-lg:min-h-0 max-lg:flex-1 max-lg:pb-[max(1rem,env(safe-area-inset-bottom))]">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
             <Stat label="Registros importados" value={summary.imported} />
             <Stat label="Válidos" value={summary.valid} />
@@ -121,7 +122,7 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
                     {result.units.map((unit) => (
                       <tr key={unit.id} className="border-t border-slate-100">
                         <td className="px-2 py-1 font-mono text-[11.5px]">
-                          <button type="button" className="text-petrol-700 underline-offset-2 hover:underline" onClick={() => { onFocusUnit(unit.id); onClose(); }}>{unit.code}</button>
+                          <button type="button" className="text-petrol-700 underline-offset-2 hover:underline max-lg:min-h-11 max-lg:underline" onClick={() => { onFocusUnit(unit.id); onClose(); }}>{unit.code}</button>
                         </td>
                         <td className="px-2 py-1 text-slate-600">{[unit.name, ...(unit.context ?? []).map((c) => c.value)].filter(Boolean).join(' | ') || 'sem denominação na camada'}</td>
                         <td className="px-2 py-1 text-right">{unit.count}</td>
@@ -136,18 +137,18 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
           <div>
             <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[12px]">
               <h3 className="font-semibold text-petrol-900">Registros processados</h3>
-              <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded border border-slate-300 px-1.5 py-1 text-[12px]" aria-label="Filtrar registros">
+              <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded border border-slate-300 px-1.5 py-1 text-[12px] max-lg:min-h-11 max-lg:w-full max-lg:min-w-0" aria-label="Filtrar registros">
                 <option value="issues">Requer revisão (sem correspondência, ambíguos, alertas)</option>
                 <option value="unmatched">Sem correspondência</option>
                 <option value="ambiguous">Ambíguos</option>
                 <option value="matched">Associados</option>
                 <option value="all">Todos</option>
               </select>
-              <label className="flex items-center gap-1.5 text-slate-600">
+              <label className="flex items-center gap-1.5 text-slate-600 max-lg:min-h-11 max-lg:gap-2 max-lg:text-[14px]">
                 <input type="checkbox" checked={showCoords} onChange={(e) => setShowCoords(e.target.checked)} className="accent-accent-500" />
                 Mostrar coordenadas
               </label>
-              <button type="button" onClick={download} className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1 font-medium text-petrol-800 hover:bg-slate-50">
+              <button type="button" onClick={download} className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1 font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:text-[14px]">
                 <Download className="h-3.5 w-3.5" aria-hidden="true" />
                 Exportar CSV{showCoords ? ' (com coordenadas)' : ''}
               </button>
@@ -178,9 +179,9 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
             </div>
             {pages > 1 && (
               <div className="mt-1.5 flex items-center justify-end gap-2 text-[11.5px] text-slate-600">
-                <button type="button" disabled={page === 0} onClick={() => setPage((n) => n - 1)} className="rounded border px-2 py-0.5 disabled:opacity-40">Anterior</button>
+                <button type="button" disabled={page === 0} onClick={() => setPage((n) => n - 1)} className="rounded border px-2 py-0.5 disabled:opacity-40 max-lg:min-h-11 max-lg:px-4 max-lg:text-[14px]">Anterior</button>
                 <span>{page + 1} / {pages}</span>
-                <button type="button" disabled={page >= pages - 1} onClick={() => setPage((n) => n + 1)} className="rounded border px-2 py-0.5 disabled:opacity-40">Próxima</button>
+                <button type="button" disabled={page >= pages - 1} onClick={() => setPage((n) => n + 1)} className="rounded border px-2 py-0.5 disabled:opacity-40 max-lg:min-h-11 max-lg:px-4 max-lg:text-[14px]">Próxima</button>
               </div>
             )}
             <p className="mt-1 text-[11px] text-slate-500">

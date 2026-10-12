@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Header from './components/Header.jsx';
+import {
+  useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
+} from 'react';
+import { TriangleAlert } from 'lucide-react';
+import Header, { ModeSwitch } from './components/Header.jsx';
+import MobileNav from './components/MobileNav.jsx';
 import CsvUpload from './components/CsvUpload.jsx';
 import RealImportPanel from './components/RealImportPanel.jsx';
 import OutageInfo from './components/OutageInfo.jsx';
 import OutageForm from './components/OutageForm.jsx';
 import Timeline from './components/Timeline.jsx';
-import KpiCards from './components/KpiCards.jsx';
+import KpiCards, { KpiStrip } from './components/KpiCards.jsx';
 import MapView from './components/MapView.jsx';
 import RegionPanel from './components/RegionPanel.jsx';
 import CommunicationPanel from './components/CommunicationPanel.jsx';
@@ -43,8 +47,9 @@ import { priorityScope } from './lib/priorityRepository.js';
 import { upsertRecord, setRecordStatus, deleteRecord } from './lib/priorityRecords.js';
 import { matchPriorityPoints } from './lib/priorityMatch.js';
 import {
-  buildAnalysisRef, syncAlerts, transitionAlert, alertGate,
+  buildAnalysisRef, syncAlerts, transitionAlert, alertGate, alertKey,
 } from './lib/priorityAlerts.js';
+import { useIsMobile } from './hooks/useIsMobile.js';
 
 const DEMO_FILE = {
   source: 'demo',
@@ -121,6 +126,21 @@ export default function App() {
   const [analysisRef, setAnalysisRef] = useState(null); // desligamento analisado (congelado no processamento)
   const [priorityFocus, setPriorityFocus] = useState(null); // { recordId, pointKeys, nonce }
   const [registryNav, setRegistryNav] = useState(null); // null | { view: 'list' } | { view: 'form', editingId }
+
+  // Celular/tablet (abaixo de lg): uma tela por vez, escolhida na barra inferior.
+  // Todas as telas continuam montadas; só a apresentação muda (nenhum estado se perde).
+  const isMobile = useIsMobile();
+  const [mobileTab, setMobileTab] = useState('dados'); // dados | regioes | mapa | aviso | alertas
+  const [regionDetailId, setRegionDetailId] = useState(null); // detalhes da região em tela cheia
+  const mainRef = useRef(null);
+  const scrollByScreen = useRef({});
+  const screenKey = mobileTab === 'regioes' && regionDetailId ? `regioes:${regionDetailId}` : mobileTab;
+  const screenKeyRef = useRef(screenKey);
+  screenKeyRef.current = screenKey;
+  // Cada tela guarda a própria posição de rolagem.
+  useLayoutEffect(() => {
+    if (mainRef.current && isMobile) mainRef.current.scrollTop = scrollByScreen.current[screenKey] ?? 0;
+  }, [screenKey, isMobile]);
 
   const isReal = mode === 'real';
   const timers = useRef([]);
@@ -358,6 +378,7 @@ export default function App() {
     setRegistryNav(null);
     setLayers((l) => ({ ...l, priority: true }));
     focusPriority(id, true);
+    setMobileTab('mapa');
   };
 
   const handleAlertAction = (key, typedPayload) => {
@@ -463,6 +484,7 @@ export default function App() {
     setAnnounceOverrides({});
     setAnalysisRef(null);
     setPriorityFocus(null);
+    setRegionDetailId(null);
   };
 
   /** Troca de modo: nenhum resultado é compartilhado entre os modos. */
@@ -474,6 +496,7 @@ export default function App() {
     setImp(EMPTY_IMPORT);
     setOutageForm(EMPTY_OUTAGE_FORM);
     setMode(next);
+    setMobileTab('dados');
     notify('info', next === 'real'
       ? 'Modo Teste com Dados Reais: dados demonstrativos removidos da tela.'
       : 'Modo Demonstração: dados do teste real descartados da memória.');
@@ -610,6 +633,9 @@ export default function App() {
     setResult(joined);
     setSelectedIds(ids);
     setPhase('done');
+    // Celular: com pelo menos uma região, a tela principal passa a ser a lista de regiões.
+    // Sem regiões, permanece em Dados, onde o motivo é exibido.
+    if (ids.length > 0) setMobileTab('regioes');
     // O texto inicial é montado a partir do resultado recém-calculado.
     const outageView = joined.source === 'demo'
       ? OUTAGE
@@ -703,10 +729,29 @@ export default function App() {
       if (e.key !== 'Escape' || auditOpen || registryNav) return;
       if (focusId) setFocusId(null);
       if (priorityFocus) setPriorityFocus(null);
+      setRegionDetailId(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [focusId, auditOpen, registryNav, priorityFocus]);
+
+  /* ---------------- Navegação no celular ---------------- */
+  const openRegionDetail = (id) => {
+    setRegionDetailId(id);
+    setFocusId(id);
+    setPriorityFocus(null);
+    setMobileTab('regioes');
+  };
+  const closeRegionDetail = () => {
+    setRegionDetailId(null);
+    setFocusId(null);
+  };
+  /** "Ver no mapa": troca para a tela Mapa e foca a região (a câmera voa quando o mapa aparece). */
+  const showRegionOnMap = (id) => {
+    setFocusId(id);
+    setPriorityFocus(null);
+    setMobileTab('mapa');
+  };
 
   /* ---------------- Aviso ---------------- */
   const handleNoticeChange = (text) => {
@@ -762,11 +807,28 @@ export default function App() {
 
   const closeRegistry = useCallback(() => setRegistryNav(null), []);
 
+  /* ---------------- Selos da barra inferior (celular) ---------------- */
+  const pendingAlertCount = useMemo(() => {
+    if (!priorityAnalysis || priorityAnalysis.blocked || !analysisRef) return 0;
+    return priorityAnalysis.alerts.filter(
+      (a) => (priorityRegistry.alerts[alertKey(analysisRef.key, a.recordId)]?.status ?? 'novo') !== 'concluido',
+    ).length;
+  }, [priorityAnalysis, analysisRef, priorityRegistry.alerts]);
+  const noticeHasIssues = phase === 'done' && (!!approvalBlocker || currentNotice.pendingUnits.length > 0 || selectedUnits.length === 0);
+  const navBadges = {
+    regioes: phase === 'done' && result?.units.length ? { count: result.units.length, label: `${result.units.length} região(ões)` } : null,
+    aviso: noticeHasIssues ? { dot: true, tone: 'danger', label: 'há pendências' } : null,
+    alertas: pendingAlertCount ? { count: pendingAlertCount, tone: 'danger', label: `${pendingAlertCount} pendente(s)` } : null,
+  };
+  /** Classe de cada tela: abaixo de lg só a tela ativa aparece; a partir de lg nada muda. */
+  const screen = (...tabs) => (tabs.includes(mobileTab) ? '' : 'max-lg:hidden');
+  const mapScreen = mobileTab === 'mapa';
+
   /* ---------------- Layout ---------------- */
   const territories = isReal ? layerState.layer : DEMO_TERRITORIES;
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-100 font-sans text-petrol-900 2xl:h-screen 2xl:min-h-[860px]">
+    <div className="cr-app flex min-h-screen flex-col bg-slate-100 font-sans text-petrol-900 2xl:h-screen 2xl:min-h-[860px]">
       <Header
         mode={mode}
         onModeChange={handleModeChange}
@@ -776,9 +838,29 @@ export default function App() {
         identity={identity}
       />
 
-      <main className="grid flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_330px] 2xl:min-h-0 2xl:grid-cols-[300px_minmax(0,1fr)_360px] 2xl:grid-rows-[minmax(0,1fr)_304px]">
-        {/* Coluna esquerda: importação e informações */}
-        <aside className="flex flex-col gap-3 lg:row-span-3 xl:row-span-2 2xl:min-h-0 2xl:overflow-y-auto" aria-label="Importação e informações do desligamento">
+      <main
+        ref={mainRef}
+        onScroll={(e) => { scrollByScreen.current[screenKeyRef.current] = e.currentTarget.scrollTop; }}
+        className={`grid flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_330px] 2xl:min-h-0 2xl:grid-cols-[300px_minmax(0,1fr)_360px] 2xl:grid-rows-[minmax(0,1fr)_304px] max-lg:min-h-0 max-lg:overflow-x-hidden max-lg:overscroll-contain ${
+          mapScreen
+            ? 'max-lg:flex max-lg:flex-col max-lg:overflow-y-hidden max-lg:p-0'
+            : 'max-lg:overflow-y-auto max-lg:pl-[max(0.75rem,env(safe-area-inset-left))] max-lg:pr-[max(0.75rem,env(safe-area-inset-right))]'
+        }`}
+      >
+        {/* Coluna esquerda: importação e informações (celular: telas Dados e Alertas) */}
+        <aside className={`flex flex-col gap-3 lg:row-span-3 xl:row-span-2 2xl:min-h-0 2xl:overflow-y-auto ${screen('dados', 'alertas')}`} aria-label="Importação e informações do desligamento">
+          <section className={`rounded-md border border-slate-200 bg-white px-3.5 py-3 shadow-panel lg:hidden ${screen('dados')}`} aria-label="Modo de operação">
+            <p className="mb-1.5 text-[13px] font-semibold text-petrol-900">Modo de operação</p>
+            <ModeSwitch mode={mode} onModeChange={handleModeChange} modeLocked={phase === 'processing'} />
+          </section>
+          {phase === 'done' && result && result.units.length === 0 && (
+            <p className={`flex gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-[14px] leading-snug text-amber-900 lg:hidden ${screen('dados')}`} role="status">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              Processamento concluído sem regiões: nenhum ponto ficou associado a uma única unidade territorial.
+              {isReal ? ' Abra a Auditoria para ver os motivos de cada registro.' : ''}
+            </p>
+          )}
+          <div className={screen('dados')}>
           {isReal ? (
             <RealImportPanel
               imp={imp}
@@ -807,6 +889,8 @@ export default function App() {
               onReset={handleReset}
             />
           )}
+          </div>
+          <div className={screen('alertas')}>
           <PriorityAlertsPanel
             mode={mode}
             phase={phase}
@@ -824,7 +908,10 @@ export default function App() {
             operatorLocked={operatorLocked}
             onOpenRegistry={setRegistryNav}
             unitLabel={unitLabel}
+            onShowOnMap={handleViewRecord}
           />
+          </div>
+          <div className={`flex flex-col gap-3 ${screen('dados')}`}>
           {isReal
             ? (
               <OutageForm
@@ -836,12 +923,26 @@ export default function App() {
             )
             : <OutageInfo outage={OUTAGE} />}
           <Timeline outage={outage} phase={phase} noticeStatus={notice.status} mode={mode} priorityPending={priorityGate.blocked} />
+          </div>
         </aside>
 
-        {/* Centro: indicadores e mapa */}
-        <div className="flex min-h-0 flex-col gap-3">
-          <KpiCards result={result} summary={summary} phase={phase} outage={outage} mode={mode} />
+        {/* Centro: indicadores e mapa (celular: tela Mapa, em tela cheia) */}
+        {/* Fora da tela Mapa, no celular, o mapa fica invisível mas com o tamanho real (mesma área da tela),
+            para o Leaflet nunca ficar com tamanho zero; a câmera continua acompanhando o foco. */}
+        <div
+          className={`flex min-h-0 flex-col gap-3 ${mapScreen
+            ? 'max-lg:flex-1'
+            : 'max-lg:pointer-events-none max-lg:invisible max-lg:fixed max-lg:inset-x-0 max-lg:bottom-[calc(var(--cr-nav-h)+env(safe-area-inset-bottom))] max-lg:top-[calc(3.5rem+1px+env(safe-area-inset-top))]'}`}
+          aria-hidden={isMobile && !mapScreen ? true : undefined}
+        >
+          <div className="max-lg:hidden">
+            <KpiCards result={result} summary={summary} phase={phase} outage={outage} mode={mode} />
+          </div>
           <MapView
+            className="max-lg:min-h-0 max-lg:rounded-none max-lg:border-0 max-lg:shadow-none"
+            visible={!isMobile || mapScreen}
+            compact={isMobile}
+            onOpenDetails={openRegionDetail}
             key={`${mode}|${layerState.status}`}
             mode={mode}
             phase={phase}
@@ -865,8 +966,19 @@ export default function App() {
           />
         </div>
 
-        {/* Direita: resultados territoriais */}
+        {/* Celular: indicadores compactos no topo da tela Regiões */}
+        <div className={`lg:hidden ${mobileTab === 'regioes' && !regionDetailId ? '' : 'max-lg:hidden'}`}>
+          <KpiStrip result={result} summary={summary} phase={phase} outage={outage} mode={mode} />
+        </div>
+
+        {/* Direita: resultados territoriais (celular: tela Regiões) */}
         <RegionPanel
+          className={screen('regioes')}
+          mobile={isMobile}
+          detailId={regionDetailId}
+          onOpenDetail={openRegionDetail}
+          onCloseDetail={closeRegionDetail}
+          onShowOnMap={showRegionOnMap}
           mode={mode}
           phase={phase}
           result={result}
@@ -893,8 +1005,8 @@ export default function App() {
           onOpenAudit={() => setAuditOpen(true)}
         />
 
-        {/* Inferior: comunicação */}
-        <div className="lg:col-start-2 xl:col-span-2 2xl:min-h-0">
+        {/* Inferior: comunicação (celular: tela Aviso) */}
+        <div className={`lg:col-start-2 xl:col-span-2 2xl:min-h-0 ${screen('aviso')}`}>
           <CommunicationPanel
             mode={mode}
             phase={phase}
@@ -921,7 +1033,7 @@ export default function App() {
           result={result}
           summary={summary}
           layerInfo={layerInfo}
-          onFocusUnit={(id) => setFocusId(id)}
+          onFocusUnit={(id) => { setFocusId(id); setMobileTab('mapa'); }}
         />
       )}
       <PriorityRegistry
@@ -942,6 +1054,7 @@ export default function App() {
         onViewOnMap={handleViewRecord}
         onResetDemo={isReal ? null : handleResetDemoPriority}
       />
+      <MobileNav active={mobileTab} onChange={setMobileTab} badges={navBadges} />
       <Toasts toasts={toasts} onDismiss={dismissToast} />
     </div>
   );

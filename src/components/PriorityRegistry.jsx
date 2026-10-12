@@ -46,38 +46,39 @@ export default function PriorityRegistry({
         role="dialog"
         aria-modal="true"
         aria-labelledby="registry-title"
-        className="relative flex h-full w-full max-w-[460px] flex-col bg-white shadow-2xl outline-none"
+        className="relative flex h-full w-full max-w-[460px] flex-col bg-white shadow-2xl outline-none max-lg:h-[100dvh] max-lg:max-w-none"
       >
-        <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+        <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3 max-lg:gap-1 max-lg:pl-[max(0.5rem,env(safe-area-inset-left))] max-lg:pr-[max(0.25rem,env(safe-area-inset-right))] max-lg:pt-[max(0.25rem,env(safe-area-inset-top))] max-lg:pb-1">
           {view === 'form' && (
-            <button type="button" onClick={() => onNavigate({ view: 'list' })} className="rounded p-1 text-slate-500 hover:bg-slate-100" aria-label="Voltar para a lista">
-              <ArrowLeft className="h-4 w-4" />
+            <button type="button" onClick={() => onNavigate({ view: 'list' })} className="rounded p-1 text-slate-500 hover:bg-slate-100 max-lg:grid max-lg:h-11 max-lg:w-11 max-lg:shrink-0 max-lg:place-items-center" aria-label="Voltar para a lista">
+              <ArrowLeft className="h-4 w-4 max-lg:h-5 max-lg:w-5" />
             </button>
           )}
-          <h2 id="registry-title" className="text-[14px] font-semibold text-petrol-900">
+          <h2 id="registry-title" className="text-[14px] font-semibold text-petrol-900 max-lg:min-w-0 max-lg:text-[15px] max-lg:leading-tight">
             {view === 'form' ? (editingId ? `Editar ${editingId}` : 'Cadastrar ponto prioritário') : 'Cadastro de pontos prioritários'}
           </h2>
-          <StatusBadge tone={isReal ? 'info' : 'neutral'} className="ml-1">{isReal ? 'Teste real' : 'Demonstração'}</StatusBadge>
-          <button type="button" onClick={onClose} className="ml-auto rounded p-1 text-slate-500 hover:bg-slate-100" aria-label="Fechar">
-            <X className="h-4 w-4" />
+          <StatusBadge tone={isReal ? 'info' : 'neutral'} className="ml-1 max-sm:hidden">{isReal ? 'Teste real' : 'Demonstração'}</StatusBadge>
+          <button type="button" onClick={onClose} className="ml-auto rounded p-1 text-slate-500 hover:bg-slate-100 max-lg:inline-flex max-lg:min-h-11 max-lg:shrink-0 max-lg:items-center max-lg:gap-1 max-lg:px-3 max-lg:text-[15px] max-lg:font-medium max-lg:text-petrol-700" aria-label="Fechar">
+            <X className="h-4 w-4 max-lg:h-5 max-lg:w-5" />
+            <span className="lg:hidden" aria-hidden="true">Fechar</span>
           </button>
         </div>
 
         <div className="border-b border-slate-100 px-4 py-2">
-          <label className="flex items-center gap-2 text-[12px] text-slate-600">
+          <label className="flex items-center gap-2 text-[12px] text-slate-600 max-lg:flex-wrap max-lg:gap-1 max-lg:text-[13px]">
             Responsável pelas alterações *
             {operatorLocked ? (
               <input
                 value={operator}
                 readOnly
                 title="Identificado pelo login do Cloudflare Access"
-                className="min-w-0 flex-1 cursor-default rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[12.5px] text-petrol-800"
+                className="min-w-0 flex-1 cursor-default rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[12.5px] text-petrol-800 max-lg:min-h-11"
               />
             ) : (
               <input
                 value={by}
                 onChange={(e) => setBy(e.target.value)}
-                className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-[12.5px] text-petrol-900"
+                className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-[12.5px] text-petrol-900 max-lg:min-h-11"
                 placeholder="Nome ou matrícula"
                 autoComplete="off"
               />
@@ -108,14 +109,14 @@ export default function PriorityRegistry({
           )}
         </div>
 
-        <div className="flex items-start gap-2 border-t border-slate-200 bg-slate-50 px-4 py-2 text-[11px] leading-snug text-slate-600">
+        <div className="flex items-start gap-2 border-t border-slate-200 bg-slate-50 px-4 py-2 text-[11px] leading-snug text-slate-600 max-lg:flex-wrap max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom))] max-lg:text-[12px]">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="flex-1">
             Persistência provisória no localStorage deste navegador: não vale para outro computador, navegador ou perfil, não tem
             controle de acesso e pode ser apagada pela limpeza do navegador. Não registre dados médicos detalhados.
           </span>
           {!isReal && onResetDemo && (
-            <button type="button" onClick={onResetDemo} className="inline-flex shrink-0 items-center gap-1 font-medium text-petrol-700 hover:underline">
+            <button type="button" onClick={onResetDemo} className="inline-flex shrink-0 items-center gap-1 font-medium text-petrol-700 hover:underline max-lg:min-h-11">
               <RotateCcw className="h-3 w-3" aria-hidden="true" />
               Restaurar exemplos
             </button>
@@ -133,19 +134,19 @@ function RecordList({
   const [category, setCategory] = useState('all');
   const [status, setStatus] = useState('all');
   const list = useMemo(() => filterRecords(records, { query, category, status }), [records, query, category, status]);
-  const select = 'rounded border border-slate-300 bg-white px-1.5 py-1 text-[12px] text-petrol-900';
+  const select = 'rounded border border-slate-300 bg-white px-1.5 py-1 text-[12px] text-petrol-900 max-lg:min-h-11 max-lg:min-w-0 max-lg:flex-1';
 
   return (
     <div className="space-y-2.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        <label className="relative min-w-[150px] flex-1">
+        <label className="relative min-w-[150px] flex-1 max-lg:basis-full">
           <span className="sr-only">Pesquisar pelo identificador</span>
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Pesquisar identificador"
-            className="w-full rounded border border-slate-300 bg-white py-1 pl-7 pr-2 text-[12px] text-petrol-900"
+            className="w-full rounded border border-slate-300 bg-white py-1 pl-7 pr-2 text-[12px] text-petrol-900 max-lg:min-h-11"
           />
         </label>
         <select value={category} onChange={(e) => setCategory(e.target.value)} className={select} aria-label="Filtrar por categoria">
@@ -164,7 +165,7 @@ function RecordList({
         <button
           type="button"
           onClick={onNew}
-          className="inline-flex items-center gap-1.5 rounded-md bg-petrol-700 px-2.5 py-1.5 text-[12px] font-semibold text-white hover:bg-petrol-800"
+          className="inline-flex items-center gap-1.5 rounded-md bg-petrol-700 px-2.5 py-1.5 text-[12px] font-semibold text-white hover:bg-petrol-800 max-lg:min-h-11 max-lg:text-[14px]"
         >
           <Plus className="h-3.5 w-3.5" aria-hidden="true" />
           Cadastrar ponto prioritário
@@ -190,7 +191,7 @@ function RecordList({
                 </div>
                 {r.label && <p className="mt-0.5 truncate text-[12px] text-slate-700">{r.label}</p>}
                 <p className="text-[11px] text-slate-500">Atualizado em {fmtDate(r.updatedAt)} por {r.updatedBy}</p>
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] font-medium">
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] font-medium max-lg:gap-x-1 max-lg:gap-y-0 max-lg:text-[14px] max-lg:[&>button]:min-h-11 max-lg:[&>button]:px-1.5">
                   <button type="button" onClick={() => onViewOnMap(r.id)} disabled={!active} className="inline-flex items-center gap-1 text-petrol-700 hover:underline disabled:text-slate-400 disabled:no-underline" title={active ? undefined : 'Registros inativos não aparecem no mapa'}>
                     <MapPin className="h-3 w-3" aria-hidden="true" />Ver no mapa
                   </button>
@@ -241,7 +242,7 @@ function RecordForm({
   const err = check?.errors ?? {};
   const warnings = check?.ok ? check.warnings : [];
   const confirming = warnings.length > 0 && ackKey === valuesKey;
-  const input = (k) => `w-full rounded border bg-white px-2 py-1 text-[12.5px] text-petrol-900 ${err[k] ? 'border-red-400' : 'border-slate-300'}`;
+  const input = (k) => `w-full rounded border bg-white px-2 py-1 text-[12.5px] text-petrol-900 max-lg:min-h-11 ${err[k] ? 'border-red-400' : 'border-slate-300'}`;
   const Label = ({ k, children, hint }) => (
     <span className="mb-0.5 block text-[11.5px] font-medium text-petrol-800">
       {children}
@@ -252,7 +253,7 @@ function RecordForm({
 
   return (
     <form onSubmit={submit} noValidate className="space-y-2.5">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
         <label className="block">
           <Label>Identificador interno *</Label>
           <input value={form.id} onChange={set('id')} disabled={!!record} className={input('id')} />
@@ -296,7 +297,7 @@ function RecordForm({
                 form.category === c.code ? (c.code === 'A' ? 'border-red-400 bg-red-50' : 'border-violet-400 bg-violet-50') : 'border-slate-200'
               }`}
             >
-              <input type="radio" name="category" value={c.code} checked={form.category === c.code} onChange={set('category')} className="mt-0.5 accent-accent-500" />
+              <input type="radio" name="category" value={c.code} checked={form.category === c.code} onChange={set('category')} className="mt-0.5 accent-accent-500 max-lg:h-5 max-lg:w-5" />
               <span>
                 <CategoryChip category={c.code} />
                 <span className="mt-0.5 block text-[11px] leading-snug text-slate-600">{c.description}</span>
@@ -319,7 +320,7 @@ function RecordForm({
         </label>
       )}
       {form.category === 'B' && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
           <label className="block">
             <Label>Atividade *</Label>
             <input value={form.activity} onChange={set('activity')} className={input('activity')} placeholder="Ex.: resfriamento de leite" />
@@ -340,8 +341,8 @@ function RecordForm({
         <legend className="sr-only">Status do registro</legend>
         <span className="text-[11.5px] font-medium text-petrol-800">Status *</span>
         {[['active', 'Ativo'], ['inactive', 'Inativo']].map(([v, l]) => (
-          <label key={v} className="inline-flex items-center gap-1">
-            <input type="radio" name="status" value={v} checked={form.status === v} onChange={set('status')} className="accent-accent-500" />
+          <label key={v} className="inline-flex items-center gap-1 max-lg:min-h-11 max-lg:gap-2 max-lg:text-[14px]">
+            <input type="radio" name="status" value={v} checked={form.status === v} onChange={set('status')} className="accent-accent-500 max-lg:h-5 max-lg:w-5" />
             {l}
           </label>
         ))}
@@ -361,11 +362,11 @@ function RecordForm({
       )}
 
       <div className="flex gap-2">
-        <button type="submit" className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-semibold text-white ${confirming ? 'bg-amber-600 hover:bg-amber-700' : 'bg-petrol-700 hover:bg-petrol-800'}`}>
+        <button type="submit" className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-semibold text-white max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:text-[15px] ${confirming ? 'bg-amber-600 hover:bg-amber-700' : 'bg-petrol-700 hover:bg-petrol-800'}`}>
           <Save className="h-3.5 w-3.5" aria-hidden="true" />
           {confirming ? 'Salvar mesmo assim' : 'Salvar'}
         </button>
-        <button type="button" onClick={onCancel} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-medium text-petrol-800 hover:bg-slate-50">
+        <button type="button" onClick={onCancel} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:flex-1 max-lg:text-[15px]">
           Cancelar
         </button>
       </div>

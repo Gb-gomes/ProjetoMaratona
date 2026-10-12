@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import {
-  ArrowRight, ArrowDown, Copy, ShieldCheck, WandSparkles, TriangleAlert, CircleCheck, FileText, Info,
+  ArrowRight, ArrowDown, Copy, ShieldCheck, WandSparkles, TriangleAlert, CircleCheck, FileText, Info, ChevronDown,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
 import { countCharacters } from '../lib/communicationUtils.js';
@@ -57,13 +58,43 @@ export default function CommunicationPanel({
   const noSelection = done && selectedCount === 0;
   const status = isReal && notice.status === 'approved' ? REAL_APPROVED : NOTICE_STATUS[notice.status];
   const chars = countCharacters(notice.text);
+  // Celular: a comparação com a comunicação tradicional fica recolhida (o resumo continua visível).
+  const [compareOpen, setCompareOpen] = useState(false);
 
   return (
     <section className="rounded-md 2xl:h-full border border-slate-200 bg-white p-3.5 shadow-panel" aria-labelledby="comm-title">
       <h2 id="comm-title" className="sr-only">Comunicação rural</h2>
       <div className="grid h-full gap-3 lg:grid-cols-[minmax(0,1fr)_212px_minmax(0,1.2fr)] 2xl:grid-rows-[minmax(0,1fr)]">
+        {/* Celular: resumo do indicador sempre visível, no topo da tela */}
+        <div className="rounded-md border border-petrol-100 bg-petrol-50 text-petrol-800 max-lg:order-first lg:hidden">
+          <p className="px-3 py-2.5 text-[14px] leading-snug">
+            <span className="font-semibold text-petrol-900">Transformação da comunicação: </span>
+            {done ? (
+              <>
+                <b className="text-petrol-800">{result.valid ?? result.total}</b> pontos individuais
+                {' '}<ArrowRight className="inline h-4 w-4 text-accent-500" aria-label="viram" />{' '}
+                <b className="text-accent-700">{result.units.length}</b> unidades territoriais. Menos itens para organizar no aviso.
+              </>
+            ) : 'aparece após o processamento das coordenadas.'}
+          </p>
+        </div>
+
+        {/* Celular: abrir/fechar a comparação com a comunicação tradicional (recolhida por padrão) */}
+        <div className="max-lg:order-2 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setCompareOpen((v) => !v)}
+            aria-expanded={compareOpen}
+            aria-controls="traditional-column"
+            className="flex min-h-11 w-full items-center gap-1.5 rounded-md border border-slate-200 px-3 text-left text-[14px] font-medium text-petrol-700"
+          >
+            <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${compareOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+            {compareOpen ? 'Ocultar a comunicação tradicional' : 'Comparar com a comunicação tradicional'}
+          </button>
+        </div>
+
         {/* Comunicação tradicional */}
-        <div className="flex min-h-0 flex-col 2xl:h-full">
+        <div id="traditional-column" className={`flex min-h-0 flex-col 2xl:h-full max-lg:order-3 ${compareOpen ? '' : 'max-lg:hidden'}`}>
           <ColumnHeader
             title="Comunicação Tradicional"
             badge="Listagem individual"
@@ -96,12 +127,12 @@ export default function CommunicationPanel({
         </div>
 
         {/* Indicador */}
-        <div className="hidden min-h-0 lg:block">
+        <div className={`hidden min-h-0 lg:block max-lg:order-4 ${compareOpen ? 'max-lg:block' : ''}`}>
           <EfficiencyIndicator done={!!done} total={result?.valid} units={result?.units.length} />
         </div>
 
         {/* Comunicação por região */}
-        <div className="flex min-h-0 flex-col 2xl:h-full">
+        <div className="flex min-h-0 flex-col 2xl:h-full max-lg:order-1">
           <ColumnHeader
             title="Carta para as rádios"
             badge="Modelo Energisa"
@@ -112,19 +143,19 @@ export default function CommunicationPanel({
           {done ? (
             <>
               {noSelection && (
-                <p className="mb-1.5 flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] text-amber-900" role="alert">
+                <p className="mb-1.5 flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] text-amber-900 max-lg:text-[14px]" role="alert">
                   <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   Selecione pelo menos uma unidade territorial para gerar o aviso.
                 </p>
               )}
               {notice.stale && !noSelection && (
-                <p className="mb-1.5 flex items-center gap-1.5 rounded-md border border-petrol-100 bg-petrol-50 px-2.5 py-1.5 text-[12px] text-petrol-800" role="status">
+                <p className="mb-1.5 flex items-center gap-1.5 rounded-md border border-petrol-100 bg-petrol-50 px-2.5 py-1.5 text-[12px] text-petrol-800 max-lg:text-[14px]" role="status">
                   <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   A seleção de regiões mudou. Clique em Gerar aviso para atualizar o texto editado.
                 </p>
               )}
               {!noSelection && approvalBlocker && (
-                <p className="mb-1.5 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] text-amber-900" role="status">
+                <p className="mb-1.5 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] text-amber-900 max-lg:border-amber-300 max-lg:px-3 max-lg:py-2 max-lg:text-[14px] max-lg:font-medium" role="status">
                   <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span>
                     {approvalBlocker}
@@ -133,7 +164,7 @@ export default function CommunicationPanel({
                 </p>
               )}
               {!noSelection && notes.length > 0 && (
-                <ul className="mb-1.5 space-y-0.5 rounded-md border border-petrol-100 bg-petrol-50 px-2.5 py-1.5 text-[11.5px] leading-snug text-petrol-800" aria-label="Observações da carta">
+                <ul className="mb-1.5 space-y-0.5 rounded-md border border-petrol-100 bg-petrol-50 px-2.5 py-1.5 text-[11.5px] leading-snug text-petrol-800 max-lg:text-[13.5px]" aria-label="Observações da carta">
                   {notes.map((n) => (
                     <li key={n} className="flex gap-1.5">
                       <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
@@ -148,28 +179,28 @@ export default function CommunicationPanel({
                 value={notice.text}
                 onChange={(e) => onNoticeChange(e.target.value)}
                 placeholder="A carta para as rádios aparece aqui."
-                className="min-h-[220px] flex-1 resize-y rounded-md border-2 2xl:min-h-0 border-accent-300 bg-white px-3 py-2 text-[13px] leading-[1.5] text-petrol-900 focus:border-accent-500"
+                className="min-h-[220px] flex-1 resize-y rounded-md border-2 2xl:min-h-0 max-lg:min-h-[45dvh] border-accent-300 bg-white px-3 py-2 text-[13px] leading-[1.5] text-petrol-900 focus:border-accent-500"
               />
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="mr-auto text-[11.5px] text-slate-500" aria-live="polite">
+              <div className="mt-2 flex flex-wrap items-center gap-2 max-lg:sticky max-lg:-bottom-3 max-lg:z-10 max-lg:-mx-3.5 max-lg:gap-1.5 max-lg:border-t max-lg:border-slate-200 max-lg:bg-white max-lg:px-3.5 max-lg:py-2">
+                <span className="mr-auto text-[11.5px] text-slate-500 max-lg:w-full max-lg:text-[12.5px]" aria-live="polite">
                   {chars.toLocaleString('pt-BR')} caracteres
                 </span>
                 <button
                   type="button"
                   onClick={onGenerate}
                   disabled={noSelection}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-petrol-700 px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-petrol-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-petrol-700 px-3 py-1.5 text-[12.5px] font-semibold max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:whitespace-nowrap max-lg:px-2 max-lg:text-[14px] text-white hover:bg-petrol-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
-                  <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                  <WandSparkles className="h-3.5 w-3.5 max-[399px]:hidden" aria-hidden="true" />
                   Gerar carta
                 </button>
                 <button
                   type="button"
                   onClick={onCopy}
                   disabled={!notice.text.trim()}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-medium text-petrol-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-medium max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:whitespace-nowrap max-lg:px-2 max-lg:text-[14px] text-petrol-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
                 >
-                  <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                  <Copy className="h-3.5 w-3.5 max-[399px]:hidden" aria-hidden="true" />
                   Copiar texto
                 </button>
                 <button
@@ -177,13 +208,13 @@ export default function CommunicationPanel({
                   onClick={onApprove}
                   disabled={!notice.text.trim() || noSelection || notice.status === 'approved' || !!approvalBlocker}
                   title={approvalBlocker ?? undefined}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-[12.5px] font-medium text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-[12.5px] font-medium max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:whitespace-nowrap max-lg:px-2 max-lg:text-[14px] text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
                 >
-                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                  <ShieldCheck className="h-3.5 w-3.5 max-[399px]:hidden" aria-hidden="true" />
                   Aprovar carta
                 </button>
                 {notice.status === 'approved' && notice.approvedBy && (
-                  <span className="self-center text-[11.5px] text-slate-600">
+                  <span className="self-center text-[11.5px] text-slate-600 max-lg:w-full max-lg:text-[12.5px]">
                     Aprovada por <span className="font-medium text-petrol-800">{notice.approvedBy}</span>
                     {notice.approvedAt && ` em ${new Date(notice.approvedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`}
                   </span>

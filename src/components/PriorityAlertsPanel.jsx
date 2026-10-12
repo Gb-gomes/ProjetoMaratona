@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ShieldAlert, Plus, List, HeartPulse, Tractor, TriangleAlert, Info, ChevronDown, ChevronRight, History, Eye, EyeOff,
+  ShieldAlert, Plus, List, HeartPulse, Tractor, TriangleAlert, Info, ChevronDown, ChevronRight, History, Eye, EyeOff, MapPin,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
 import { PRIORITY_CATEGORIES } from '../lib/priorityRecords.js';
@@ -47,7 +47,7 @@ function SummaryCell({ label, value, tone = 'text-petrol-900' }) {
  */
 export default function PriorityAlertsPanel({
   mode, phase, registry, analysis, analysisRef, gate, tolerance, onToleranceChange, toleranceLimits,
-  focusedRecordId, onFocusRecord, onAction, operator, operatorLocked = false, onOpenRegistry, unitLabel,
+  focusedRecordId, onFocusRecord, onAction, operator, operatorLocked = false, onOpenRegistry, unitLabel, onShowOnMap,
 }) {
   const [openKey, setOpenKey] = useState(null);
   const [showLimits, setShowLimits] = useState(false);
@@ -61,7 +61,7 @@ export default function PriorityAlertsPanel({
     <section className="rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="prio-title">
       <div className="flex items-center gap-2 border-b border-slate-100 px-3.5 py-2.5">
         <ShieldAlert className="h-4 w-4 text-red-600" aria-hidden="true" />
-        <h2 id="prio-title" className="text-[13.5px] font-semibold text-petrol-900">Alertas de pontos prioritários</h2>
+        <h2 id="prio-title" className="text-[13.5px] font-semibold text-petrol-900 max-lg:text-[16px]">Alertas de pontos prioritários</h2>
         {done && !analysis.blocked && (
           <StatusBadge tone={analysis.alerts.length ? 'danger' : 'neutral'} className="ml-auto">
             {analysis.alerts.length} alerta(s)
@@ -75,7 +75,7 @@ export default function PriorityAlertsPanel({
             type="button"
             onClick={() => onOpenRegistry({ view: 'form', editingId: null })}
             disabled={registry.status !== 'ready'}
-            className="inline-flex items-center gap-1.5 rounded-md bg-petrol-700 px-2.5 py-1.5 text-[12px] font-semibold text-white hover:bg-petrol-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="inline-flex items-center gap-1.5 rounded-md bg-petrol-700 px-2.5 py-1.5 text-[12px] font-semibold text-white hover:bg-petrol-800 disabled:cursor-not-allowed disabled:bg-slate-300 max-lg:min-h-11 max-lg:text-[14px]"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             Cadastrar ponto prioritário
@@ -84,14 +84,14 @@ export default function PriorityAlertsPanel({
             type="button"
             onClick={() => onOpenRegistry({ view: 'list' })}
             disabled={registry.status !== 'ready'}
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[12px] font-medium text-petrol-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+            className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[12px] font-medium text-petrol-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 max-lg:min-h-11 max-lg:text-[14px]"
           >
             <List className="h-3.5 w-3.5" aria-hidden="true" />
             Cadastro ({records.length})
           </button>
         </div>
 
-        <p className={`flex gap-1.5 rounded-md border px-2 py-1.5 text-[11px] leading-snug ${
+        <p className={`flex gap-1.5 rounded-md border px-2 py-1.5 text-[11px] leading-snug max-lg:text-[12.5px] ${
           isReal ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-slate-200 bg-slate-50 text-slate-600'
         }`}
         >
@@ -106,14 +106,14 @@ export default function PriorityAlertsPanel({
         )}
 
         {!done && registry.status === 'ready' && (
-          <p className="text-[12px] leading-snug text-slate-600">
+          <p className="text-[12px] leading-snug text-slate-600 max-lg:text-[14px]">
             A verificação roda junto com cada processamento do CSV. {activeCount} cadastro(s) ativo(s)
             {records.length > activeCount ? `, ${records.length - activeCount} inativo(s)` : ''}.
           </p>
         )}
 
         {done && (
-          <label className="flex items-center gap-2 text-[11.5px] text-slate-600">
+          <label className="flex items-center gap-2 text-[11.5px] text-slate-600 max-lg:text-[13.5px]">
             Tolerância
             <input
               type="number"
@@ -122,7 +122,7 @@ export default function PriorityAlertsPanel({
               step={1}
               value={tolerance}
               onChange={(e) => onToleranceChange(e.target.value === '' ? '' : Number(e.target.value))}
-              className="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[12px] text-petrol-900"
+              className="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[12px] text-petrol-900 max-lg:min-h-11 max-lg:w-20"
               aria-describedby="tol-note"
             />
             m
@@ -150,17 +150,17 @@ export default function PriorityAlertsPanel({
             </div>
 
             {gate.blocked && (
-              <p className="flex gap-1.5 rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-[12px] font-medium leading-snug text-red-800" role="alert">
+              <p className="flex gap-1.5 rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-[12px] font-medium leading-snug text-red-800 max-lg:text-[14px]" role="alert">
                 <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 {gate.message}
               </p>
             )}
 
-            <div className="rounded-md border border-petrol-100 bg-petrol-50 px-2 py-1.5 text-[11.5px] leading-snug text-petrol-800">
+            <div className="rounded-md border border-petrol-100 bg-petrol-50 px-2 py-1.5 text-[11.5px] leading-snug text-petrol-800 max-lg:text-[13px]">
               <button
                 type="button"
                 onClick={() => setShowLimits((v) => !v)}
-                className="flex w-full items-center gap-1 text-left font-medium"
+                className="flex w-full items-center gap-1 text-left font-medium max-lg:min-h-11"
                 aria-expanded={showLimits}
               >
                 {showLimits ? <ChevronDown className="h-3 w-3" aria-hidden="true" /> : <ChevronRight className="h-3 w-3" aria-hidden="true" />}
@@ -197,15 +197,15 @@ export default function PriorityAlertsPanel({
                         type="button"
                         onClick={() => { setOpenKey(open ? null : key); onFocusRecord(a.recordId, !open); }}
                         aria-expanded={open}
-                        className="w-full px-2 py-1.5 text-left"
+                        className="w-full px-2 py-1.5 text-left max-lg:min-h-12 max-lg:px-3 max-lg:py-2.5"
                       >
                         <span className="flex flex-wrap items-center gap-1">
                           <CategoryChip category={a.category} compact />
-                          <span className="text-[12.5px] font-semibold text-petrol-900">{a.recordId}</span>
+                          <span className="text-[12.5px] font-semibold text-petrol-900 max-lg:text-[15px]">{a.recordId}</span>
                           <StatusBadge tone={MATCH_TONE[a.matchStatus]} className="!px-1.5 !text-[10.5px]">{MATCH_LABEL[a.matchStatus]}</StatusBadge>
                           <StatusBadge tone={wf.tone} className="!px-1.5 !text-[10.5px]">{wf.label}</StatusBadge>
                         </span>
-                        <span className="mt-0.5 block text-[11.5px] text-slate-600">
+                        <span className="mt-0.5 block text-[11.5px] text-slate-600 max-lg:text-[13px]">
                           CSV {a.primaryPointLabel} · {fmtMeters(a.distanceMeters)}
                           {a.primaryUnitId && unitLabel(a.primaryUnitId) ? ` · ${unitLabel(a.primaryUnitId)}` : ''}
                         </span>
@@ -219,6 +219,7 @@ export default function PriorityAlertsPanel({
                           operator={operator}
                           operatorLocked={operatorLocked}
                           onAction={(payload) => onAction(key, payload)}
+                          onShowOnMap={onShowOnMap ? () => onShowOnMap(a.recordId) : null}
                         />
                       )}
                     </li>
@@ -244,7 +245,7 @@ const ACTION_BUTTON = {
 };
 
 function AlertDetails({
-  alert, entry, record, analysisRef, operator, operatorLocked, onAction,
+  alert, entry, record, analysisRef, operator, operatorLocked, onAction, onShowOnMap,
 }) {
   const [showRecord, setShowRecord] = useState(false);
   const status = entry?.status ?? 'novo';
@@ -264,9 +265,19 @@ function AlertDetails({
     if (ok) { setNote(''); setDecision(''); setForwardedTo(''); }
   };
 
-  const field = 'w-full rounded border border-slate-300 bg-white px-2 py-1 text-[12px] text-petrol-900';
+  const field = 'w-full rounded border border-slate-300 bg-white px-2 py-1 text-[12px] text-petrol-900 max-lg:min-h-11';
   return (
-    <div className="space-y-2 border-t border-slate-100 px-2 pb-2 pt-1.5 text-[11.5px] leading-snug text-slate-700">
+    <div className="space-y-2 border-t border-slate-100 px-2 pb-2 pt-1.5 text-[11.5px] leading-snug text-slate-700 max-lg:space-y-3 max-lg:px-3 max-lg:pb-3 max-lg:text-[13.5px]">
+      {onShowOnMap && (
+        <button
+          type="button"
+          onClick={onShowOnMap}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-petrol-300 bg-white px-3 text-[15px] font-medium text-petrol-700 lg:hidden"
+        >
+          <MapPin className="h-4 w-4" aria-hidden="true" />
+          Ver no mapa
+        </button>
+      )}
       <div>
         <p className="font-semibold text-petrol-900">Situação encontrada</p>
         <ul className="list-disc pl-4">{alert.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
@@ -298,7 +309,7 @@ function AlertDetails({
         <button
           type="button"
           onClick={() => setShowRecord((v) => !v)}
-          className="inline-flex items-center gap-1 font-medium text-petrol-700 hover:underline"
+          className="inline-flex items-center gap-1 font-medium text-petrol-700 hover:underline max-lg:min-h-11"
           aria-expanded={showRecord}
         >
           {showRecord ? <EyeOff className="h-3 w-3" aria-hidden="true" /> : <Eye className="h-3 w-3" aria-hidden="true" />}
@@ -324,7 +335,7 @@ function AlertDetails({
         <p className="font-semibold text-petrol-900">Revisão</p>
         {entry?.decision && <p>Decisão: <b>{entry.decision}</b> ({entry.decidedBy}, {fmtDateTime(entry.decidedAt)})</p>}
         {entry?.forwardedTo && <p>Encaminhado para: <b>{entry.forwardedTo}</b></p>}
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5 max-sm:grid-cols-1">
           <label className="block">
             <span className="text-slate-500">Ação</span>
             <select value={current} onChange={(e) => setAction(e.target.value)} className={field}>
@@ -357,7 +368,7 @@ function AlertDetails({
           <span className="text-slate-500">Observações{current === 'reabrir' || current === 'anotar' ? ' *' : ''}</span>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={field} placeholder="Sem dados médicos" />
         </label>
-        <button type="submit" className="rounded-md bg-petrol-700 px-2.5 py-1 text-[12px] font-semibold text-white hover:bg-petrol-800">
+        <button type="submit" className="rounded-md bg-petrol-700 px-2.5 py-1 text-[12px] font-semibold text-white hover:bg-petrol-800 max-lg:min-h-11 max-lg:w-full max-lg:text-[15px]">
           {ACTION_BUTTON[current]}
         </button>
       </form>

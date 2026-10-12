@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react';
 import StatusBadge from './StatusBadge.jsx';
 import {
-  FlaskConical, Database, Sun, Moon, Monitor, LogOut,
+  FlaskConical, Database, Sun, Moon, Monitor, LogOut, Menu, X,
 } from 'lucide-react';
 import { ACCESS_LOGOUT_URL } from '../lib/accessIdentity.js';
 
@@ -49,11 +50,140 @@ function ThemeSwitch({ preference, onChange }) {
   );
 }
 
-export default function Header({
+/** Seletor de modo em tamanho de toque (menu do celular e tela Dados). */
+export function ModeSwitch({ mode, onModeChange, modeLocked }) {
+  return (
+    <div role="radiogroup" aria-label="Modo de operação" className="grid grid-cols-2 rounded-md border border-slate-200 bg-slate-50 p-1">
+      {MODES.map((m) => (
+        <button
+          key={m.value}
+          type="button"
+          role="radio"
+          aria-checked={mode === m.value}
+          disabled={modeLocked}
+          onClick={() => onModeChange?.(m.value)}
+          className={`min-h-11 rounded px-2 text-[14px] font-medium leading-tight transition-colors disabled:cursor-not-allowed ${
+            mode === m.value ? 'bg-white text-petrol-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500'
+          }`}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Cabeçalho compacto (abaixo de lg): marca + menu com modo, tema e usuário. */
+function MobileHeader({
+  mode, onModeChange, modeLocked, themePreference, onThemeChange, identity,
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  return (
+    <header className={`relative ${open ? 'z-[1200]' : 'z-30'} shrink-0 border-b border-slate-200 bg-white pt-[env(safe-area-inset-top)] lg:hidden`}>
+      <div className="flex h-14 items-center gap-2.5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))]">
+        <BrandMark />
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-[15px] font-semibold text-petrol-900">Conecta Rural</p>
+          <p className="truncate text-[12px] text-slate-500">{mode === 'demo' ? 'Demonstração' : 'Teste com dados reais'}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls="mobile-menu"
+          aria-label={open ? 'Fechar menu' : 'Abrir menu'}
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-petrol-800 hover:bg-slate-50"
+        >
+          {open ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
+        </button>
+      </div>
+
+      {open && (
+        <>
+          <button type="button" aria-label="Fechar menu" className="fixed inset-0 top-[calc(3.5rem+env(safe-area-inset-top))] cursor-default bg-black/40" onClick={() => setOpen(false)} />
+          <div id="mobile-menu" className="absolute inset-x-0 top-full max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] space-y-4 overflow-y-auto border-b border-slate-200 bg-white px-[max(1rem,env(safe-area-inset-left))] py-4 shadow-lg">
+            <div>
+              <p className="mb-1.5 text-[13px] font-semibold text-petrol-900">Modo de operação</p>
+              <ModeSwitch mode={mode} onModeChange={(m) => { onModeChange?.(m); setOpen(false); }} modeLocked={modeLocked} />
+              {modeLocked && <p className="mt-1 text-[12.5px] text-slate-500">Aguarde o fim do processamento para trocar de modo.</p>}
+            </div>
+            {onThemeChange && (
+              <div>
+                <p className="mb-1.5 text-[13px] font-semibold text-petrol-900">Tema</p>
+                <div role="radiogroup" aria-label="Tema da interface" className="grid grid-cols-3 rounded-md border border-slate-200 bg-slate-50 p-1">
+                  {THEMES.map(({ value, label, icon: Icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={themePreference === value}
+                      onClick={() => onThemeChange(value)}
+                      className={`flex min-h-11 flex-col items-center justify-center gap-0.5 rounded px-1 text-[12.5px] font-medium leading-tight ${
+                        themePreference === value ? 'bg-white text-petrol-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" aria-hidden="true" />
+                      {label.replace('Tema ', '').replace(/^./, (c) => c.toUpperCase())}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {mode === 'demo'
+                ? <StatusBadge tone="neutral" icon={FlaskConical}>Ambiente de Demonstração</StatusBadge>
+                : <StatusBadge tone="info" icon={Database}>Teste local — sem envio externo</StatusBadge>}
+              <span className="inline-flex items-center gap-1.5 text-[12.5px] text-slate-600">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
+                Sistema disponível
+              </span>
+            </div>
+            <div className="flex items-center gap-3 border-t border-slate-200 pt-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-petrol-700 text-[12px] font-semibold uppercase text-white" aria-hidden="true">
+                {identity ? identity.email.slice(0, 2) : 'OP'}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px] text-slate-500">{identity ? 'Conectado como' : 'Usuário'}</p>
+                <p className="break-all text-[14px] font-medium text-petrol-800">{identity ? identity.email : 'Operador COP'}</p>
+              </div>
+              {identity && (
+                <a
+                  href={ACCESS_LOGOUT_URL}
+                  className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border border-slate-300 px-3 text-[14px] font-medium text-petrol-700"
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                  Sair
+                </a>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </header>
+  );
+}
+
+export default function Header(props) {
+  return (
+    <>
+      <MobileHeader {...props} />
+      <DesktopHeader {...props} />
+    </>
+  );
+}
+
+function DesktopHeader({
   mode = 'demo', onModeChange, modeLocked, themePreference = 'system', onThemeChange, identity = null,
 }) {
   return (
-    <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 bg-white px-4 py-2 sm:h-14 sm:flex-nowrap sm:py-0">
+    <header className="max-lg:hidden flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 bg-white px-4 py-2 sm:h-14 sm:flex-nowrap sm:py-0">
       <div className="flex items-center gap-3">
         <BrandMark />
         <div className="leading-tight">

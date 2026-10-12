@@ -85,14 +85,16 @@ export default function RealImportPanel({
             } ${processing ? 'opacity-60' : ''}`}
           >
             <Upload className="mx-auto h-5 w-5 text-petrol-400" aria-hidden="true" />
-            <p className="mt-1 text-[12.5px] text-slate-600">Arraste o CSV da engenharia ou clique para procurar</p>
+            <p className="mt-1 text-[12.5px] text-slate-600 max-lg:hidden">Arraste o CSV da engenharia ou clique para procurar</p>
+            <p className="mt-1 text-[14px] text-slate-600 lg:hidden">Escolha o arquivo CSV da engenharia</p>
             <button
               type="button"
               disabled={processing}
               onClick={() => inputRef.current?.click()}
-              className="mt-2 rounded border border-petrol-200 bg-white px-3 py-1 text-[12.5px] font-medium text-petrol-700 hover:border-petrol-400 disabled:cursor-not-allowed"
+              className="mt-2 rounded border border-petrol-200 bg-white px-3 py-1 text-[12.5px] font-medium text-petrol-700 hover:border-petrol-400 disabled:cursor-not-allowed max-lg:min-h-12 max-lg:w-full max-lg:text-[15px]"
             >
-              Selecionar arquivo
+              <span className="max-lg:hidden">Selecionar arquivo</span>
+              <span className="lg:hidden">Escolher arquivo CSV</span>
             </button>
             <input
               ref={inputRef}
@@ -134,7 +136,7 @@ export default function RealImportPanel({
         {/* Prévia */}
         {hasFile && parsed?.headers.length > 0 && !done && (
           <details className="rounded-md border border-slate-200 text-[11.5px]" open={imp.status === 'parsed'}>
-            <summary className="cursor-pointer px-3 py-1.5 font-medium text-petrol-800">Prévia (primeiras {parsed.preview.length} linhas)</summary>
+            <summary className="cursor-pointer px-3 py-1.5 font-medium text-petrol-800 max-lg:flex max-lg:min-h-11 max-lg:items-center max-lg:text-[14px]">Prévia (primeiras {parsed.preview.length} linhas)</summary>
             <div className="max-h-40 overflow-auto border-t border-slate-100">
               <table className="min-w-full text-left">
                 <thead className="sticky top-0 bg-slate-50">
@@ -157,24 +159,24 @@ export default function RealImportPanel({
           <fieldset className="space-y-1.5 rounded-md border border-slate-200 px-3 py-2.5" disabled={processing}>
             <legend className="px-1 text-[12px] font-semibold text-petrol-900">Mapeamento das colunas</legend>
             {MAPPABLE_FIELDS.map((f) => (
-              <label key={f.key} className="grid grid-cols-[118px_1fr] items-center gap-2 text-[11.5px] text-slate-600">
+              <label key={f.key} className="grid grid-cols-[118px_1fr] items-center gap-2 text-[11.5px] text-slate-600 max-lg:grid-cols-[104px_minmax(0,1fr)] max-lg:text-[13px]">
                 <span>{f.label}{f.required && <span className="text-red-600"> *</span>}</span>
                 <select
                   value={imp.mapping[f.key] ?? ''}
                   onChange={(e) => onMappingChange(f.key, e.target.value === '' ? null : Number(e.target.value))}
-                  className="min-w-0 rounded border border-slate-300 bg-white px-1.5 py-1 text-[12px] text-petrol-900"
+                  className="min-w-0 rounded border border-slate-300 bg-white px-1.5 py-1 text-[12px] text-petrol-900 max-lg:min-h-11"
                 >
                   <option value="">{f.required ? 'Selecione…' : 'Não disponível'}</option>
                   {parsed.headers.map((h, i) => <option key={i} value={i}>{h || `(coluna ${i + 1})`}</option>)}
                 </select>
               </label>
             ))}
-            <label className="grid grid-cols-[118px_1fr] items-center gap-2 pt-1 text-[11.5px] text-slate-600">
+            <label className="grid grid-cols-[118px_1fr] items-center gap-2 pt-1 text-[11.5px] text-slate-600 max-lg:grid-cols-[104px_minmax(0,1fr)] max-lg:text-[13px]">
               <span>Referencial<span className="text-red-600"> *</span></span>
               <select
                 value={imp.crs}
                 onChange={(e) => onCrsChange(e.target.value)}
-                className="min-w-0 rounded border border-slate-300 bg-white px-1.5 py-1 text-[12px] text-petrol-900"
+                className="min-w-0 rounded border border-slate-300 bg-white px-1.5 py-1 text-[12px] text-petrol-900 max-lg:min-h-11"
               >
                 {CRS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
@@ -192,7 +194,7 @@ export default function RealImportPanel({
             <button
               type="button"
               onClick={onValidate}
-              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border border-petrol-300 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-petrol-800 hover:border-petrol-500"
+              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border border-petrol-300 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-petrol-800 hover:border-petrol-500 max-lg:min-h-12 max-lg:text-[15px]"
             >
               <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />
               Validar registros
@@ -219,7 +221,7 @@ export default function RealImportPanel({
             )}
             {errorRecords.length > 0 && (
               <details className="mt-1">
-                <summary className="cursor-pointer font-medium">Ver ocorrências ({errorRecords.length})</summary>
+                <summary className="cursor-pointer font-medium max-lg:flex max-lg:min-h-11 max-lg:items-center">Ver ocorrências ({errorRecords.length})</summary>
                 <ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto pl-1">
                   {errorRecords.map((r) => (
                     <li key={r.line}>
@@ -263,20 +265,20 @@ export default function RealImportPanel({
           </div>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 max-lg:sticky max-lg:-bottom-3 max-lg:z-10 max-lg:-mx-3.5 max-lg:-mb-3.5 max-lg:rounded-b-md max-lg:border-t max-lg:border-slate-200 max-lg:bg-white max-lg:px-3.5 max-lg:py-2.5">
           {!done && !processing && (
             <button
               type="button"
               onClick={onProcess}
               disabled={!canProcess}
-              className="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent-500 px-3 py-2 text-[13.5px] font-semibold text-white shadow-sm hover:bg-accent-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent-500 px-3 py-2 text-[13.5px] font-semibold text-white shadow-sm max-lg:min-h-12 max-lg:text-[15px] hover:bg-accent-600 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               <Play className="h-4 w-4" aria-hidden="true" />
               Processar Coordenadas
             </button>
           )}
           {processing && (
-            <button type="button" disabled className="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent-400 px-3 py-2 text-[13.5px] font-semibold text-white">
+            <button type="button" disabled className="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent-400 px-3 py-2 text-[13.5px] font-semibold text-white max-lg:min-h-12 max-lg:text-[15px]">
               <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
               Processando…
             </button>
@@ -286,7 +288,7 @@ export default function RealImportPanel({
               <button
                 type="button"
                 onClick={onOpenAudit}
-                className="flex flex-1 items-center justify-center gap-2 rounded-md bg-petrol-700 px-3 py-2 text-[13px] font-semibold text-white hover:bg-petrol-800"
+                className="flex flex-1 items-center justify-center gap-2 rounded-md bg-petrol-700 px-3 py-2 text-[13px] font-semibold text-white hover:bg-petrol-800 max-lg:min-h-12 max-lg:text-[15px]"
               >
                 <ListChecks className="h-4 w-4" aria-hidden="true" />
                 Auditoria
@@ -294,7 +296,7 @@ export default function RealImportPanel({
               <button
                 type="button"
                 onClick={onReset}
-                className="flex items-center justify-center gap-2 rounded-md border border-petrol-200 bg-white px-3 py-2 text-[13px] font-medium text-petrol-700 hover:border-petrol-400"
+                className="flex items-center justify-center gap-2 rounded-md border border-petrol-200 bg-white px-3 py-2 text-[13px] font-medium text-petrol-700 hover:border-petrol-400 max-lg:min-h-12 max-lg:text-[15px]"
               >
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
                 Novo arquivo

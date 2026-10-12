@@ -92,3 +92,38 @@ export default function KpiCards({
     </div>
   );
 }
+
+/** Versão compacta dos indicadores para o topo da tela Regiões no celular. */
+export function KpiStrip({
+  result, summary, phase, outage, mode = 'demo',
+}) {
+  const done = phase === 'done' && result && summary;
+  const isReal = mode === 'real';
+  const cells = [
+    { label: 'pontos', value: done ? summary.imported : '—' },
+    { label: 'regiões', value: done ? summary.unitCount : '—', highlight: true },
+    { label: 'desligamento', value: outage.dateLabel, small: true, sub: outage.start && outage.end ? `${outage.start}–${outage.end}` : null },
+    { label: 'aviso ao cliente', value: outage.noticeDate ?? 'Não informado', small: true, sub: outage.noticeDaysBefore != null ? `${outage.noticeDaysBefore} dias antes` : null },
+  ];
+  return (
+    <section aria-label="Indicadores" className="rounded-md border border-slate-200 bg-white shadow-panel">
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-md bg-slate-200 sm:grid-cols-4">
+        {cells.map((c) => (
+          <div key={c.label} className="flex min-w-0 flex-col bg-white px-2 py-2 text-center">
+            <dt className="truncate text-[12.5px] text-slate-500">{c.label}</dt>
+            <dd className={`order-first truncate font-semibold leading-tight ${c.highlight ? 'text-accent-700' : 'text-petrol-900'} ${c.small ? 'text-[16px]' : 'text-[20px]'}`}>
+              {c.value}
+              {c.sub && <span className="block truncate text-[12.5px] font-normal text-slate-600">{c.sub}</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {done && (summary.unmatched > 0 || (isReal && summary.ambiguous > 0)) && (
+        <p className="flex flex-wrap gap-1.5 border-t border-slate-200 px-2.5 py-1.5">
+          {summary.unmatched > 0 && <Chip tone="danger" icon>{summary.unmatched} sem correspondência</Chip>}
+          {isReal && summary.ambiguous > 0 && <Chip tone="warn" icon>{summary.ambiguous} ambíguo(s)</Chip>}
+        </p>
+      )}
+    </section>
+  );
+}
