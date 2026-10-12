@@ -182,6 +182,12 @@ export default function CommunicationPanel({
                   <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
                   Aprovar carta
                 </button>
+                {notice.status === 'approved' && notice.approvedBy && (
+                  <span className="self-center text-[11.5px] text-slate-600">
+                    Aprovada por <span className="font-medium text-petrol-800">{notice.approvedBy}</span>
+                    {notice.approvedAt && ` em ${new Date(notice.approvedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`}
+                  </span>
+                )}
               </div>
             </>
           ) : (

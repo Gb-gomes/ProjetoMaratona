@@ -37,7 +37,7 @@ const fmtDateTime = (iso) => {
 export default function RegionPanel({
   mode = 'demo', phase, result, summary, focusId, onFocus, selectedIds, onToggleSelected, onSelectAll, onClearSelection,
   layerInfo, layerState, nameOptions, onOpenAudit,
-  regionStore = {}, operator = '', onRenameRegion, onRemoveRegionName, onExportNames, onImportNames,
+  regionStore = {}, operator = '', operatorLocked = false, onRenameRegion, onRemoveRegionName, onExportNames, onImportNames,
   announcementByUnit = {}, announceThreshold = 3, onAnnounceMode,
 }) {
   const done = phase === 'done' && result;
@@ -237,6 +237,7 @@ export default function RegionPanel({
                         currentName={speak.name}
                         canRemove={speak.origin === 'operator'}
                         operator={operator}
+                        operatorLocked={operatorLocked}
                         onCancel={() => setEditingId(null)}
                         onSave={(data) => { if (onRenameRegion({ unit: u, ...data })) setEditingId(null); }}
                         onRemove={(by) => { if (onRemoveRegionName({ unit: u, by })) setEditingId(null); }}
@@ -348,7 +349,7 @@ function AnnounceControl({ item, threshold, onChange }) {
 
 /** Formulário para nomear/renomear uma região. */
 function NameEditor({
-  unit, currentName, canRemove, operator, onCancel, onSave, onRemove,
+  unit, currentName, canRemove, operator, operatorLocked, onCancel, onSave, onRemove,
 }) {
   const [name, setName] = useState(currentName ?? '');
   const [by, setBy] = useState(operator);
@@ -381,13 +382,22 @@ function NameEditor({
       </label>
       <label className="block">
         <span className="text-slate-600">Responsável pela alteração *</span>
-        <input
-          value={by}
-          onChange={(e) => setBy(e.target.value)}
-          maxLength={80}
-          placeholder="Nome e área"
-          className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[12.5px] text-petrol-900"
-        />
+        {operatorLocked ? (
+          <input
+            value={operator}
+            readOnly
+            title="Identificado pelo login do Cloudflare Access"
+            className="mt-0.5 w-full cursor-default rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[12.5px] text-petrol-800"
+          />
+        ) : (
+          <input
+            value={by}
+            onChange={(e) => setBy(e.target.value)}
+            maxLength={80}
+            placeholder="Nome e área"
+            className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[12.5px] text-petrol-900"
+          />
+        )}
       </label>
       <label className="block">
         <span className="text-slate-600">Observação (como o nome foi confirmado)</span>

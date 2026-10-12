@@ -1,0 +1,14 @@
+# Cabeçalhos de segurança do Cloudflare Pages (ver docs/DEPLOY_CLOUDFLARE.md).
+#
+# A CSP principal continua no <meta> do index.html (connect-src 'self';
+# form-action 'none'). Aqui entra só frame-ancestors, que não funciona em
+# <meta>. O navegador aplica as duas políticas juntas; nada fica mais permissivo.
+#
+# Permissions-Policy: o app não usa câmera, microfone, geolocalização etc.
+# A área de transferência ("Copiar texto") não é bloqueada.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  Permissions-Policy: accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), magnetometer=(), microphone=(), midi=(), payment=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()

@@ -43,6 +43,14 @@ npm run build      # gera a pasta dist/
 npm run preview    # serve a build localmente
 ```
 
+Para publicar no Cloudflare Pages, com acesso protegido pelo Cloudflare Access:
+
+```bash
+npm run deploy     # wrangler pages deploy dist --project-name conecta-rural
+```
+
+O primeiro deploy exige `npx wrangler login` e a criação do projeto. A configuração do Access é feita no painel da Cloudflare. Passo a passo em [docs/DEPLOY_CLOUDFLARE.md](docs/DEPLOY_CLOUDFLARE.md).
+
 Você precisa de internet para carregar duas coisas: o fundo cartográfico (tiles do OpenStreetMap) e a fonte IBM Plex Sans. Sem conexão, o mapa mostra um aviso, mas as camadas, os resultados e a comunicação continuam funcionando.
 
 ## Dependências
@@ -56,6 +64,7 @@ Você precisa de internet para carregar duas coisas: o fundo cartográfico (tile
 | vite 5 e @vitejs/plugin-react | Servidor de desenvolvimento e build |
 | @turf/boolean-point-in-polygon 7.1 e @turf/helpers | Teste de ponto no polígono (Polygon, MultiPolygon, buracos, limites) |
 | vitest 2.1 (dev) | Testes automatizados |
+| wrangler 4.48 (dev) | Deploy no Cloudflare Pages (última versão compatível com Node 18) |
 
 ## Roteiro: modo Demonstração
 
@@ -146,6 +155,15 @@ Etapa **demonstrativa**: o armazenamento é local e não há controle de acesso;
 - O `.gitignore` bloqueia `dados/`, `dados_reais/`, `data/private/`, `*.real.csv`, `*.local.csv`, exportações de auditoria e os downloads brutos do IBGE.
 - Não use dados reais de clientes em capturas de tela ou demonstrações públicas.
 
+**Acesso pelo Cloudflare Access** (site publicado; ver [docs/DEPLOY_CLOUDFLARE.md](docs/DEPLOY_CLOUDFLARE.md)):
+
+- O app lê o e-mail do usuário em `/cdn-cgi/access/get-identity` (mesma origem, compatível com a CSP). O objeto de identidade fica **só em memória**: não vai para o console nem para `localStorage`/`sessionStorage`.
+- Com identidade, o **e-mail autenticado** é usado como responsável e **fica gravado nos históricos** que já ficam no `localStorage`: nomes de região (definido, alterado, removido, importado), cadastro de pontos prioritários e revisão de alertas. Também aparece no JSON exportado de nomes de região. Neste caso, o e-mail não é salvo como "último responsável digitado".
+- A aprovação da carta registra quem aprovou somente em memória; a informação some ao recarregar a página.
+- O Cloudflare Access controla **quem abre o site**, mas **não** torna o cadastro de pontos prioritários adequado para dados reais: ele continua no `localStorage` de cada navegador, sem controle de acesso por registro, sem backup e sem compartilhamento entre usuários.
+- A identidade exibida é uma **conveniência de front-end para auditoria**. Ela **não substitui autorização em backend**: quem usa o navegador pode alterar os dados locais.
+- `public/_headers` acrescenta `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY`, `frame-ancestors 'none'` e uma `Permissions-Policy` restritiva. A CSP do `index.html` não foi afrouxada.
+
 ## Estrutura
 
 ```
@@ -187,9 +205,12 @@ src/
     ├── usePriorityRegistry.js  Hook usado pela interface (cadastro + alertas)
     ├── priorityMatch.js        Comparação CSV × cadastro (Haversine + tolerância + identificador)
     ├── priorityAlerts.js       Fluxo de revisão, histórico e bloqueio de validação
+    ├── accessIdentity.js       Identidade do Cloudflare Access (somente em memória; null fora do Access)
+    ├── useAccessIdentity.js    Hook da identidade para a interface
     ├── geo.js                  Utilitários geométricos
     └── __tests__/              Testes automatizados
 public/data/ibge/               Camada oficial do piloto (a ser gerada) e correspondência de nomes
+public/_headers                 Cabeçalhos de segurança do Cloudflare Pages
 scripts/
 ├── preparar_camada_ibge.sh     Download, recorte e conversão da malha do IBGE (GDAL)
 ├── inspecionar_camada.mjs      Validação e inventário de atributos de um GeoJSON
@@ -197,6 +218,7 @@ scripts/
 └── validar_cruzamento.mjs      Pipeline da aplicação em linha de comando + comparação com setor de referência
 docs/
 ├── CAMADA_TERRITORIAL.md       Fonte, campos, unidade escolhida, procedimento, limitações
+├── DEPLOY_CLOUDFLARE.md        Build, deploy no Pages, configuração do Cloudflare Access, limitações
 ├── PONTOS_PRIORITARIOS.md      Cadastro manual, regra de comparação, alertas, persistência e limites
 └── RELATORIO_VALIDACAO.md      Relatório do teste técnico e modelo para o primeiro teste real
 ```
@@ -217,3 +239,5 @@ docs/
 - Não há versão simplificada da camada só para exibição.
 - A camada "Rede elétrica" está desabilitada por falta de dados.
 - O indicador de transformação compara apenas a quantidade de itens do aviso. Ele não estima economia financeira.
+- Controle de acesso: só o Cloudflare Access, na frente do site. Não há backend, então não há autorização por perfil nem validação do token do Access. O e-mail exibido e gravado nos históricos vem do front-end e serve de rastro, não de prova. Sem o Access (ex.: `npm run dev`), o responsável continua sendo digitado livremente.
+- Ambiente de testes limitado a **no máximo 45 usuários**, por uma lista nominal de e-mails num grupo do Cloudflare Access (com exigência de `@energisa.com.br`). O limite vale enquanto a lista tiver no máximo 45 nomes e só administradores autorizados puderem editá-la (ver [docs/DEPLOY_CLOUDFLARE.md](docs/DEPLOY_CLOUDFLARE.md), passo 3.3).

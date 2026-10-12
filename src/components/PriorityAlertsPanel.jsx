@@ -47,7 +47,7 @@ function SummaryCell({ label, value, tone = 'text-petrol-900' }) {
  */
 export default function PriorityAlertsPanel({
   mode, phase, registry, analysis, analysisRef, gate, tolerance, onToleranceChange, toleranceLimits,
-  focusedRecordId, onFocusRecord, onAction, operator, onOpenRegistry, unitLabel,
+  focusedRecordId, onFocusRecord, onAction, operator, operatorLocked = false, onOpenRegistry, unitLabel,
 }) {
   const [openKey, setOpenKey] = useState(null);
   const [showLimits, setShowLimits] = useState(false);
@@ -217,6 +217,7 @@ export default function PriorityAlertsPanel({
                           record={byId.get(a.recordId)}
                           analysisRef={analysisRef}
                           operator={operator}
+                          operatorLocked={operatorLocked}
                           onAction={(payload) => onAction(key, payload)}
                         />
                       )}
@@ -243,7 +244,7 @@ const ACTION_BUTTON = {
 };
 
 function AlertDetails({
-  alert, entry, record, analysisRef, operator, onAction,
+  alert, entry, record, analysisRef, operator, operatorLocked, onAction,
 }) {
   const [showRecord, setShowRecord] = useState(false);
   const status = entry?.status ?? 'novo';
@@ -332,7 +333,9 @@ function AlertDetails({
           </label>
           <label className="block">
             <span className="text-slate-500">Responsável *</span>
-            <input value={by} onChange={(e) => setBy(e.target.value)} className={field} autoComplete="off" />
+            {operatorLocked
+              ? <input value={operator} readOnly title="Identificado pelo login do Cloudflare Access" className={`${field} cursor-default bg-slate-50 text-petrol-800`} />
+              : <input value={by} onChange={(e) => setBy(e.target.value)} className={field} autoComplete="off" />}
           </label>
         </div>
         {current === 'concluir' && (

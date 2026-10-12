@@ -1,7 +1,8 @@
 import StatusBadge from './StatusBadge.jsx';
 import {
-  FlaskConical, Database, Sun, Moon, Monitor,
+  FlaskConical, Database, Sun, Moon, Monitor, LogOut,
 } from 'lucide-react';
+import { ACCESS_LOGOUT_URL } from '../lib/accessIdentity.js';
 
 /** Símbolo próprio do Conecta Rural: marcador de localização com raio. */
 function BrandMark() {
@@ -49,7 +50,7 @@ function ThemeSwitch({ preference, onChange }) {
 }
 
 export default function Header({
-  mode = 'demo', onModeChange, modeLocked, themePreference = 'system', onThemeChange,
+  mode = 'demo', onModeChange, modeLocked, themePreference = 'system', onThemeChange, identity = null,
 }) {
   return (
     <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 bg-white px-4 py-2 sm:h-14 sm:flex-nowrap sm:py-0">
@@ -89,12 +90,34 @@ export default function Header({
           <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
           Sistema disponível
         </span>
-        <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-petrol-700 text-[12px] font-semibold text-white" aria-hidden="true">
-            OP
-          </span>
-          <span className="hidden text-[12.5px] font-medium text-petrol-800 sm:inline">Operador COP</span>
-        </div>
+        {identity ? (
+          // Usuário autenticado pelo Cloudflare Access (somente em memória; ver src/lib/accessIdentity.js).
+          <div className="flex min-w-0 items-center gap-2 border-l border-slate-200 pl-4">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-petrol-700 text-[12px] font-semibold uppercase text-white" aria-hidden="true">
+              {identity.email.slice(0, 2)}
+            </span>
+            <div className="min-w-0 leading-tight">
+              <p className="sr-only">Conectado como</p>
+              <p className="hidden max-w-[220px] truncate text-[12.5px] font-medium text-petrol-800 sm:block" title={identity.email}>
+                {identity.email}
+              </p>
+              <a
+                href={ACCESS_LOGOUT_URL}
+                className="inline-flex items-center gap-1 text-[11.5px] font-medium text-petrol-600 underline-offset-2 hover:underline"
+              >
+                <LogOut className="h-3 w-3" aria-hidden="true" />
+                Sair
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-petrol-700 text-[12px] font-semibold text-white" aria-hidden="true">
+              OP
+            </span>
+            <span className="hidden text-[12.5px] font-medium text-petrol-800 sm:inline">Operador COP</span>
+          </div>
+        )}
       </div>
     </header>
   );

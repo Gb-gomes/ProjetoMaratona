@@ -19,7 +19,7 @@ const ACTION_TEXT = { criado: 'Criado', editado: 'Editado', desativado: 'Desativ
  * (pesquisa e filtros) e formulário de inclusão/edição, sem modais extras.
  */
 export default function PriorityRegistry({
-  open, view, editingId, mode, records, alerts, operator, duplicateWarningMeters,
+  open, view, editingId, mode, records, alerts, operator, operatorLocked = false, duplicateWarningMeters,
   onClose, onNavigate, onSave, onSetStatus, onDelete, onViewOnMap, onResetDemo,
 }) {
   const panelRef = useRef(null);
@@ -66,13 +66,22 @@ export default function PriorityRegistry({
         <div className="border-b border-slate-100 px-4 py-2">
           <label className="flex items-center gap-2 text-[12px] text-slate-600">
             Responsável pelas alterações *
-            <input
-              value={by}
-              onChange={(e) => setBy(e.target.value)}
-              className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-[12.5px] text-petrol-900"
-              placeholder="Nome ou matrícula"
-              autoComplete="off"
-            />
+            {operatorLocked ? (
+              <input
+                value={operator}
+                readOnly
+                title="Identificado pelo login do Cloudflare Access"
+                className="min-w-0 flex-1 cursor-default rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[12.5px] text-petrol-800"
+              />
+            ) : (
+              <input
+                value={by}
+                onChange={(e) => setBy(e.target.value)}
+                className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-[12.5px] text-petrol-900"
+                placeholder="Nome ou matrícula"
+                autoComplete="off"
+              />
+            )}
           </label>
         </div>
 

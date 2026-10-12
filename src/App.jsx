@@ -37,6 +37,7 @@ import {
 import { buildOutageView, EMPTY_OUTAGE_FORM } from './lib/outage.js';
 import { summarize, DEFAULT_POINT_FILTER } from './lib/summary.js';
 import { useTheme } from './lib/theme.js';
+import { useAccessIdentity } from './lib/useAccessIdentity.js';
 import { usePriorityRegistry } from './lib/usePriorityRegistry.js';
 import { priorityScope } from './lib/priorityRepository.js';
 import { upsertRecord, setRecordStatus, deleteRecord } from './lib/priorityRecords.js';
@@ -98,7 +99,18 @@ export default function App() {
   const [layerState, setLayerState] = useState({ status: 'idle', layer: null, errors: [], warnings: [], correspondence: {} });
   // Nomes de região definidos pelo operador (salvos neste navegador, com histórico).
   const [regionStore, setRegionStore] = useState(() => loadStore(PILOT_CONFIG.territory.ibgeCode));
-  const [operator, setOperator] = useState(() => loadOperator());
+  const [typedOperator, setTypedOperator] = useState(() => loadOperator());
+  // Com o Cloudflare Access, o responsável é o e-mail autenticado (somente
+  // leitura, só em memória). Sem Access (ex.: npm run dev), vale o nome digitado.
+  const identity = useAccessIdentity();
+  const operator = identity?.email ?? typedOperator;
+  const operatorLocked = !!identity;
+  const authorFor = (by) => identity?.email ?? by;
+  const rememberOperator = (by) => {
+    if (identity) return; // o e-mail nunca vai para o localStorage como "último responsável"
+    setTypedOperator(by.trim());
+    saveOperator(by);
+  };
 
   // Pontos prioritários: cadastro e histórico de alertas persistidos por escopo (demo / real).
   const priorityRegistry = usePriorityRegistry(priorityScope(mode, PILOT_CONFIG.territory.ibgeCode), {
@@ -300,7 +312,8 @@ export default function App() {
     if (force !== false) setFocusId(null);
   }, [priorityAnalysis]);
 
-  const handleSaveRecord = (value, editingId, by) => {
+  const handleSaveRecord = (value, editingId, typedBy) => {
+    const by = authorFor(typedBy);
     try {
       const next = upsertRecord(priorityRegistry.records, value, { by, editingId });
       if (next === priorityRegistry.records) {
@@ -309,8 +322,7 @@ export default function App() {
         priorityRegistry.commitRecords(next);
         notify('success', editingId ? `Registro ${editingId} atualizado.` : `Ponto prioritário ${value.id} cadastrado.`);
       }
-      setOperator(by.trim());
-      saveOperator(by);
+      rememberOperator(by);
       setRegistryNav({ view: 'list' });
       return true;
     } catch (err) {
@@ -319,11 +331,11 @@ export default function App() {
     }
   };
 
-  const handleRecordStatus = (id, status, by) => {
+  const handleRecordStatus = (id, status, typedBy) => {
+    const by = authorFor(typedBy);
     try {
       priorityRegistry.commitRecords(setRecordStatus(priorityRegistry.records, id, status, { by }));
-      setOperator(by.trim());
-      saveOperator(by);
+      rememberOperator(by);
       notify('success', status === 'active' ? `Registro ${id} reativado.` : `Registro ${id} desativado. O histórico foi mantido.`);
       if (status !== 'active' && priorityFocus?.recordId === id) setPriorityFocus(null);
     } catch (err) {
@@ -348,11 +360,11 @@ export default function App() {
     focusPriority(id, true);
   };
 
-  const handleAlertAction = (key, payload) => {
+  const handleAlertAction = (key, typedPayload) => {
+    const payload = { ...typedPayload, by: authorFor(typedPayload.by) };
     try {
       priorityRegistry.commitAlerts(transitionAlert(priorityRegistry.alerts, key, payload));
-      setOperator(payload.by.trim());
-      saveOperator(payload.by);
+      rememberOperator(payload.by);
       notify('success', 'Revisão registrada no histórico do alerta.');
       return true;
     } catch (err) {
@@ -384,14 +396,16 @@ export default function App() {
     }
   };
 
-  const handleRenameRegion = ({ unit, name, by, note }) => {
+  const handleRenameRegion = ({
+    unit, name, by: typedBy, note,
+  }) => {
+    const by = authorFor(typedBy);
     try {
       const previousName = resolveSpeakableName(unit, nameOptions).name ?? unit.name ?? null;
       persistStore(renameRegion(regionStore, {
         code: unit.code, name, by, note, previousName,
       }));
-      setOperator(by.trim());
-      saveOperator(by);
+      rememberOperator(by);
       notify('success', `Região ${String(unit.order).padStart(2, '0')} nomeada como "${name.trim()}".`);
       return true;
     } catch (err) {
@@ -400,7 +414,8 @@ export default function App() {
     }
   };
 
-  const handleRemoveRegionName = ({ unit, by }) => {
+  const handleRemoveRegionName = ({ unit, by: typedBy }) => {
+    const by = authorFor(typedBy);
     try {
       persistStore(removeRegionName(regionStore, { code: unit.code, by }));
       notify('info', 'Nome do operador removido. O histórico foi mantido.');
@@ -736,7 +751,10 @@ export default function App() {
 
   const handleApprove = () => {
     if (!notice.text.trim() || !selectedUnits.length || approvalBlocker) return;
-    setNotice((prev) => ({ ...prev, status: 'approved' }));
+    // Com identidade do Access, a aprovação registra quem aprovou (só em memória).
+    setNotice((prev) => ({
+      ...prev, status: 'approved', approvedBy: identity?.email ?? null, approvedAt: new Date().toISOString(),
+    }));
     notify('success', isReal
       ? 'Carta aprovada no ambiente de teste. Nenhuma mensagem foi enviada.'
       : 'Carta aprovada para demonstração. Nenhuma mensagem foi enviada.');
@@ -755,6 +773,7 @@ export default function App() {
         modeLocked={phase === 'processing'}
         themePreference={themePreference}
         onThemeChange={setThemePreference}
+        identity={identity}
       />
 
       <main className="grid flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_330px] 2xl:min-h-0 2xl:grid-cols-[300px_minmax(0,1fr)_360px] 2xl:grid-rows-[minmax(0,1fr)_304px]">
@@ -802,6 +821,7 @@ export default function App() {
             onFocusRecord={focusPriority}
             onAction={handleAlertAction}
             operator={operator}
+            operatorLocked={operatorLocked}
             onOpenRegistry={setRegistryNav}
             unitLabel={unitLabel}
           />
@@ -865,6 +885,7 @@ export default function App() {
           announceThreshold={ANNOUNCEMENT_RULES.minClientsForRegion}
           onAnnounceMode={handleAnnounceMode}
           operator={operator}
+          operatorLocked={operatorLocked}
           onRenameRegion={handleRenameRegion}
           onRemoveRegionName={handleRemoveRegionName}
           onExportNames={handleExportNames}
@@ -911,6 +932,7 @@ export default function App() {
         records={priorityRegistry.records}
         alerts={priorityRegistry.alerts}
         operator={operator}
+        operatorLocked={operatorLocked}
         duplicateWarningMeters={PRIORITY_MATCH.duplicateWarningMeters}
         onClose={closeRegistry}
         onNavigate={setRegistryNav}
