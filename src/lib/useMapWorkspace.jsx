@@ -1,0 +1,990 @@
+/**
+ * Orquestra o sistema de camadas e as sub-regiões no modo "Teste com dados reais":
+ * catálogo de camadas (sistema, IBGE, sub-regiões, dados, externas), estado por
+ * usuário, editor de sub-região, filtros, resumos e diálogos.
+ *
+ * Devolve o que o MapView precisa (filhos do mapa, painel, sobreposições) e os
+ * diálogos, para manter o App.jsx enxuto.
+ */
+import {
+  Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState,
+} from 'react';
+import { Shapes } from 'lucide-react';
+import {
+  BASEMAPS, IBGE_HIERARCHY, ORGANIZATION, ROLES, CUSTOM_REGION_RULES, PILOT_CONFIG,
+} from '../config.js';
+import { loadHierarchy, LEVEL_LABEL } from './ibgeHierarchy.js';
+import { useCustomRegions } from './useCustomRegions.js';
+import { useLayerRegistry } from './layers/useLayerRegistry.js';
+import {
+  loadLayerState, saveLayerState, userKey, effectiveLayer, patchLayer,
+} from './layers/userLayerState.js';
+import {
+  buildTree, flattenLayers, paneZIndexes, reorderSiblings, legendFor, canViewLayer, canEditLayer, can, defaultStyleFor,
+} from './layers/layerModel.js';
+import { request } from './layers/workerClient.js';
+import {
+  validateDraft, createRegion, updateRegion, softDeleteRegion, restoreRegion, duplicateDraft, regionsToGeoJSON,
+  polygonFromGeoJSON, descendantsOf, REGION_COLORS, isActive,
+} from './customRegions.js';
+import {
+  unionGeometries, areaKm2, perimeterKm, labelPoint, pointInGeometry, preparePointInPolygon, geometryBboxAny,
+} from './geoOps.js';
+import { bboxToBounds, padBounds } from './geo.js';
+import PaneManager, { paneName } from '../components/map/PaneManager.jsx';
+import {
+  IbgeLevelLayer, CustomRegionsLayer, DataLayer, ExternalLayer, MapClickRouter, CameraRequest, NavigationBounds,
+} from '../components/map/OrgLayers.jsx';
+import LayerPanel from '../components/layers/LayerPanel.jsx';
+import SubRegionEditorPanel from '../components/subregions/SubRegionEditorPanel.jsx';
+import SubRegionsPanel from '../components/subregions/SubRegionsPanel.jsx';
+import MapPickCard from '../components/subregions/MapPickCard.jsx';
+
+// Carregados sob demanda: editor (Leaflet-Geoman) e diálogos de importação/configuração
+// (leitores de Shapefile/KML, proj4) não pesam para quem só usa a demonstração.
+const SubRegionEditorMap = lazy(() => import('../components/map/SubRegionEditorMap.jsx'));
+const LayerUploadDialog = lazy(() => import('../components/layers/LayerUploadDialog.jsx'));
+const LayerSettingsDialog = lazy(() => import('../components/layers/LayerSettingsDialog.jsx'));
+
+const SYSTEM_GROUPS = [
+  { id: 'grp:operacao', name: 'Operação do desligamento', sortOrder: 300 },
+  { id: 'grp:subregioes', name: 'Sub-regiões', sortOrder: 250 },
+  { id: 'grp:ibge', name: 'Limites IBGE (somente leitura)', sortOrder: 100 },
+];
+const OP_LAYER_KEYS = { 'op:points': 'points', 'op:priority': 'priority', 'op:territories': 'territories' };
+const EMPTY_FORM = {
+  name: '', description: '', color: REGION_COLORS[0], internalCode: '', tags: '',
+};
+const RULES = { ...CUSTOM_REGION_RULES };
+
+function download(name, data, type = 'application/geo+json') {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function useMapWorkspace({
+  enabled, identity, operator, operatorLocked, authorFor, rememberOperator, notify,
+  opLayers, setOpLayers, pointFilterExtra, result, priorityRecords, sectorLayer, isMobile, onShowMap,
+}) {
+  const user = userKey(identity);
+  const role = (identity?.email && ROLES.byEmail[identity.email]) || ROLES.default;
+  const ctxUser = useMemo(() => ({ orgId: ORGANIZATION.id, userId: identity?.email ?? 'local', role }), [identity, role]);
+  const canEditRegions = can(role, 'edit-region');
+  const canUpload = can(role, 'upload-layer');
+  const canManage = can(role, 'manage-org');
+
+  /* ---------------- Dados ---------------- */
+  const [hier, setHier] = useState({ status: 'idle', data: null, error: '' });
+  useEffect(() => {
+    if (!enabled || hier.status !== 'idle') return;
+    setHier((h) => ({ ...h, status: 'loading' }));
+    loadHierarchy(IBGE_HIERARCHY.url)
+      .then((data) => setHier({ status: 'ready', data, error: '' }))
+      .catch((err) => { setHier({ status: 'error', data: null, error: err.message }); notify('warning', err.message); });
+  }, [enabled, hier.status, notify]);
+  const hierarchy = hier.data;
+
+  const regionsHook = useCustomRegions({
+    orgId: ORGANIZATION.id, defaults: { allowSiblingOverlap: RULES.allowSiblingOverlap }, enabled, onError: (m) => notify('error', m),
+  });
+  const rules = useMemo(() => ({ ...RULES, allowSiblingOverlap: !!regionsHook.settings?.allowSiblingOverlap }), [regionsHook.settings]);
+  const regions = regionsHook.regions;
+  const activeRegions = regionsHook.active;
+
+  const registry = useLayerRegistry({ orgId: ORGANIZATION.id, enabled, onError: (m) => notify('error', m) });
+
+  const [ls, setLs] = useState(() => loadLayerState(user));
+  useEffect(() => { setLs(loadLayerState(user)); }, [user]);
+  const updateLs = useCallback((fn) => {
+    setLs((cur) => {
+      const next = fn(cur);
+      if (!saveLayerState(user, next)) notify('warning', 'Não foi possível salvar as preferências de camadas neste navegador.');
+      return next;
+    });
+  }, [user, notify]);
+
+  // Ao entrar no modo real, aplica a visibilidade salva das camadas operacionais.
+  const appliedOp = useRef(false);
+  useEffect(() => {
+    if (!enabled) { appliedOp.current = false; return; }
+    if (appliedOp.current) return;
+    appliedOp.current = true;
+    const saved = Object.fromEntries(Object.entries(OP_LAYER_KEYS)
+      .filter(([id]) => ls.layers[id]?.visible != null).map(([id, key]) => [key, ls.layers[id].visible]));
+    if (Object.keys(saved).length) setOpLayers((l) => ({ ...l, ...saved }));
+  }, [enabled, ls.layers, setOpLayers]);
+
+  /* ---------------- Catálogo ---------------- */
+  const regionById = useMemo(() => new Map(regions.map((r) => [r.id, r])), [regions]);
+  const dataLayers = useMemo(
+    () => registry.activeLayers.filter((l) => canViewLayer(l, ctxUser)),
+    [registry.activeLayers, ctxUser],
+  );
+
+  const groups = useMemo(() => [
+    ...SYSTEM_GROUPS,
+    ...registry.groups.map((g) => ({
+      ...g, sortOrder: g.parentGroupId ? (g.sortOrder ?? 0) : 200 + (Date.parse(g.createdAt) || 0) / 1e13,
+    })),
+  ], [registry.groups]);
+
+  const groupPathOf = useCallback((groupId) => {
+    const names = [];
+    let g = registry.groups.find((x) => x.id === groupId);
+    while (g) {
+      names.unshift(g.name);
+      const parent = g.parentGroupId;
+      g = registry.groups.find((x) => x.id === parent);
+    }
+    return names.join(' > ');
+  }, [registry.groups]);
+  const groupPaths = useMemo(() => [...new Set(registry.groups.map((g) => groupPathOf(g.id)))].sort(), [registry.groups, groupPathOf]);
+
+  const done = !!result;
+  const catalog = useMemo(() => {
+    const out = [
+      {
+        id: 'op:points', groupId: 'grp:operacao', defaultOrder: 3, kind: 'operational', name: 'Pontos importados (CSV)', geometryType: 'point',
+        subtitle: done ? `${result.total} ponto(s) do processamento` : 'Disponível após processar o CSV',
+        legend: { items: [{ geometryType: 'point', color: '#112F44' }] },
+        bounds: done && result.points.length ? padBounds(bboxToBounds(geometryBboxAny({ type: 'MultiPoint', coordinates: result.points.map((p) => [p.lng, p.lat]) })), 0.1) : null,
+      },
+      {
+        id: 'op:priority', groupId: 'grp:operacao', defaultOrder: 2, kind: 'operational', name: `Pontos prioritários (${priorityRecords.length})`, geometryType: 'point',
+        legend: { items: [{ geometryType: 'point', color: '#DC2626', symbol: 'square' }] },
+      },
+      {
+        id: 'op:territories', groupId: 'grp:operacao', defaultOrder: 1, kind: 'operational', name: 'Setores censitários (camada piloto)', geometryType: 'polygon',
+        subtitle: `${PILOT_CONFIG.layer.unitType} — IBGE ${PILOT_CONFIG.layer.referenceYear}`, readOnly: true,
+        legend: { items: [{ geometryType: 'polygon', color: '#94A3B8', dash: '3 3' }] },
+        bounds: sectorLayer?.bounds ?? null,
+      },
+      {
+        id: 'custom_regions', groupId: 'grp:subregioes', defaultOrder: 1, kind: 'custom_regions', name: `Sub-regiões da organização (${activeRegions.length})`, geometryType: 'polygon',
+        legend: { items: [{ geometryType: 'polygon', color: '#0E7490' }] }, defaultVisible: true, canConfigure: true, configureLabel: 'Gerenciar sub-regiões',
+        bounds: activeRegions.length ? bboxToBounds(activeRegions.map((r) => geometryBboxAny(r.geometry)).reduce((a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])])) : null,
+      },
+      ...IBGE_HIERARCHY.levels.map((lv, i) => ({
+        id: lv.layerId, groupId: 'grp:ibge', defaultOrder: 10 + i, kind: 'ibge', name: lv.name, geometryType: 'polygon', readOnly: true,
+        subtitle: (hierarchy?.byLevel[lv.level] ?? []).map((r) => r.name).slice(0, 3).join(', ') + ((hierarchy?.byLevel[lv.level]?.length ?? 0) > 3 ? '…' : ''),
+        legend: { items: [{ geometryType: 'polygon', color: lv.color, dash: lv.dash, fillOpacity: 0 }] },
+        defaultVisible: lv.level === 'municipio',
+        levelStyle: lv,
+        disabled: !hierarchy,
+        disabledReason: hier.status === 'error' ? hier.error : 'Carregando…',
+        bounds: hierarchy?.byLevel[lv.level]?.length ? hierarchy.byLevel[lv.level].map((r) => r.bounds).reduce((a, b) => [[Math.min(a[0][0], b[0][0]), Math.min(a[0][1], b[0][1])], [Math.max(a[1][0], b[1][0]), Math.max(a[1][1], b[1][1])]]) : null,
+      })),
+      ...dataLayers.map((l) => ({
+        ...l,
+        kind: l.kind,
+        subtitle: l.kind === 'external' ? `${l.external?.type?.toUpperCase()} externa` : `${(l.metadata?.featureCount ?? 0).toLocaleString('pt-BR')} feições · v${l.currentVersion}`,
+        legend: l.kind === 'data' ? legendFor(l.style, l.geometryType === 'mixed' ? 'point' : l.geometryType) : null,
+        defaultVisible: false,
+        canConfigure: true,
+        canFilter: l.kind === 'data',
+        bounds: l.metadata?.bbox ? bboxToBounds(l.metadata.bbox) : null,
+        info: l.description ?? null,
+      })),
+    ];
+    return out;
+  }, [done, result, priorityRecords.length, sectorLayer, activeRegions, hierarchy, hier, dataLayers]);
+
+  const tree = useMemo(() => buildTree(groups, catalog, ls), [groups, catalog, ls]);
+  const ordered = useMemo(() => flattenLayers(tree), [tree]);
+  const effective = useMemo(() => {
+    const out = {};
+    catalog.forEach((l) => {
+      const e = effectiveLayer(ls, l);
+      if (OP_LAYER_KEYS[l.id]) e.visible = !!opLayers[OP_LAYER_KEYS[l.id]];
+      out[l.id] = e;
+    });
+    return out;
+  }, [catalog, ls, opLayers]);
+  const zIndexes = useMemo(() => paneZIndexes(ordered), [ordered]);
+  // Pontos do CSV e setores dividem um único pane de canvas (pane "op"): com canvas, dois
+  // panes interativos se bloqueiam (o de cima engole os cliques e as dicas do de baixo).
+  // A opacidade dessas duas camadas vai pelo estilo (opOpacity), não pelo pane.
+  const panes = useMemo(() => {
+    const out = Object.fromEntries(ordered.filter((l) => l.id !== 'op:points' && l.id !== 'op:territories')
+      .map((l) => [l.id, { zIndex: zIndexes[l.id], opacity: effective[l.id]?.opacity ?? 1, passThrough: l.kind !== 'operational' }]));
+    out.op = { zIndex: Math.max(zIndexes['op:points'] ?? 0, zIndexes['op:territories'] ?? 0), opacity: 1 };
+    return out;
+  }, [ordered, zIndexes, effective]);
+
+  /* ---------------- Câmera, seleção, painéis ---------------- */
+  const [camera, setCamera] = useState(null);
+  const flyTo = useCallback((bounds, maxZoom) => { if (bounds) setCamera({ bounds, maxZoom, nonce: Date.now() }); }, []);
+  const [pick, setPick] = useState(null); // { latlng, items, index }
+  const [panel, setPanel] = useState({ open: false, detailId: null, focusCode: null });
+  const [uploadTarget, setUploadTarget] = useState(null); // { target }
+  const [settingsId, setSettingsId] = useState(null);
+
+  const selectedRegionId = pick?.items[pick.index]?.kind === 'custom' ? pick.items[pick.index].id : (panel.open ? panel.detailId : null);
+
+  /* ---------------- Filtros por sub-região ---------------- */
+  const [filterStatus, setFilterStatus] = useState({});
+  const filterKeyFor = (region) => `${region.id}:${region.updatedAt}`;
+  useEffect(() => {
+    if (!enabled) return;
+    dataLayers.filter((l) => l.kind === 'data').forEach((l) => {
+      const rid = ls.layers[l.id]?.filterRegionId;
+      const region = rid ? regionById.get(rid) : null;
+      const st = filterStatus[l.id];
+      if (!rid) {
+        if (st) setFilterStatus((s) => { const n = { ...s }; delete n[l.id]; return n; });
+        return;
+      }
+      if (!region || !isActive(region)) {
+        updateLs((cur) => patchLayer(cur, l.id, { filterRegionId: null }));
+        return;
+      }
+      const key = filterKeyFor(region);
+      if (st?.wantKey === key && st.version === l.currentVersion) return;
+      setFilterStatus((s) => ({ ...s, [l.id]: { loading: true, wantKey: key, version: l.currentVersion, readyKey: s[l.id]?.readyKey } }));
+      request('layer:filter', {
+        layerId: l.id, version: l.currentVersion, regionKey: key, polygon: region.geometry,
+      })
+        .then(({ count, total }) => setFilterStatus((s) => (s[l.id]?.wantKey === key ? {
+          ...s, [l.id]: { ...s[l.id], loading: false, readyKey: key, count, total },
+        } : s)))
+        .catch((err) => { notify('error', `Filtro não aplicado em ${l.name}: ${err.message}`); setFilterStatus((s) => ({ ...s, [l.id]: { ...s[l.id], loading: false } })); });
+    });
+  }, [enabled, dataLayers, ls.layers, regionById, filterStatus, updateLs, notify]);
+
+  const setLayerFilter = useCallback((layerId, regionId) => {
+    updateLs((cur) => patchLayer(cur, layerId, { filterRegionId: regionId }));
+  }, [updateLs]);
+
+  /* ---------------- Resumo da sub-região selecionada ---------------- */
+  const [summary, setSummary] = useState(null);
+  const summarySeq = useRef(0);
+  const visibleData = useMemo(() => dataLayers.filter((l) => l.kind === 'data' && effective[l.id]?.visible), [dataLayers, effective]);
+  const visibleDataRef = useRef(visibleData);
+  visibleDataRef.current = visibleData;
+  const visibleDataKey = visibleData.map((l) => `${l.id}@${l.currentVersion}`).join(',');
+  useEffect(() => {
+    const region = selectedRegionId ? regionById.get(selectedRegionId) : null;
+    if (!region || !enabled) { setSummary(null); return; }
+    summarySeq.current += 1;
+    const seq = summarySeq.current;
+    const local = [];
+    const inside = preparePointInPolygon(region.geometry);
+    if (opLayers.points && result?.points?.length) {
+      local.push({
+        layerId: 'op:points', name: 'Pontos importados (CSV)', legend: { geometryType: 'point', color: '#112F44' }, points: result.points.filter((p) => inside([p.lng, p.lat])).length,
+      });
+    }
+    if (opLayers.priority && priorityRecords.length) {
+      local.push({
+        layerId: 'op:priority', name: 'Pontos prioritários', legend: { geometryType: 'point', color: '#DC2626', symbol: 'square' }, points: priorityRecords.filter((p) => inside([p.lng, p.lat])).length,
+      });
+    }
+    const layersNow = visibleDataRef.current;
+    if (!layersNow.length) { setSummary({ status: 'ready', items: local }); return; }
+    setSummary({ status: 'loading', items: local });
+    request('summary', { layers: layersNow.map((l) => ({ layerId: l.id, version: l.currentVersion })), polygon: region.geometry })
+      .then((rows) => {
+        if (seq !== summarySeq.current) return;
+        const byId = new Map(layersNow.map((l) => [l.id, l]));
+        setSummary({
+          status: 'ready',
+          items: [...rows.map((r) => {
+            const l = byId.get(r.layerId);
+            return { ...r, name: l.name, legend: legendFor(l.style, l.geometryType === 'mixed' ? 'point' : l.geometryType).items[0] };
+          }), ...local],
+        });
+      })
+      .catch((err) => { if (seq === summarySeq.current) setSummary({ status: 'error', items: [], error: err.message }); });
+  }, [selectedRegionId, regionById, visibleDataKey, enabled, opLayers.points, opLayers.priority, result, priorityRecords]);
+
+  /* ---------------- Editor de sub-região ---------------- */
+  const [editor, setEditor] = useState(null);
+  const [validation, setValidation] = useState(null);
+  const [validating, setValidating] = useState(false);
+  const [editorBy, setEditorBy] = useState(operator ?? '');
+  useEffect(() => { setEditorBy((b) => b || operator || ''); }, [operator]);
+
+  const resolveParent = useCallback((ref) => {
+    if (ref.kind === 'ibge') {
+      const r = hierarchy?.byCode.get(ref.code);
+      if (!r) return null;
+      return {
+        kind: 'ibge', code: r.code, ibgeParentCode: r.code, parentCustomRegionId: null, geometry: r.geometry, bounds: r.bounds, label: `${r.name} (${LEVEL_LABEL[r.level]})`, level: r.level,
+      };
+    }
+    const r = regionById.get(ref.id);
+    if (!r || !isActive(r)) return null;
+    const root = hierarchy?.byCode.get(r.ibgeParentCode);
+    return {
+      kind: 'custom', id: r.id, ibgeParentCode: r.ibgeParentCode, parentCustomRegionId: r.id, geometry: r.geometry, bounds: bboxToBounds(geometryBboxAny(r.geometry)), label: `${r.name} (sub-região)`, level: root?.level ?? null,
+    };
+  }, [hierarchy, regionById]);
+
+  /** Unidades selecionáveis: municípios (níveis acima de município) ou setores (dentro do município piloto). */
+  const unitsFor = useCallback((parent) => {
+    if (!parent) return { method: null, units: [], label: 'municípios' };
+    const insideParent = (g) => {
+      const p = labelPoint(g);
+      return p && pointInGeometry(p, parent.geometry);
+    };
+    if (parent.level === 'municipio') {
+      const sectors = parent.ibgeParentCode === PILOT_CONFIG.territory.ibgeCode ? (sectorLayer?.features ?? []) : [];
+      return {
+        method: 'sectors',
+        label: 'setores censitários',
+        units: sectors.filter((f) => insideParent(f.geometry)).map((f) => ({
+          code: f.properties.code, geometry: f.geometry, label: `Setor ${f.properties.code}${f.properties.fallbackName ? ` — ${f.properties.fallbackName}` : ''}`,
+        })),
+      };
+    }
+    return {
+      method: 'municipalities',
+      label: 'municípios',
+      units: (hierarchy?.byLevel.municipio ?? []).filter((m) => insideParent(m.geometry)).map((m) => ({ code: m.code, geometry: m.geometry, label: `${m.name} (${m.code})` })),
+    };
+  }, [hierarchy, sectorLayer]);
+
+  const editorUnits = useMemo(() => (editor ? unitsFor(editor.parent) : null), [editor?.parent, unitsFor]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startCreate = useCallback((ref, preset = null) => {
+    if (!canEditRegions) { notify('warning', 'Seu papel não permite criar sub-regiões.'); return; }
+    const parent = resolveParent(ref);
+    if (!parent) { notify('error', 'Região-mãe não encontrada.'); return; }
+    const used = new Set(activeRegions.map((r) => r.color));
+    setEditor({
+      mode: 'create',
+      parent,
+      method: preset?.geometry ? 'drawn' : null,
+      tool: null,
+      geometry: preset?.geometry ?? null,
+      selection: [],
+      draftNonce: 1,
+      sourceFile: null,
+      form: preset ? {
+        ...EMPTY_FORM, ...preset, tags: (preset.tags ?? []).join(', '), description: preset.description ?? '', internalCode: preset.internalCode ?? '',
+      } : { ...EMPTY_FORM, color: REGION_COLORS.find((c) => !used.has(c)) ?? REGION_COLORS[activeRegions.length % REGION_COLORS.length] },
+    });
+    setValidation(null);
+    setPick(null);
+    setPanel((p) => ({ ...p, open: false }));
+    flyTo(parent.bounds, 15);
+    onShowMap?.();
+  }, [canEditRegions, resolveParent, activeRegions, flyTo, notify, onShowMap]);
+
+  const startEditGeometry = useCallback((id) => {
+    const r = regionById.get(id);
+    if (!r) return;
+    const parent = resolveParent(r.parentCustomRegionId ? { kind: 'custom', id: r.parentCustomRegionId } : { kind: 'ibge', code: r.ibgeParentCode });
+    if (!parent) { notify('error', 'A região-mãe desta sub-região não está disponível.'); return; }
+    setEditor({
+      mode: 'edit-geometry', editingId: id, parent, method: 'drawn', tool: null, geometry: r.geometry, selection: [], draftNonce: Date.now(), sourceFile: null,
+      form: {
+        name: r.name, description: r.description ?? '', color: r.color, internalCode: r.internalCode ?? '', tags: (r.tags ?? []).join(', '),
+      },
+    });
+    setPick(null);
+    setPanel((p) => ({ ...p, open: false }));
+    flyTo(bboxToBounds(geometryBboxAny(r.geometry)), 16);
+    onShowMap?.();
+  }, [regionById, resolveParent, flyTo, notify, onShowMap]);
+
+  const startDuplicate = useCallback((id) => {
+    const r = regionById.get(id);
+    if (!r) return;
+    const d = duplicateDraft(regions, r);
+    startCreate(r.parentCustomRegionId ? { kind: 'custom', id: r.parentCustomRegionId } : { kind: 'ibge', code: r.ibgeParentCode }, { ...d, duplicatedFrom: r.id });
+    if (!rules.allowSiblingOverlap) notify('info', 'Cópia aberta no editor: ajuste a área (a sobreposição com a original está bloqueada) ou permita sobreposição.');
+  }, [regionById, regions, startCreate, rules.allowSiblingOverlap, notify]);
+
+  // Geometria efetiva do rascunho (seleção → união).
+  const unitGeometry = useMemo(() => {
+    if (!editor || (editor.method !== 'municipalities' && editor.method !== 'sectors') || !editorUnits) return null;
+    const sel = new Set(editor.selection);
+    const geoms = editorUnits.units.filter((u) => sel.has(u.code)).map((u) => u.geometry);
+    return geoms.length ? unionGeometries(geoms) : null;
+  }, [editor, editorUnits]);
+  const draftGeometry = editor && (editor.method === 'municipalities' || editor.method === 'sectors') ? unitGeometry : editor?.geometry ?? null;
+
+  // Validação em tempo real (com pequena espera para não pesar durante o desenho).
+  useEffect(() => {
+    if (!editor || !editor.method) { setValidation(null); return undefined; }
+    setValidating(true);
+    const t = setTimeout(() => {
+      try {
+        const v = validateDraft({
+          ...editor.form, geometry: draftGeometry, ibgeParentCode: editor.parent.ibgeParentCode, parentCustomRegionId: editor.parent.parentCustomRegionId,
+        }, {
+          regions, orgId: ORGANIZATION.id, parentGeometry: editor.parent.geometry, editingId: editor.editingId ?? null, rules,
+        });
+        const g = v.prepared?.geometry;
+        setValidation({ ...v, metrics: g ? { areaKm2: areaKm2(g), perimeterKm: perimeterKm(g) } : { areaKm2: 0, perimeterKm: 0 } });
+      } catch (err) {
+        setValidation({
+          ok: false, errors: { geometry: `Geometria inválida: ${err.message}` }, warnings: [], prepared: null, metrics: { areaKm2: 0, perimeterKm: 0 },
+        });
+      }
+      setValidating(false);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [editor, draftGeometry, regions, rules]);
+
+  const editorApi = {
+    onMethod: (m) => {
+      if (m === 'units') {
+        if (!editorUnits?.units.length) {
+          notify('warning', editor.parent.level === 'municipio'
+            ? 'Não há setores censitários carregados para esta região-mãe (só o município piloto tem setores).'
+            : 'Não há municípios carregados dentro desta região-mãe.');
+          return;
+        }
+        setEditor((e) => ({ ...e, method: editorUnits.method, tool: null }));
+        return;
+      }
+      setEditor((e) => ({ ...e, method: m, tool: m === 'drawn' && !e.geometry ? 'polygon' : null }));
+    },
+    onTool: (t) => setEditor((e) => ({ ...e, tool: e.tool === t ? null : t })),
+    onClear: () => setEditor((e) => ({
+      ...e, geometry: null, selection: [], draftNonce: Date.now(), tool: e.method === 'drawn' || e.method === 'imported' ? 'polygon' : null, method: e.method === 'imported' ? 'drawn' : e.method,
+    })),
+    onField: (k, v) => setEditor((e) => ({ ...e, form: { ...e.form, [k]: v } })),
+    onGeometry: (g, { from }) => setEditor((e) => ({
+      ...e, geometry: g, tool: null, draftNonce: from === 'draw' ? Date.now() : e.draftNonce,
+    })),
+    onToggleUnit: (code) => setEditor((e) => ({
+      ...e, selection: e.selection.includes(code) ? e.selection.filter((c) => c !== code) : [...e.selection, code],
+    })),
+    onToolDone: () => setEditor((e) => (e ? { ...e, tool: null } : e)),
+    onImportFile: async (file) => {
+      try {
+        const [{ kmlTextToGeoJSON, kmzToGeoJSON }, { detectKind, readShapefileZip, normalizeFeatures }, { looksProjected }] = await Promise.all([
+          import('./layers/kml.js'), import('./layers/importEngine.js'), import('./layers/crs.js'),
+        ]);
+        const kind = detectKind(file.name);
+        let gj;
+        if (kind === 'kml') gj = kmlTextToGeoJSON(await file.text());
+        else if (kind === 'kmz') gj = kmzToGeoJSON(await file.arrayBuffer());
+        else if (kind === 'geojson') gj = JSON.parse(await file.text());
+        else if (kind === 'shapefile') {
+          const shp = readShapefileZip(new Uint8Array(await file.arrayBuffer()));
+          const sample = shp.features.slice(0, 50).map((f) => f.geometry?.coordinates?.flat(3)?.slice(0, 2)).filter(Boolean);
+          if (!shp.crs?.def && looksProjected(sample)) throw new Error('O shapefile não tem .prj e as coordenadas estão em metros. Inclua o .prj no .zip.');
+          gj = { type: 'FeatureCollection', features: normalizeFeatures(shp.features, { crs: shp.crs }).features };
+        } else throw new Error('Use GeoJSON, KML/KMZ ou Shapefile (.zip).');
+        const { geometry, polygons } = polygonFromGeoJSON(gj);
+        setEditor((e) => ({
+          ...e, method: 'imported', tool: null, geometry, sourceFile: file.name, draftNonce: Date.now(),
+        }));
+        notify('success', `${polygons} polígono(s) importado(s) de ${file.name}. Ajuste os vértices se precisar.`);
+        flyTo(bboxToBounds(geometryBboxAny(geometry)), 16);
+      } catch (err) {
+        notify('error', `Não foi possível importar: ${err.message}`);
+      }
+    },
+    onCancel: () => {
+      // Reenquadra sem a folga do editor (o painel de camadas volta à esquerda).
+      flyTo(editor.parent.bounds, 15);
+      setEditor(null);
+      setValidation(null);
+    },
+    onSave: () => {
+      const by = authorFor(editorBy);
+      if (!String(by ?? '').trim()) { notify('error', 'Informe o responsável pela alteração.'); return; }
+      const ctx = {
+        regions: regionsHook.current(), orgId: ORGANIZATION.id, parentGeometry: editor.parent.geometry, rules,
+      };
+      try {
+        let saved;
+        let next;
+        if (editor.mode === 'edit-geometry') {
+          ({ regions: next, region: saved } = updateRegion(ctx.regions, editor.editingId, { geometry: draftGeometry, creationMethod: 'drawn' }, ctx, { by }));
+        } else {
+          ({ regions: next, region: saved } = createRegion(ctx.regions, {
+            ...editor.form,
+            geometry: draftGeometry,
+            ibgeParentCode: editor.parent.ibgeParentCode,
+            parentCustomRegionId: editor.parent.parentCustomRegionId,
+            creationMethod: editor.method,
+            municipalityCodes: editor.method === 'municipalities' ? editor.selection : [],
+            sectorCodes: editor.method === 'sectors' ? editor.selection : [],
+            sourceFile: editor.sourceFile,
+          }, ctx, { by }));
+        }
+        regionsHook.commit(next);
+        rememberOperator(by);
+        const clip = validation?.prepared?.clipped && validation.prepared.beyondTolerance;
+        notify(clip ? 'warning' : 'success', `Sub-região "${saved.name}" ${editor.mode === 'edit-geometry' ? 'atualizada' : 'criada'}.${clip ? ' A parte fora da região-mãe foi recortada.' : ''}`);
+        setEditor(null);
+        setValidation(null);
+        updateLs((cur) => patchLayer(cur, 'custom_regions', { visible: true }));
+        setPick({ latlng: null, items: [{ kind: 'custom', id: saved.id, key: `c:${saved.id}`, short: saved.name }], index: 0 });
+        flyTo(bboxToBounds(geometryBboxAny(saved.geometry)), 16);
+      } catch (err) {
+        notify('error', err.message);
+      }
+    },
+  };
+
+  /* ---------------- Ações de sub-região (painel) ---------------- */
+  const commitRegions = (next) => regionsHook.commit(next);
+  const regionActions = {
+    onUpdate: (id, form, typedBy) => {
+      const by = authorFor(typedBy);
+      const r = regionById.get(id);
+      try {
+        const parentGeometry = r.parentCustomRegionId ? regionById.get(r.parentCustomRegionId)?.geometry : hierarchy?.byCode.get(r.ibgeParentCode)?.geometry;
+        const { regions: next, changed } = updateRegion(regionsHook.current(), id, form, {
+          regions: regionsHook.current(), orgId: ORGANIZATION.id, parentGeometry, rules,
+        }, { by });
+        if (!changed) { notify('info', 'Nenhuma alteração para salvar.'); return true; }
+        commitRegions(next);
+        rememberOperator(by);
+        notify('success', 'Sub-região atualizada. A alteração ficou no histórico.');
+        return true;
+      } catch (err) {
+        notify('error', err.message);
+        return false;
+      }
+    },
+    onDelete: (id, typedBy) => {
+      const by = authorFor(typedBy);
+      const r = regionById.get(id);
+      const n = descendantsOf(regions, id).length;
+      // eslint-disable-next-line no-alert
+      if (!window.confirm(`Excluir a sub-região "${r.name}"${n ? ` e ${n} sub-região(ões) dentro dela` : ''}? A exclusão é lógica: o histórico fica e é possível restaurar.`)) return;
+      try {
+        const { regions: next, count } = softDeleteRegion(regionsHook.current(), id, { by });
+        commitRegions(next);
+        rememberOperator(by);
+        notify('info', `${count} sub-região(ões) excluída(s).`);
+        setPanel((p) => ({ ...p, detailId: null }));
+        setPick(null);
+      } catch (err) {
+        notify('error', err.message);
+      }
+    },
+    onRestore: (id, typedBy) => {
+      const by = authorFor(typedBy);
+      try {
+        commitRegions(restoreRegion(regionsHook.current(), id, { rules }, { by }));
+        notify('success', 'Sub-região restaurada.');
+      } catch (err) {
+        notify('error', err.message);
+      }
+    },
+    onExport: (list) => {
+      const gj = regionsToGeoJSON(list, { ibgeName: (c) => hierarchy?.byCode.get(c)?.name ?? c });
+      download(`sub_regioes_${new Date().toISOString().slice(0, 10)}.geojson`, gj);
+      notify('success', `${list.length} sub-região(ões) exportada(s) em GeoJSON.`);
+    },
+    onShowOnMap: (id) => {
+      const r = regionById.get(id);
+      if (!r) return;
+      updateLs((cur) => patchLayer(cur, 'custom_regions', { visible: true }));
+      setPanel((p) => ({ ...p, open: false }));
+      setPick({ latlng: null, items: [{ kind: 'custom', id, key: `c:${id}`, short: r.name }], index: 0 });
+      flyTo(bboxToBounds(geometryBboxAny(r.geometry)), 16);
+      onShowMap?.();
+    },
+    onSetAllowOverlap: (v) => {
+      regionsHook.saveSettings({ ...regionsHook.settings, allowSiblingOverlap: v });
+      notify('info', v ? 'Sobreposição entre sub-regiões irmãs permitida para a organização.' : 'Sobreposição entre sub-regiões irmãs bloqueada.');
+    },
+  };
+
+  /* ---------------- Ações de camada ---------------- */
+  const layerActions = {
+    onToggle: (id) => {
+      if (OP_LAYER_KEYS[id]) {
+        const key = OP_LAYER_KEYS[id];
+        const next = !opLayers[key];
+        setOpLayers((l) => ({ ...l, [key]: next }));
+        updateLs((cur) => patchLayer(cur, id, { visible: next }));
+        return;
+      }
+      updateLs((cur) => patchLayer(cur, id, { visible: !effective[id]?.visible }));
+    },
+    onOpacity: (id, v) => updateLs((cur) => patchLayer(cur, id, { opacity: v })),
+    onReorder: (id, siblings, to) => updateLs((cur) => ({ ...cur, order: reorderSiblings(cur.order, siblings, id, to) })),
+    onToggleCollapse: (gid) => updateLs((cur) => ({ ...cur, collapsed: { ...cur.collapsed, [gid]: !cur.collapsed[gid] } })),
+    onBasemap: (id) => updateLs((cur) => ({ ...cur, basemap: id })),
+    onZoomTo: (l) => flyTo(l.bounds, 15),
+    onConfigure: (l) => {
+      if (l.kind === 'custom_regions') setPanel({ open: true, detailId: null, focusCode: null });
+      else setSettingsId(l.id);
+    },
+    onAddLayer: () => setUploadTarget({ target: null }),
+  };
+
+  const onUploadSaved = async ({
+    layerId, version, mode, result: res, form, upload,
+  }) => {
+    const by = authorFor(operator) || 'local';
+    const now = new Date().toISOString();
+    const versionEntry = {
+      version, mode, featureCount: res.featureCount, createdAt: now, createdBy: by, fileName: upload.fileName, rejectedCount: upload.rejectedCount,
+    };
+    const uploadEntry = {
+      id: registry.newId(), status: 'done', fileName: upload.fileName, kind: upload.kind, originalCrs: upload.originalCrs, featureCount: res.featureCount,
+      acceptedCount: upload.acceptedCount, rejectedCount: upload.rejectedCount, fixedCount: upload.fixedCount, errors: upload.rejected, createdBy: by, createdAt: now, finishedAt: new Date().toISOString(),
+    };
+    const target = registry.layers.find((l) => l.id === layerId);
+    if (target) {
+      await registry.updateLayer(layerId, {
+        currentVersion: version,
+        geometryType: res.geometryType,
+        attributesSchema: res.attributes,
+        metadata: {
+          ...target.metadata, featureCount: res.featureCount, bbox: res.bbox, fileName: upload.fileName, originalCrs: upload.originalCrs,
+        },
+        versions: [...(target.versions ?? []), versionEntry],
+        uploads: [...(target.uploads ?? []), uploadEntry],
+      }, { by });
+      notify('success', `${target.name}: versão ${version} com ${res.featureCount.toLocaleString('pt-BR')} feições.`);
+    } else {
+      const groupId = await registry.ensureGroupPath(form.group || 'Camadas importadas', { by });
+      const fam = res.geometryType === 'mixed' ? 'point' : res.geometryType;
+      const base = defaultStyleFor(fam);
+      await registry.saveLayer({
+        id: layerId,
+        orgId: ORGANIZATION.id,
+        groupId,
+        name: form.name,
+        description: form.description?.trim() || null,
+        kind: 'data',
+        geometryType: res.geometryType,
+        sourceType: 'upload',
+        sourceUrl: null,
+        visibility: form.visibility,
+        shares: [],
+        style: {
+          ...base, color: form.color, symbol: form.symbol ?? base.symbol, radius: fam === 'point' ? Number(form.radius) || base.radius : base.radius, weight: fam !== 'point' ? Number(form.weight) || base.weight : base.weight, rule: null,
+        },
+        defaultOpacity: 1,
+        minZoom: form.minZoom === '' || form.minZoom == null ? null : Number(form.minZoom),
+        maxZoom: null,
+        attributesSchema: res.attributes,
+        metadata: {
+          source: 'Envio da organização', fileName: upload.fileName, originalCrs: upload.originalCrs, featureCount: res.featureCount, bbox: res.bbox,
+        },
+        currentVersion: version,
+        versions: [versionEntry],
+        uploads: [uploadEntry],
+        createdBy: by,
+        createdAt: now,
+        updatedAt: now,
+        updatedBy: by,
+        deletedAt: null,
+      });
+      notify('success', `Camada "${form.name}" importada: ${res.featureCount.toLocaleString('pt-BR')} feições.`);
+    }
+    updateLs((cur) => patchLayer(cur, layerId, { visible: true }));
+    if (res.bbox) flyTo(bboxToBounds(res.bbox), 15);
+  };
+
+  const onExternalSaved = async (f) => {
+    const by = authorFor(operator) || 'local';
+    const now = new Date().toISOString();
+    const groupId = await registry.ensureGroupPath(f.group || 'Camadas externas', { by });
+    const id = registry.newId();
+    await registry.saveLayer({
+      id,
+      orgId: ORGANIZATION.id,
+      groupId,
+      name: f.name,
+      description: null,
+      kind: 'external',
+      geometryType: null,
+      sourceType: 'url',
+      sourceUrl: f.url,
+      external: {
+        type: f.type, url: f.url, layers: f.layers || null, format: f.format, attribution: f.attribution || null,
+      },
+      visibility: 'organization',
+      shares: [],
+      style: null,
+      defaultOpacity: 1,
+      minZoom: null,
+      maxZoom: null,
+      metadata: { source: f.url },
+      currentVersion: 1,
+      versions: [],
+      createdBy: by,
+      createdAt: now,
+      updatedAt: now,
+      updatedBy: by,
+      deletedAt: null,
+    });
+    updateLs((cur) => patchLayer(cur, id, { visible: true }));
+    notify('success', `Camada externa "${f.name}" adicionada.`);
+  };
+
+  const settingsLayer = settingsId ? registry.layers.find((l) => l.id === settingsId) : null;
+  const settingsApi = {
+    onSave: async (patch, { groupPath } = {}) => {
+      const by = authorFor(operator) || 'local';
+      let groupId = settingsLayer.groupId;
+      if (groupPath !== undefined && groupPath.trim() !== groupPathOf(settingsLayer.groupId)) groupId = await registry.ensureGroupPath(groupPath, { by });
+      await registry.updateLayer(settingsLayer.id, { ...patch, groupId }, { by });
+      notify('success', 'Camada atualizada.');
+    },
+    onDelete: async () => {
+      // eslint-disable-next-line no-alert
+      if (!window.confirm(`Excluir a camada "${settingsLayer.name}"? As feições são apagadas deste navegador; o registro (metadados e versões) fica para rastreio.`)) return;
+      await registry.removeLayer(settingsLayer, { by: authorFor(operator) || 'local' });
+      setSettingsId(null);
+      notify('info', 'Camada excluída.');
+    },
+    onRemoveVersion: async (version) => {
+      try {
+        await registry.removeVersion(settingsLayer, version, { by: authorFor(operator) || 'local' });
+        notify('info', `Feições da versão ${version} apagadas; o registro da versão foi mantido.`);
+      } catch (err) {
+        notify('error', err.message);
+      }
+    },
+    onUpdateData: () => { setUploadTarget({ target: settingsLayer }); setSettingsId(null); },
+  };
+
+  /* ---------------- Cliques no mapa ---------------- */
+  const pickables = useMemo(() => {
+    const out = [];
+    if (effective.custom_regions?.visible) {
+      // Sub-regiões mais internas primeiro (aninhadas por cima).
+      const depth = (r) => { let d = 0; let cur = r; while (cur?.parentCustomRegionId) { d += 1; cur = regionById.get(cur.parentCustomRegionId); } return d; };
+      [...activeRegions].sort((a, b) => depth(b) - depth(a)).forEach((r) => out.push({
+        kind: 'custom', id: r.id, key: `c:${r.id}`, short: r.name, geometry: r.geometry, bbox: geometryBboxAny(r.geometry),
+      }));
+    }
+    [...IBGE_HIERARCHY.levels].reverse().forEach((lv) => {
+      if (!effective[lv.layerId]?.visible) return;
+      (hierarchy?.byLevel[lv.level] ?? []).forEach((r) => out.push({
+        kind: 'ibge', code: r.code, key: `i:${r.code}`, short: `${lv.short} ${r.name}`, geometry: r.geometry, bbox: r.bbox,
+      }));
+    });
+    return out;
+  }, [effective, activeRegions, hierarchy, regionById]);
+
+  const pickCurrent = useMemo(() => {
+    const it = pick?.items[pick.index];
+    if (!it) return null;
+    if (it.kind === 'custom') {
+      const r = regionById.get(it.id);
+      return r && isActive(r) ? { kind: 'custom', region: r } : null;
+    }
+    const r = hierarchy?.byCode.get(it.code);
+    return r ? { kind: 'ibge', region: r } : null;
+  }, [pick, regionById, hierarchy]);
+
+  const visibleOrdered = ordered.filter((l) => effective[l.id]?.visible && !l.disabled);
+  const dataForClick = visibleOrdered.filter((l) => l.kind === 'data').map((l) => ({
+    ...l, filterKey: effective[l.id]?.filterRegionId ? filterStatus[l.id]?.readyKey ?? null : null,
+  }));
+
+  /* ---------------- Saída para o MapView ---------------- */
+  const basemap = BASEMAPS.find((b) => b.id === ls.basemap) ?? BASEMAPS[0];
+  const navBounds = useMemo(() => (hierarchy ? padBounds(hierarchy.bounds, 0.15) : null), [hierarchy]);
+  const highlightCode = pickCurrent?.kind === 'ibge' ? pickCurrent.region.code : null;
+
+  const mapChildren = enabled ? (
+    <>
+      <PaneManager panes={panes} />
+      <NavigationBounds maxBounds={navBounds} minZoom={navBounds ? 6 : null} />
+      <CameraRequest request={camera} compact={isMobile} editing={!!editor} />
+      {visibleOrdered.map((l) => {
+        if (l.kind === 'ibge') return <IbgeLevelLayer key={l.id} layer={l} regions={hierarchy?.byLevel[l.levelStyle.level] ?? []} highlightCode={highlightCode} />;
+        if (l.kind === 'custom_regions') {
+          return <CustomRegionsLayer key={l.id} layer={l} regions={activeRegions} selectedId={selectedRegionId} editingId={editor?.editingId ?? null} />;
+        }
+        if (l.kind === 'data') {
+          const fk = effective[l.id]?.filterRegionId ? filterStatus[l.id]?.readyKey : null;
+          if (effective[l.id]?.filterRegionId && !fk) return null;
+          return <DataLayer key={`${l.id}@${l.currentVersion}`} layer={l} filterKey={fk ?? null} />;
+        }
+        if (l.kind === 'external') return <ExternalLayer key={l.id} layer={l} />;
+        return null;
+      })}
+      {editor && (
+        <Suspense fallback={null}>
+        <SubRegionEditorMap
+          editor={{ ...editor, geometry: draftGeometry }}
+          units={editorUnits?.units ?? []}
+          onGeometry={editorApi.onGeometry}
+          onToggleUnit={editorApi.onToggleUnit}
+          onToolDone={editorApi.onToolDone}
+        />
+        </Suspense>
+      )}
+      <MapClickRouter
+        enabled={!editor}
+        dataLayers={dataForClick}
+        pickables={pickables}
+        onPick={(p) => setPick(p ? { ...p, index: 0 } : null)}
+      />
+    </>
+  ) : null;
+
+  // Durante a edição de sub-região o painel de camadas sai da frente (o mapa precisa de espaço).
+  const layerPanel = enabled && !editor ? (
+    <LayerPanel
+      tree={tree}
+      effective={effective}
+      basemaps={BASEMAPS}
+      basemap={basemap.id}
+      onBasemap={layerActions.onBasemap}
+      onToggle={layerActions.onToggle}
+      onOpacity={layerActions.onOpacity}
+      onReorder={layerActions.onReorder}
+      collapsed={ls.collapsed}
+      onToggleCollapse={layerActions.onToggleCollapse}
+      onZoomTo={layerActions.onZoomTo}
+      onConfigure={layerActions.onConfigure}
+      onAddLayer={layerActions.onAddLayer}
+      canUpload={canUpload}
+      regionsForFilter={activeRegions}
+      onFilter={setLayerFilter}
+      filterStatus={filterStatus}
+      extras={{ 'op:points': pointFilterExtra }}
+      className="max-h-full"
+    />
+  ) : null;
+
+  const overlay = enabled ? (
+    <>
+      {editor && (
+        <div className="pointer-events-none absolute right-3 top-3 z-[700] flex max-h-[calc(100%-1.5rem)] max-lg:inset-x-0 max-lg:bottom-0 max-lg:right-0 max-lg:top-auto max-lg:z-[1001]">
+          <div className="pointer-events-auto flex max-h-full flex-col max-lg:w-full">
+            <SubRegionEditorPanel
+              compact={isMobile}
+              responsible={operatorLocked ? null : (
+                <label className="block">
+                  <span className="text-slate-600">Responsável *</span>
+                  <input value={editorBy} onChange={(e) => setEditorBy(e.target.value)} placeholder="Nome ou matrícula" className="mt-0.5 block w-full rounded border border-slate-300 bg-white px-2 py-1 max-lg:min-h-11" autoComplete="off" />
+                </label>
+              )}
+              editor={editor}
+              validation={validation}
+              validating={validating}
+              parentLabel={editor.parent.label}
+              unitsLabel={editorUnits?.label ?? 'municípios'}
+              onMethod={editorApi.onMethod}
+              onTool={editorApi.onTool}
+              onClear={editorApi.onClear}
+              onField={editorApi.onField}
+              onImportFile={editorApi.onImportFile}
+              onSave={editorApi.onSave}
+              onCancel={editorApi.onCancel}
+            />
+          </div>
+        </div>
+      )}
+      {!editor && pickCurrent && (
+        <div className="pointer-events-none absolute right-3 top-14 z-[700] max-lg:inset-x-3 max-lg:bottom-3 max-lg:top-auto max-lg:z-[1001]">
+          <MapPickCard
+            pick={pick}
+            current={pickCurrent}
+            summary={pickCurrent.kind === 'custom' ? summary : null}
+            canCreate={canEditRegions}
+            onSelect={(i) => setPick((p) => ({ ...p, index: i }))}
+            onClose={() => setPick(null)}
+            onCreateHere={() => startCreate(pickCurrent.kind === 'custom' ? { kind: 'custom', id: pickCurrent.region.id } : { kind: 'ibge', code: pickCurrent.region.code })}
+            onDetails={() => setPanel(pickCurrent.kind === 'custom'
+              ? { open: true, detailId: pickCurrent.region.id, focusCode: null }
+              : { open: true, detailId: null, focusCode: pickCurrent.region.code })}
+            onZoom={() => flyTo(pickCurrent.kind === 'custom' ? bboxToBounds(geometryBboxAny(pickCurrent.region.geometry)) : pickCurrent.region.bounds, 16)}
+            onFilterLayers={() => {
+              const targets = dataLayers.filter((l) => l.kind === 'data' && effective[l.id]?.visible);
+              if (!targets.length) { notify('info', 'Ligue uma camada de dados para filtrar pela sub-região.'); return; }
+              targets.forEach((l) => setLayerFilter(l.id, pickCurrent.region.id));
+              notify('info', `${targets.length} camada(s) filtrada(s) por "${pickCurrent.region.name}". Remova o filtro nas opções da camada.`);
+            }}
+          />
+        </div>
+      )}
+    </>
+  ) : null;
+
+  const subRegionsButton = enabled ? (
+    <button
+      type="button"
+      onClick={() => setPanel({ open: true, detailId: null, focusCode: null })}
+      className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-2 py-1 text-[12px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-3 max-lg:text-[14px] max-lg:shadow-md"
+    >
+      <Shapes className="h-3.5 w-3.5 max-lg:h-4 max-lg:w-4" aria-hidden="true" />
+      Sub-regiões ({activeRegions.length})
+    </button>
+  ) : null;
+
+  const dialogs = enabled ? (
+    <>
+      <Suspense fallback={null}>
+      {uploadTarget && (
+      <LayerUploadDialog
+        open
+        target={uploadTarget?.target ?? null}
+        groupPaths={groupPaths}
+        existingCount={dataLayers.length}
+        by={operator}
+        onClose={() => setUploadTarget(null)}
+        onSaved={onUploadSaved}
+        onSavedExternal={onExternalSaved}
+        newId={registry.newId}
+      />
+      )}
+      {settingsLayer && (
+      <LayerSettingsDialog
+        key={settingsLayer?.id ?? 'none'}
+        layer={settingsLayer}
+        groupPath={settingsLayer ? groupPathOf(settingsLayer.groupId) : ''}
+        groupPaths={groupPaths}
+        canEdit={settingsLayer ? canEditLayer(settingsLayer, ctxUser) : false}
+        onClose={() => setSettingsId(null)}
+        {...settingsApi}
+      />
+      )}
+      </Suspense>
+      <SubRegionsPanel
+        open={panel.open}
+        onClose={() => setPanel((p) => ({ ...p, open: false }))}
+        hierarchy={hierarchy}
+        regions={regions}
+        sectorsLabel="Setores censitários"
+        detailId={panel.detailId}
+        onOpenDetail={(id) => setPanel((p) => ({ ...p, detailId: id }))}
+        summary={summary}
+        settings={regionsHook.settings}
+        role={role}
+        canEdit={canEditRegions}
+        canManage={canManage}
+        operator={operator}
+        operatorLocked={operatorLocked}
+        onCreate={startCreate}
+        onEditGeometry={startEditGeometry}
+        onDuplicate={startDuplicate}
+        focusCode={panel.focusCode}
+        {...regionActions}
+      />
+    </>
+  ) : null;
+
+  return {
+    basemap: enabled ? basemap : null,
+    opPanes: enabled ? {
+      points: paneName('op'), priority: paneName('op:priority'), territories: paneName('op'),
+    } : null,
+    opOpacity: enabled ? {
+      points: effective['op:points']?.opacity ?? 1, territories: effective['op:territories']?.opacity ?? 1,
+    } : null,
+    mapChildren,
+    layerPanel,
+    overlay,
+    subRegionsButton,
+    dialogs,
+    editing: !!editor,
+    modalOpen: !!uploadTarget || !!settingsId || panel.open,
+    closeTransient: () => { setPick(null); },
+  };
+}

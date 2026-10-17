@@ -63,6 +63,11 @@ Você precisa de internet para carregar duas coisas: o fundo cartográfico (tile
 | tailwindcss 3.4, postcss, autoprefixer | Estilização |
 | vite 5 e @vitejs/plugin-react | Servidor de desenvolvimento e build |
 | @turf/boolean-point-in-polygon 7.1 e @turf/helpers | Teste de ponto no polígono (Polygon, MultiPolygon, buracos, limites) |
+| @turf/intersect, union, difference, area 7.1 | Recorte, união e área geodésica das sub-regiões |
+| @geoman-io/leaflet-geoman-free 2.17 | Desenho e edição de vértices das sub-regiões (carregado sob demanda) |
+| shpjs 6.1, fflate 0.8, @tmcw/togeojson 7.1, proj4 2.12 | Leitura de Shapefile (.zip), KMZ e KML; reprojeção (SIRGAS 2000, UTM) |
+| geojson-vt 4.0, flatbush 4.4 | Tiles vetoriais locais e índice espacial das camadas grandes (Web Worker) |
+| fake-indexeddb 6.0 (dev) | IndexedDB em memória para os testes |
 | vitest 2.1 (dev) | Testes automatizados |
 | wrangler 4.48 (dev) | Deploy no Cloudflare Pages (última versão compatível com Node 18) |
 
@@ -140,6 +145,31 @@ Etapa **demonstrativa**: o armazenamento é local e não há controle de acesso;
 - **Mapa:** camada própria (liga/desliga sem perder resultados). Ao selecionar um alerta, o mapa centraliza e liga o cadastro aos pontos do CSV envolvidos.
 - **Separação dos modos:** Demonstração e Teste real têm cadastros separados. A demonstração vem com registros **fictícios** ("Restaurar exemplos" recria esses registros).
 
+## Camadas do mapa e sub-regiões (modo Teste com dados reais)
+
+Detalhes, decisões e situação de cada critério de aceite em [docs/CAMADAS_E_SUBREGIOES.md](docs/CAMADAS_E_SUBREGIOES.md). Tudo roda e fica salvo **neste navegador**; ainda não há backend (PostgreSQL/PostGIS).
+
+- **Painel de camadas** (canto superior esquerdo do mapa; no celular, botão "Camadas"):
+  - mapa base: Ruas ou Satélite;
+  - grupos: Operação, Sub-regiões, Limites IBGE (somente leitura) e os grupos da organização (ex.: `Energisa > Rede Elétrica`);
+  - por camada: ligar/desligar, arrastar ou setas para reordenar, opacidade, zoom para a camada, legenda automática e filtro "só dentro da sub-região";
+  - o estado volta igual ao recarregar (por usuário).
+- **Limites oficiais do IBGE:** MG, Intermediária de Juiz de Fora, Imediata de Cataguases e seus 10 municípios (Malha Municipal 2022, `scripts/preparar_hierarquia_ibge.mjs`).
+- **Sub-regiões:** clique numa região do mapa, depois em **Criar sub-região aqui**, e escolha:
+  - desenhar (polígono ou retângulo, com encaixe nas bordas);
+  - selecionar municípios ou setores censitários;
+  - importar um arquivo (GeoJSON, KML/KMZ, Shapefile).
+
+  O que passa da borda é recortado, com aviso acima de 50 m. Nome repetido e sobreposição entre irmãs são bloqueados; um administrador pode liberar a sobreposição. As sub-regiões podem ser aninhadas. O botão **Sub-regiões** abre a árvore, com busca, renomear, editar área, duplicar, excluir/restaurar, exportar GeoJSON e histórico.
+- **Adicionar camada:**
+  - formatos: GeoJSON, KML/KMZ, Shapefile (.zip) ou CSV com coordenadas, além de WMS/XYZ por URL;
+  - reprojeção para EPSG:4326 pelo `.prj` (ou escolha do usuário) e correção de geometrias, com relatório de rejeitadas;
+  - pré-visualização antes de confirmar e processamento em segundo plano;
+  - versões ao substituir ou anexar;
+  - estilo por atributo (ex.: cor das linhas por tensão).
+- **Camadas grandes:** viram tiles vetoriais num Web Worker. Um Shapefile fictício de 500 mil postes (`node scripts/gerar_rede_teste.mjs`) é importado em ~7 s e navegado sem travamentos.
+- **Resumo:** ao selecionar uma sub-região, o cartão mostra o que as camadas ativas têm dentro dela (ex.: "Postes: 1.678 pontos · Linhas MT/BT: 19 km").
+
 ## Tema claro e escuro
 
 - O seletor no cabeçalho (sol, lua e monitor) alterna entre **Claro**, **Escuro** e **Seguir o sistema** (padrão). A escolha fica salva neste navegador.
@@ -184,6 +214,8 @@ O endereço e o código são os mesmos. Abaixo de 1024 px de largura (celular, t
 ## Privacidade
 
 - O CSV é lido com `FileReader` e processado em memória. Não vai para `localStorage` nem é enviado a nenhum serviço. O `localStorage` guarda os nomes de região definidos pelo operador, o último nome de responsável digitado, a preferência de tema e o **cadastro de pontos prioritários** com seu histórico de alertas. Este cadastro é a única exceção que guarda coordenadas, porque a persistência foi pedida; é provisório, sem controle de acesso e não serve para dados reais (ver docs/PONTOS_PRIORITARIOS.md).
+- Camadas enviadas (com versões) e sub-regiões ficam no **IndexedDB** deste navegador. Os arquivos são lidos e processados localmente, num Web Worker, e nunca são enviados. O estado das camadas (visível, opacidade, ordem, filtro, mapa base) fica no `localStorage`, sem coordenadas. Uma rede elétrica real é dado sensível de infraestrutura: use dados fictícios ou anonimizados enquanto não houver ambiente corporativo.
+- O mapa base de satélite (Esri World Imagery) e as camadas WMS/XYZ são imagens, como os tiles do OpenStreetMap: não recebem coordenadas de pontos, mas o provedor vê qual área está na tela.
 - `index.html` declara uma CSP com `connect-src 'self'`, que impede `fetch`/XHR para outros domínios. Os tiles do OpenStreetMap são imagens de fundo e não recebem as coordenadas dos pontos.
 - Nenhuma coordenada é registrada no console. O histórico de alertas não guarda coordenadas do CSV.
 - Dados do cadastro prioritário nunca entram na carta para as rádios nem na auditoria.
@@ -224,6 +256,9 @@ src/
 │   ├── AuditDialog.jsx         Auditoria: resumo, consistência, rastreio, exportação
 │   ├── PriorityAlertsPanel.jsx Alertas de pontos prioritários: resumo, lista e revisão
 │   ├── PriorityRegistry.jsx    Painel lateral do cadastro (consulta e formulário)
+│   ├── layers/                 Painel de camadas, envio (arquivo/URL), configuração (estilo, versões, compartilhamento), legenda
+│   ├── map/                    Panes por camada, tiles das camadas de dados, limites IBGE, sub-regiões, cliques, editor (Geoman)
+│   ├── subregions/             Editor, cartão de seleção, painel de gestão e resumo das camadas na sub-região
 │   └── StatusBadge.jsx, Toasts.jsx
 ├── hooks/useIsMobile.js        Detecta o layout de celular (abaixo de 1024 px); só apresentação
 ├── data/                       Dados FICTÍCIOS do modo Demonstração (inclui demoPriority.js)
@@ -246,16 +281,25 @@ src/
     ├── accessIdentity.js       Identidade do Cloudflare Access (somente em memória; null fora do Access)
     ├── useAccessIdentity.js    Hook da identidade para a interface
     ├── geo.js                  Utilitários geométricos
+    ├── geoOps.js               Recorte, união, diferença, área/perímetro geodésicos, ponto no polígono rápido
+    ├── ibgeHierarchy.js        Hierarquia oficial do IBGE (região-mãe das sub-regiões)
+    ├── customRegions.js        Sub-regiões: contenção, sobreposição, nome, histórico, exclusão lógica, exportação
+    ├── customRegionRepository.js, useCustomRegions.js   Persistência (IndexedDB) com contrato trocável por API
+    ├── useMapWorkspace.jsx     Orquestra camadas, sub-regiões, editor, filtros e resumos no modo real
+    ├── layers/                 Modelo de camadas, CRS, importação, .dbf, motor de tiles (Web Worker), IndexedDB, estado por usuário
     └── __tests__/              Testes automatizados
 public/data/ibge/               Camada oficial do piloto (a ser gerada) e correspondência de nomes
 public/_headers                 Cabeçalhos de segurança do Cloudflare Pages
 scripts/
 ├── preparar_camada_ibge.sh     Download, recorte e conversão da malha do IBGE (GDAL)
 ├── inspecionar_camada.mjs      Validação e inventário de atributos de um GeoJSON
+├── preparar_hierarquia_ibge.mjs  UF, Intermediária, Imediata e municípios do piloto (Malha Municipal 2022)
+├── gerar_rede_teste.mjs        Rede elétrica FICTÍCIA (500 mil postes, linhas MT/BT) em SIRGAS 2000 / UTM 23S
 ├── gerar_teste_cnefe.mjs       CSV de teste com pontos públicos do CNEFE 2022 (não são clientes)
 └── validar_cruzamento.mjs      Pipeline da aplicação em linha de comando + comparação com setor de referência
 docs/
 ├── CAMADA_TERRITORIAL.md       Fonte, campos, unidade escolhida, procedimento, limitações
+├── CAMADAS_E_SUBREGIOES.md     Sistema de camadas, sub-regiões, desempenho, critérios de aceite e próximos passos
 ├── DEPLOY_CLOUDFLARE.md        Build, deploy no Pages, configuração do Cloudflare Access, limitações
 ├── PONTOS_PRIORITARIOS.md      Cadastro manual, regra de comparação, alertas, persistência e limites
 └── RELATORIO_VALIDACAO.md      Relatório do teste técnico e modelo para o primeiro teste real
@@ -275,7 +319,8 @@ docs/
 - Coordenadas UTM não são convertidas.
 - Pontos prioritários: cadastro só no navegador local, sem autenticação nem controle de acesso. A tolerância de 30 m não foi validada operacionalmente, e sem coluna de cliente/UC no CSV nenhuma correspondência é confirmada. A ausência de alerta não comprova que não há cliente prioritário afetado.
 - Não há versão simplificada da camada só para exibição.
-- A camada "Rede elétrica" está desabilitada por falta de dados.
+- No modo Demonstração, a camada "Rede elétrica" continua desabilitada. No modo real, a rede pode ser enviada em "Adicionar camada".
+- Camadas e sub-regiões: sem backend, ficam só neste navegador, e não há isolamento real entre organizações. A regra de visibilidade existe, mas só passa a valer com servidor. GeoPackage, WFS e vector tiles por URL ainda não são aceitos. O tamanho máximo de camada depende da memória do computador. Ver [docs/CAMADAS_E_SUBREGIOES.md](docs/CAMADAS_E_SUBREGIOES.md).
 - O indicador de transformação compara apenas a quantidade de itens do aviso. Ele não estima economia financeira.
 - Controle de acesso: só o Cloudflare Access, na frente do site. Não há backend, então não há autorização por perfil nem validação do token do Access. O e-mail exibido e gravado nos históricos vem do front-end e serve de rastro, não de prova. Sem o Access (ex.: `npm run dev`), o responsável continua sendo digitado livremente.
 - Ambiente de testes limitado a **no máximo 45 usuários**, por uma lista nominal de e-mails num grupo do Cloudflare Access (com exigência de `@energisa.com.br`). O limite vale enquanto a lista tiver no máximo 45 nomes e só administradores autorizados puderem editá-la (ver [docs/DEPLOY_CLOUDFLARE.md](docs/DEPLOY_CLOUDFLARE.md), passo 3.3).

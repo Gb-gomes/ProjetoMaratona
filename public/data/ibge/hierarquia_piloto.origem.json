@@ -1,0 +1,53 @@
+{
+  "fonte": "IBGE — Malha Municipal 2022 (Shapefile por UF)",
+  "arquivos": [
+    {
+      "arquivo": "MG_UF_2022.zip",
+      "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/MG/MG_UF_2022.zip",
+      "tamanhoBytes": 467879,
+      "sha256": "402491546ac6f958d10c91272952f757b28a87d1868370b7a854c4743becdaed"
+    },
+    {
+      "arquivo": "MG_RG_Intermediarias_2022.zip",
+      "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/MG/MG_RG_Intermediarias_2022.zip",
+      "tamanhoBytes": 4970765,
+      "sha256": "697c87c64edd9fcf311e4d01754ef2dd093ff2f5cf8bc6e6635a0f3832697c9f"
+    },
+    {
+      "arquivo": "MG_RG_Imediatas_2022.zip",
+      "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/MG/MG_RG_Imediatas_2022.zip",
+      "tamanhoBytes": 11074896,
+      "sha256": "11313c223d4f06b1f030d61a96f69e86ebcfdc45402f38766b2e299c398d8f39"
+    },
+    {
+      "arquivo": "MG_Municipios_2022.zip",
+      "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/MG/MG_Municipios_2022.zip",
+      "tamanhoBytes": 33017561,
+      "sha256": "3d292889fbd2cbe9dcfd8b3fbbccbd565226eda9dceddb82ec9a89e28aee520b"
+    }
+  ],
+  "listaMunicipiosImediata": "https://servicodados.ibge.gov.br/api/v1/localidades/regioes-imediatas/310032/municipios",
+  "dataObtencao": "2026-10-17",
+  "crsOrigem": "GCS_SIRGAS_2000 (geográfico) — gravado como EPSG:4326 sem transformação",
+  "piloto": {
+    "municipio": "Cataguases",
+    "CD_MUN": "3115300",
+    "imediata": {
+      "code": "310032",
+      "name": "Cataguases"
+    },
+    "intermediaria": {
+      "code": "3106",
+      "name": "Juíz de Fora"
+    },
+    "uf": "MG"
+  },
+  "simplificacao": "UF e Intermediária: Douglas-Peucker 5 m. Imediata e municípios: sem simplificação.",
+  "conferenciaSetores": {
+    "areaMunicipioKm2": 493.1,
+    "areaSetoresKm2": 493.1,
+    "setoresForaDoMunicipioM2": 1,
+    "municipioSemSetorM2": 0
+  },
+  "feicoes": 13
+}

@@ -93,7 +93,7 @@ const STATUS_TEXT = { matched: null, unmatched: 'Sem correspondência territoria
 
 /** Folga da câmera: no desktop, espaço para o painel de camadas; no celular, para os botões e o cartão. */
 const CAMERA_PADDING = {
-  desktop: { paddingTopLeft: [240, 56], paddingBottomRight: [32, 32] },
+  desktop: { paddingTopLeft: [300, 56], paddingBottomRight: [32, 32] },
   compact: { paddingTopLeft: [20, 64], paddingBottomRight: [20, 96] },
   // Celular em paisagem (mapa baixo): folga mínima para a região caber.
   short: { paddingTopLeft: [16, 16], paddingBottomRight: [16, 16] },
@@ -153,7 +153,16 @@ export default function MapView({
   focusId, onFocus, selectedIds, layerInfo, nameOf = (u) => u.name, dark = false,
   priorityRecords = [], priorityAnalysis = null, priorityFocus = null, onPriorityFocus,
   visible = true, compact = false, onOpenDetails, className = '',
+  // Modo real: sistema de camadas e sub-regiões (ver lib/useMapWorkspace.jsx).
+  basemap = null, opPanes = null, opOpacity = null, mapChildren = null, layerPanel = null, overlay = null, headerActions = null, mobileActions = null, editing = false,
 }) {
+  const fade = (st, key) => {
+    const k = opOpacity?.[key] ?? 1;
+    return k === 1 ? st : { ...st, opacity: (st.opacity ?? 1) * k, fillOpacity: (st.fillOpacity ?? 0.2) * k };
+  };
+  // Pane de cada camada operacional (só no modo real; sem pane, o Leaflet usa o padrão).
+  const paneOf = (key) => (opPanes ? { pane: opPanes[key] } : {});
+  const tiles = basemap ?? { url: TILE_LAYER.url, attribution: TILE_LAYER.attribution, maxZoom: TILE_LAYER.maxZoom, className: 'cr-basemap-muted' };
   const pal = MAP_PALETTE[dark ? 'dark' : 'light'];
   const [sheet, setSheet] = useState(null); // celular: null | 'layers' | 'legend'
   const [tileErrors, setTileErrors] = useState(0);
@@ -219,7 +228,7 @@ export default function MapView({
   return (
     <section className={`flex min-h-[520px] flex-1 flex-col overflow-hidden 2xl:min-h-[360px] rounded-md border border-slate-200 bg-white shadow-panel ${className}`} aria-labelledby="map-title">
       <div className="flex items-center gap-3 border-b border-slate-100 px-3.5 py-2 max-lg:gap-2 max-lg:px-3 max-lg:[@media(max-height:500px)]:hidden">
-        <h2 id="map-title" className="flex items-center gap-2 text-[13.5px] font-semibold text-petrol-900">
+        <h2 id="map-title" className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[13.5px] font-semibold text-petrol-900">
           <MapPinned className="h-4 w-4 text-petrol-500" aria-hidden="true" />
           Mapa do desligamento
         </h2>
@@ -227,6 +236,7 @@ export default function MapView({
         <span className="ml-auto truncate text-[12px] text-slate-500 max-sm:hidden">
           {layerInfo.title}
         </span>
+        {headerActions && <span className="shrink-0 max-lg:hidden">{headerActions}</span>}
       </div>
 
       <div className="relative min-h-0 flex-1">
@@ -242,9 +252,11 @@ export default function MapView({
           aria-label="Mapa interativo dos pontos e unidades territoriais"
         >
           <TileLayer
-            url={TILE_LAYER.url}
-            attribution={TILE_LAYER.attribution}
-            maxZoom={TILE_LAYER.maxZoom}
+            key={tiles.url}
+            url={tiles.url}
+            attribution={tiles.attribution}
+            maxZoom={tiles.maxZoom}
+            className={tiles.className}
             eventHandlers={{
               tileerror: () => setTileErrors((n) => n + 1),
               tileload: () => setTileLoaded(true),
@@ -258,6 +270,8 @@ export default function MapView({
             visible={visible}
             compact={compact}
           />
+          {/* Panes, camadas da organização, editor e cliques (modo real); antes das operacionais, que usam os panes. */}
+          {mapChildren}
 
           {showTerritories && territories.features.map((feature) => {
             const { id } = feature.properties;
@@ -275,9 +289,13 @@ export default function MapView({
               <Polygon
                 key={id}
                 positions={geometryToLatLngs(feature.geometry)}
-                pathOptions={style}
-                eventHandlers={affected ? { click: () => onFocus(id) } : undefined}
-                interactive={affected || isReal}
+                pathOptions={fade(style, 'territories')}
+                eventHandlers={affected && !editing ? { click: () => onFocus(id) } : undefined}
+                interactive={(affected || isReal) && !editing}
+                // Clique numa região afetada foca a região e não abre o cartão de seleção do mapa.
+                bubblingMouseEvents={!affected}
+                pmIgnore
+                {...paneOf('territories')}
               >
                 {affected && (
                   <Tooltip permanent direction="center" className="cr-region-label" interactive={false}>
@@ -313,9 +331,12 @@ export default function MapView({
               <CircleMarker
                 key={p.key}
                 center={[p.lat, p.lng]}
-                pathOptions={prioHit ? {
+                bubblingMouseEvents={false}
+                pmIgnore
+                {...paneOf('points')}
+                pathOptions={fade(prioHit ? {
                   ...style, radius: 7, color: '#EE7A12', weight: 3, opacity: 1, fillOpacity: 1,
-                } : style}
+                } : style, 'points')}
               >
                 <Tooltip direction="top" offset={[0, -4]} className="cr-point-tip">
                   {isDemo ? (
@@ -342,6 +363,8 @@ export default function MapView({
               positions={[[focusedRecord.lat, focusedRecord.lng], [p.lat, p.lng]]}
               pathOptions={{ color: '#EE7A12', weight: 2, dashArray: '4 4' }}
               interactive={false}
+              pmIgnore
+              {...paneOf('priority')}
             />
           ))}
 
@@ -355,6 +378,8 @@ export default function MapView({
                 icon={priorityIcon({ category: r.category, status: a?.matchStatus, focused })}
                 zIndexOffset={focused ? 1000 : a ? 500 : 0}
                 keyboard={false}
+                pmIgnore
+                {...paneOf('priority')}
                 eventHandlers={onPriorityFocus ? { click: () => onPriorityFocus(r.id) } : undefined}
               >
                 <Tooltip direction="top" offset={[0, -12]} className="cr-point-tip">
@@ -370,9 +395,9 @@ export default function MapView({
         </MapContainer>
 
         {/* Controles flutuantes (desktop) */}
-        <div className="pointer-events-none absolute left-3 top-3 z-[500] hidden lg:block">
-          <div className="pointer-events-auto">
-            <LayerControl
+        <div className={`pointer-events-none absolute left-3 top-3 z-[500] hidden ${editing ? '' : 'lg:flex'} ${layerPanel ? 'bottom-[11.5rem] flex-col' : ''}`}>
+          <div className="pointer-events-auto flex min-h-0 flex-col">
+            {layerPanel ?? <LayerControl
               layers={layers}
               onToggle={onToggleLayer}
               territorialTitle={isDemo ? 'Demonstrativa' : `${layerInfo.unitType} — IBGE ${layerInfo.referenceYear}`}
@@ -380,7 +405,7 @@ export default function MapView({
               onTogglePointFilter={onTogglePointFilter}
               counts={counts}
               priorityCount={priorityRecords.length}
-            />
+            />}
           </div>
         </div>
         <div className="pointer-events-none absolute bottom-3 left-3 z-[500] hidden lg:block">
@@ -388,8 +413,8 @@ export default function MapView({
         </div>
 
         {/* Celular/tablet: camadas e legenda recolhíveis */}
-        <div className="pointer-events-none absolute bottom-3 left-3 top-3 z-[600] flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2 lg:hidden">
-          <div className="pointer-events-auto flex gap-2">
+        <div className={`pointer-events-none absolute bottom-3 left-3 top-3 z-[600] flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2 lg:hidden ${editing ? 'hidden' : ''}`}>
+          <div className="pointer-events-auto flex flex-wrap gap-2">
             {[['layers', 'Camadas', Layers], ['legend', 'Legenda', List]].map(([key, label, Icon]) => (
               <button
                 key={key}
@@ -405,10 +430,11 @@ export default function MapView({
                 {label}
               </button>
             ))}
+            {mobileActions}
           </div>
           {sheet && (
             <div id={`map-sheet-${sheet}`} className="pointer-events-auto min-h-0 overflow-y-auto rounded-md">
-              {sheet === 'layers' ? (
+              {sheet === 'layers' ? (layerPanel ?? (
                 <LayerControl
                   layers={layers}
                   onToggle={onToggleLayer}
@@ -418,14 +444,14 @@ export default function MapView({
                   counts={counts}
                   priorityCount={priorityRecords.length}
                 />
-              ) : (
+              )) : (
                 <MapLegend demo={isDemo} layerInfo={layerInfo} showPriority={layers.priority && priorityRecords.length > 0} />
               )}
             </div>
           )}
         </div>
 
-        <div className={`pointer-events-none absolute left-3 right-3 top-3 z-[500] flex justify-end md:left-auto md:max-w-[calc(100%-260px)] max-md:top-[4.25rem] ${sheet ? 'max-lg:hidden' : ''}`}>
+        <div className={`pointer-events-none absolute left-3 right-3 top-3 z-[500] flex justify-end md:left-auto md:max-w-[calc(100%-260px)] ${mobileActions ? 'max-md:top-[7.5rem]' : 'max-md:top-[4.25rem]'} ${sheet ? 'max-lg:hidden' : ''} ${editing ? 'hidden' : ''}`}>
           {isDemo ? (
             <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-1.5 text-[12px] font-medium text-amber-900 shadow-sm">
               <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
@@ -440,7 +466,9 @@ export default function MapView({
         </div>
 
         {/* Celular: região em foco, com atalho para os detalhes */}
-        {compact && focusId && unitsById.has(focusId) && (() => {
+        {overlay}
+
+        {compact && !editing && focusId && unitsById.has(focusId) && (() => {
           const unit = unitsById.get(focusId);
           return (
             <div className="absolute bottom-3 left-3 right-[4.25rem] z-[600] flex items-center gap-2 rounded-md border border-slate-200 bg-white py-1.5 pl-3 pr-1 shadow-lg lg:hidden">

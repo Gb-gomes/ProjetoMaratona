@@ -11,10 +11,16 @@
   textarea:focus-visible { outline-offset: 0; }
 }
 
-/* Fundo cartográfico em tons neutros para dar contraste às camadas. */
-.leaflet-tile-pane { filter: grayscale(0.85) brightness(1.05) contrast(0.92); }
+/* Fundo cartográfico (ruas) em tons neutros para dar contraste às camadas.
+   Só o mapa base de ruas recebe o filtro: satélite e camadas WMS/XYZ ficam com as cores originais. */
+.cr-basemap-muted { filter: grayscale(0.85) brightness(1.05) contrast(0.92); }
 /* Modo escuro: inverte só a aparência dos tiles no navegador (nenhuma requisição muda). */
-.dark .leaflet-tile-pane { filter: grayscale(0.9) invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.88); }
+.dark .cr-basemap-muted { filter: grayscale(0.9) invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.88); }
+.dark .cr-basemap-imagery { filter: brightness(0.85); }
+
+/* Tiles das camadas de dados não recebem eventos (o clique é tratado pelo mapa). Os panes
+   que nunca têm feições interativas recebem pointer-events: none em PaneManager.jsx. */
+.cr-data-tile { pointer-events: none; }
 .leaflet-container { font-family: inherit; background: var(--map-bg) !important; }
 .leaflet-control-zoom { border: 1px solid rgb(var(--c-slate-200)) !important; border-radius: 6px !important; overflow: hidden; box-shadow: 0 2px 6px rgba(11,34,51,.12) !important; }
 .leaflet-control-zoom a { color: rgb(var(--c-petrol-800)) !important; background: rgb(var(--c-white)) !important; border-color: rgb(var(--c-slate-200)) !important; }
@@ -40,6 +46,31 @@
 .cr-region-chip.is-focused b { background: #EE7A12; color: #fff; }
 
 .leaflet-tooltip.cr-point-tip { font-size: 12px; border-radius: 4px; padding: 5px 8px; color: rgb(var(--c-petrol-900)); }
+
+/* Rótulos das sub-regiões */
+.leaflet-tooltip.cr-subregion-label { background: transparent; border: 0; box-shadow: none; padding: 0; }
+.leaflet-tooltip.cr-subregion-label::before { display: none; }
+.cr-subregion-chip {
+  display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: rgb(var(--c-white) / .92); color: rgb(var(--c-petrol-900)); border-left: 3px solid var(--c);
+  border-radius: 3px; padding: 1px 6px; font-size: 11.5px; font-weight: 600; box-shadow: 0 1px 3px rgba(11,34,51,.2);
+}
+.cr-subregion-chip.is-selected { background: rgb(var(--c-petrol-800)); color: rgb(var(--c-white)); }
+
+/* Popup de atributos das camadas de dados */
+.leaflet-popup-content-wrapper { border-radius: 6px; }
+.dark .leaflet-popup-content-wrapper, .dark .leaflet-popup-tip { background: rgb(var(--c-white)); color: rgb(var(--c-petrol-900)); }
+.cr-attr-popup { font-size: 12px; max-height: 260px; overflow: auto; }
+.cr-attr-title { font-weight: 600; margin: 0 0 4px; color: rgb(var(--c-petrol-900)); }
+.cr-attr-table { border-collapse: collapse; width: 100%; }
+.cr-attr-table th { text-align: left; font-weight: 500; color: rgb(var(--c-slate-500)); padding: 1px 8px 1px 0; vertical-align: top; white-space: nowrap; }
+.cr-attr-table td { color: rgb(var(--c-petrol-900)); padding: 1px 0; word-break: break-word; }
+
+/* Editor de sub-região (Leaflet-Geoman): vértices com área de toque maior no celular */
+.leaflet-container .marker-icon { border-color: #EE7A12; }
+@media (max-width: 1023.98px) {
+  .leaflet-container .marker-icon { width: 18px !important; height: 18px !important; margin-left: -9px !important; margin-top: -9px !important; }
+}
 .dark .leaflet-tooltip { background: rgb(var(--c-white)); color: rgb(var(--c-petrol-900)); border-color: rgb(var(--c-slate-200)); }
 .dark .leaflet-tooltip-top::before { border-top-color: rgb(var(--c-white)); }
 .dark .leaflet-tooltip-bottom::before { border-bottom-color: rgb(var(--c-white)); }

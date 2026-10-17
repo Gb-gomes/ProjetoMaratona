@@ -10,6 +10,29 @@ const POINT_FILTERS = [
   { key: 'ambiguous', label: 'Ambíguos', dot: 'bg-amber-600' },
 ];
 
+/** Filtros dos pontos importados por situação (também usados no painel de camadas do modo real). */
+export function PointFilters({
+  pointFilter, onTogglePointFilter, counts, disabled = false,
+}) {
+  return (
+    <div className="mb-1 space-y-0.5">
+      {POINT_FILTERS.map((f) => (
+        <label key={f.key} className="flex cursor-pointer items-center gap-1.5 text-[11.5px] text-slate-600 max-lg:min-h-11 max-lg:gap-2 max-lg:text-[13.5px]">
+          <input
+            type="checkbox"
+            checked={pointFilter[f.key]}
+            disabled={disabled}
+            onChange={() => onTogglePointFilter(f.key)}
+            className="h-3 w-3 accent-accent-500 max-lg:h-5 max-lg:w-5"
+          />
+          <span className={`h-2 w-2 rounded-full ${f.dot}`} aria-hidden="true" />
+          {f.label}{counts ? ` (${counts[f.key]})` : ''}
+        </label>
+      ))}
+    </div>
+  );
+}
+
 export default function LayerControl({
   layers, onToggle, territorialTitle, pointFilter, onTogglePointFilter, counts, priorityCount = 0,
 }) {
@@ -30,20 +53,8 @@ export default function LayerControl({
         Pontos importados
       </label>
       {pointFilter && (
-        <div className="mb-1 ml-5 space-y-0.5">
-          {POINT_FILTERS.map((f) => (
-            <label key={f.key} className="flex cursor-pointer items-center gap-1.5 text-[11.5px] text-slate-600 max-lg:min-h-11 max-lg:gap-2 max-lg:text-[13.5px]">
-              <input
-                type="checkbox"
-                checked={pointFilter[f.key]}
-                disabled={!layers.points}
-                onChange={() => onTogglePointFilter(f.key)}
-                className="h-3 w-3 accent-accent-500 max-lg:h-5 max-lg:w-5"
-              />
-              <span className={`h-2 w-2 rounded-full ${f.dot}`} aria-hidden="true" />
-              {f.label}{counts ? ` (${counts[f.key]})` : ''}
-            </label>
-          ))}
+        <div className="ml-5">
+          <PointFilters pointFilter={pointFilter} onTogglePointFilter={onTogglePointFilter} counts={counts} disabled={!layers.points} />
         </div>
       )}
       <label className="flex cursor-pointer items-center gap-2 py-1 text-[12.5px] max-lg:min-h-11 max-lg:py-2 max-lg:text-[14px] text-petrol-900">

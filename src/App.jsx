@@ -50,6 +50,8 @@ import {
   buildAnalysisRef, syncAlerts, transitionAlert, alertGate, alertKey,
 } from './lib/priorityAlerts.js';
 import { useIsMobile } from './hooks/useIsMobile.js';
+import { useMapWorkspace } from './lib/useMapWorkspace.jsx';
+import { PointFilters } from './components/LayerControl.jsx';
 
 const DEMO_FILE = {
   source: 'demo',
@@ -331,6 +333,32 @@ export default function App() {
     });
     if (force !== false) setFocusId(null);
   }, [priorityAnalysis]);
+
+  /* ---------------- Camadas e sub-regiões (somente modo real) ---------------- */
+  const done = phase === 'done' && result;
+  const ws = useMapWorkspace({
+    enabled: isReal,
+    identity,
+    operator,
+    operatorLocked,
+    authorFor,
+    rememberOperator,
+    notify,
+    opLayers: layers,
+    setOpLayers: setLayers,
+    pointFilterExtra: isReal && done ? (
+      <PointFilters
+        pointFilter={pointFilter}
+        onTogglePointFilter={(key) => setPointFilter((f) => ({ ...f, [key]: !f[key] }))}
+        counts={{ matched: result.matched, unmatched: result.unmatched, ambiguous: result.ambiguous }}
+      />
+    ) : null,
+    result: done ? result : null,
+    priorityRecords: priorityRecordsActive,
+    sectorLayer: layerState.layer,
+    isMobile,
+    onShowMap: () => setMobileTab('mapa'),
+  });
 
   const handleSaveRecord = (value, editingId, typedBy) => {
     const by = authorFor(typedBy);
@@ -726,14 +754,15 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key !== 'Escape' || auditOpen || registryNav) return;
+      if (e.key !== 'Escape' || auditOpen || registryNav || ws.modalOpen || ws.editing) return;
       if (focusId) setFocusId(null);
       if (priorityFocus) setPriorityFocus(null);
       setRegionDetailId(null);
+      ws.closeTransient();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [focusId, auditOpen, registryNav, priorityFocus]);
+  }, [focusId, auditOpen, registryNav, priorityFocus, ws]);
 
   /* ---------------- Navegação no celular ---------------- */
   const openRegionDetail = (id) => {
@@ -963,6 +992,15 @@ export default function App() {
             priorityAnalysis={priorityAnalysis}
             priorityFocus={priorityFocus}
             onPriorityFocus={(id) => focusPriority(id)}
+            basemap={ws.basemap}
+            opPanes={ws.opPanes}
+            opOpacity={ws.opOpacity}
+            mapChildren={ws.mapChildren}
+            layerPanel={ws.layerPanel}
+            overlay={ws.overlay}
+            headerActions={ws.subRegionsButton}
+            mobileActions={ws.subRegionsButton}
+            editing={ws.editing}
           />
         </div>
 
@@ -1054,6 +1092,7 @@ export default function App() {
         onViewOnMap={handleViewRecord}
         onResetDemo={isReal ? null : handleResetDemoPriority}
       />
+      {ws.dialogs}
       <MobileNav active={mobileTab} onChange={setMobileTab} badges={navBadges} />
       <Toasts toasts={toasts} onDismiss={dismissToast} />
     </div>

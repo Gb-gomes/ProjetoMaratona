@@ -202,3 +202,79 @@ export const PRIORITY_MATCH = {
   duplicateWarningMeters: 15,
   sharedIdField: 'client',
 };
+
+/* ------------------------------------------------------------------ */
+/* Camadas do mapa e sub-regiões (somente no modo Teste com dados reais) */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Mapas base: só um ativo por vez. Os tiles são imagens (não passam pela
+ * CSP connect-src) e não recebem coordenadas de pontos nem de clientes;
+ * como no OpenStreetMap, o provedor só vê qual área do mapa está na tela.
+ */
+export const BASEMAPS = [
+  {
+    id: 'basemap:streets',
+    name: 'Ruas (OpenStreetMap)',
+    url: TILE_LAYER.url,
+    attribution: TILE_LAYER.attribution,
+    maxZoom: TILE_LAYER.maxZoom,
+    // Tons de cinza para dar contraste às camadas (ver index.css).
+    className: 'cr-basemap-muted',
+  },
+  {
+    id: 'basemap:satellite',
+    name: 'Satélite (Esri World Imagery)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Imagens &copy; Esri, Maxar, Earthstar Geographics e comunidade de usuários GIS',
+    maxZoom: 18,
+    className: 'cr-basemap-imagery',
+  },
+];
+
+/**
+ * Hierarquia oficial do IBGE (Malha Municipal 2022) até o município piloto.
+ * Gerada por scripts/preparar_hierarquia_ibge.mjs; ver docs/CAMADAS_E_SUBREGIOES.md.
+ */
+export const IBGE_HIERARCHY = {
+  url: '/data/ibge/hierarquia_piloto.geojson',
+  source: 'IBGE — Malha Municipal 2022',
+  levels: [
+    { level: 'uf', layerId: 'ibge:uf', name: 'Unidade da Federação', short: 'UF', color: '#334155', weight: 2.4, dash: null },
+    { level: 'intermediaria', layerId: 'ibge:intermediaria', name: 'Região Geográfica Intermediária', short: 'Intermediária', color: '#7C3AED', weight: 2, dash: '8 4' },
+    { level: 'imediata', layerId: 'ibge:imediata', name: 'Região Geográfica Imediata', short: 'Imediata', color: '#0369A1', weight: 1.8, dash: '6 3' },
+    { level: 'municipio', layerId: 'ibge:municipio', name: 'Municípios', short: 'Município', color: '#B45309', weight: 1.4, dash: null },
+  ],
+};
+
+/**
+ * Organização e papéis. Sem backend, isto é só uma conveniência de
+ * interface: quem usa o navegador pode alterar os dados locais. O papel é
+ * resolvido pelo e-mail do Cloudflare Access (byEmail) ou, sem Access, por
+ * `default`. Papéis: 'admin' | 'editor' | 'viewer'.
+ */
+export const ORGANIZATION = {
+  id: 'energisa',
+  name: 'Energisa',
+};
+export const ROLES = {
+  default: 'admin',
+  byEmail: {},
+};
+
+/**
+ * Regras das sub-regiões (ver lib/customRegions.js).
+ * allowSiblingOverlap é o padrão da organização; o administrador pode
+ * alterar na tela (fica salvo neste navegador).
+ */
+export const CUSTOM_REGION_RULES = {
+  toleranceMeters: 50,
+  allowSiblingOverlap: false,
+  overlapMinM2: 50,
+};
+
+/** Acima deste número de feições, a camada importada é desenhada só por tiles (nunca GeoJSON bruto). */
+export const DATA_LAYER_LIMITS = {
+  maxFileBytes: 300 * 1024 * 1024,
+  warnFeatures: 1000000,
+};
