@@ -57,6 +57,20 @@
 }
 .cr-subregion-chip.is-selected { background: rgb(var(--c-petrol-800)); color: rgb(var(--c-white)); }
 
+/* Comunidades: rótulo no label_point; "≈" e itálico quando a localização é aproximada */
+.cr-community-icon { background: transparent; border: 0; }
+.cr-community-label {
+  display: inline-block; transform: translate(-50%, -50%); white-space: nowrap; pointer-events: none;
+  font-size: 11px; font-weight: 600; color: #0F766E; letter-spacing: .01em;
+  text-shadow: 0 0 2px rgb(var(--c-white)), 0 0 2px rgb(var(--c-white)), 0 0 3px rgb(var(--c-white));
+}
+.dark .cr-community-label { color: #5EEAD4; text-shadow: 0 0 2px #0C1821, 0 0 2px #0C1821, 0 0 3px #0C1821; }
+.cr-community-label.is-low { font-style: italic; font-weight: 500; opacity: .9; }
+.cr-community-label.is-selected { color: rgb(var(--c-petrol-900)); }
+.leaflet-tooltip.cr-community-tip strong { display: block; font-size: 12.5px; }
+.cr-tip-low { color: rgb(var(--c-amber-800)); margin-top: 2px; max-width: 240px; white-space: normal; }
+.cr-tip-ok { color: rgb(var(--c-slate-500)); margin-top: 2px; }
+
 /* Popup de atributos das camadas de dados */
 .leaflet-popup-content-wrapper { border-radius: 6px; }
 .dark .leaflet-popup-content-wrapper, .dark .leaflet-popup-tip { background: rgb(var(--c-white)); color: rgb(var(--c-petrol-900)); }
@@ -122,5 +136,9 @@ html.theme-transition, html.theme-transition * {
 .cr-prio-mark.st-review::after { border: 2.5px dotted #DC2626; animation: cr-prio-pulse 1.6s ease-in-out infinite; }
 .cr-prio-mark.is-focused { outline: 3px solid #EE7A12; outline-offset: 7px; }
 .cr-prio-mark.cat-B.is-focused { outline-offset: 5px; }
+/* Os mesmos marcadores na legenda, em escala menor (cabem na coluna de 20 px; o losango B gira 45°). */
+.cr-prio-legend { display: grid; place-items: center; width: 20px; height: 20px; }
+.cr-prio-legend .cr-prio-mark { width: 14px; height: 14px; font-size: 8px; border-width: 1.5px; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.cr-prio-legend .cr-prio-mark::after { display: none; }
 @keyframes cr-prio-pulse { 50% { transform: scale(1.18); opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .cr-prio-mark.st-review::after { animation: none; } }

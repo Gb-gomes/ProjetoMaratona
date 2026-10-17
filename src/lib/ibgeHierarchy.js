@@ -6,10 +6,10 @@ import { geometryBboxAny, labelPoint } from './geoOps.js';
 import { bboxToBounds } from './geo.js';
 
 export const LEVEL_LABEL = {
-  uf: 'UF', intermediaria: 'Região Geográfica Intermediária', imediata: 'Região Geográfica Imediata', municipio: 'Município', setor: 'Setor censitário',
+  uf: 'UF', intermediaria: 'Região Geográfica Intermediária', imediata: 'Região Geográfica Imediata', municipio: 'Município', distrito: 'Distrito', setor: 'Setor censitário',
 };
 export const LEVEL_RANK = {
-  uf: 1, intermediaria: 2, imediata: 3, municipio: 4,
+  uf: 1, intermediaria: 2, imediata: 3, municipio: 4, distrito: 5,
 };
 
 /** Normaliza o GeoJSON da hierarquia. */
@@ -23,6 +23,8 @@ export function parseHierarchy(gj) {
       level: f.properties.level,
       parentCode: f.properties.parentCode ? String(f.properties.parentCode) : null,
       areaKm2Oficial: f.properties.areaKm2Oficial ?? null,
+      // Distritos: o distrito-sede do município (código terminado em 05).
+      sede: !!f.properties.sede,
       geometry: f.geometry,
       bbox,
       bounds: bboxToBounds(bbox),
@@ -35,16 +37,27 @@ export function parseHierarchy(gj) {
   const all = regions.map((r) => r.bbox);
   const bbox = [Math.min(...all.map((b) => b[0])), Math.min(...all.map((b) => b[1])), Math.max(...all.map((b) => b[2])), Math.max(...all.map((b) => b[3]))];
   return {
-    regions, byCode, byLevel, bounds: bboxToBounds(bbox),
+    regions, byCode, byLevel, bounds: bboxToBounds(bbox), ufSigla: gj.ufSigla ?? null,
   };
 }
 
-export async function loadHierarchy(url, { signal } = {}) {
+async function fetchJson(url, signal) {
   const res = await fetch(url, { signal, cache: 'no-cache' });
   if (!res.ok || (res.headers.get('content-type') ?? '').includes('text/html')) {
-    throw new Error(`Hierarquia do IBGE não encontrada (${url}). Rode scripts/preparar_hierarquia_ibge.mjs.`);
+    throw new Error(`Arquivo do IBGE não encontrado (${url}). Rode scripts/preparar_hierarquia_ibge.mjs.`);
   }
-  return parseHierarchy(await res.json());
+  return res.json();
+}
+
+/** Carrega a hierarquia e, se houver, a malha de distritos (arquivo separado). */
+export async function loadHierarchy(url, { districtsUrl = null, signal } = {}) {
+  const [main, districts] = await Promise.all([
+    fetchJson(url, signal),
+    districtsUrl ? fetchJson(districtsUrl, signal).catch(() => null) : null,
+  ]);
+  const features = [...main.features, ...(districts?.features ?? [])];
+  const uf = main.features.find((f) => f.properties.level === 'uf');
+  return parseHierarchy({ type: 'FeatureCollection', features, ufSigla: uf?.properties.sigla ?? null });
 }
 
 /** Caminho completo, do topo até a região: "MG › Juiz de Fora › Cataguases". */

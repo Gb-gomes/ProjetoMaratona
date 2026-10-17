@@ -66,10 +66,22 @@ export const hasPlaceholders = (text) => PLACEHOLDER_RE.test(text ?? '');
  *
  * @returns {{name:string|null, origin:'correspondence'|'official'|null}}
  */
-export function resolveSpeakableName(unit, { correspondence = {}, officialNameApproved = false } = {}) {
+export function resolveSpeakableName(unit, { correspondence = {}, officialNameApproved = false, communityNames = null } = {}) {
   const entry = correspondence[unit.code] ?? correspondence[unit.id];
   if (entry?.name) return { name: entry.name, origin: entry.origin ?? 'correspondence', entry };
+  // Região por microrregião (lib/placeRegions.js): o nome da comunidade ou da área do IBGE.
+  if (unit.placeName) return { name: unit.placeName, origin: unit.kind === 'microrregiao' ? 'microrregiao' : 'ibge' };
   if (officialNameApproved && unit.name) return { name: unit.name, origin: 'official' };
+  // Comunidades dos pontos afetados (arquivo de comunidades; lib/communities.js).
+  // Pontos fora de qualquer comunidade mantêm também o nome automático do IBGE,
+  // para que ninguém fique sem aviso.
+  const comm = communityNames?.get?.(unit.id);
+  if (comm?.names?.length) {
+    const names = comm.uncovered && unit.fallbackName ? [...comm.names, unit.fallbackName] : [...comm.names];
+    return {
+      name: joinNatural(names), names, origin: 'comunidade', communities: comm,
+    };
+  }
   // Nome automático da área do IBGE (distrito + situação), derivado de atributos oficiais.
   if (unit.fallbackName) return { name: unit.fallbackName, origin: 'ibge' };
   return { name: null, origin: null };

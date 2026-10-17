@@ -13,7 +13,7 @@ import { siblingsOfNode } from '../../lib/layers/layerModel.js';
  */
 export default function LayerPanel({
   tree, effective, basemaps, basemap, onBasemap, onToggle, onOpacity, onReorder, collapsed, onToggleCollapse,
-  onZoomTo, onConfigure, onAddLayer, canUpload, regionsForFilter = [], onFilter, filterStatus = {}, extras = {}, className = '',
+  onZoomTo, onConfigure, onAddLayer, canUpload, regionsForFilter = [], onFilter, filterStatus = {}, extras = {}, className = '', embedded = false,
 }) {
   const [open, setOpen] = useState({});
   const [drag, setDrag] = useState(null); // { id, overId }
@@ -91,7 +91,7 @@ export default function LayerPanel({
             {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </button>
         </div>
-        {extras[l.id] && st.visible && <div className="ml-6">{extras[l.id]}</div>}
+        {extras[l.id] && st.visible && <div className="mb-1 ml-7" style={{ marginLeft: depth * 12 + 28 }}>{extras[l.id]}</div>}
         {expanded && (
           <div className="mb-1.5 ml-6 mr-1 space-y-1.5 rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-[11.5px] text-slate-600 max-lg:text-[13px]" style={{ marginLeft: depth * 12 + 24 }}>
             <label className="flex items-center gap-2">
@@ -156,7 +156,7 @@ export default function LayerPanel({
     const isCollapsed = !!collapsed[g.id];
     const over = drag?.overId === g.id && drag.id !== g.id;
     return (
-      <li key={g.id} className={`rounded ${over ? 'ring-2 ring-accent-400' : ''}`} {...dragProps(node)}>
+      <li key={g.id} className={`rounded ${depth === 0 ? 'mt-1.5 border-t border-slate-100 pt-0.5' : ''} ${over ? 'ring-2 ring-accent-400' : ''}`} {...dragProps(node)}>
         <div className="flex items-center gap-1 pt-1.5" style={{ paddingLeft: depth * 12 }}>
           <button
             type="button"
@@ -177,6 +177,44 @@ export default function LayerPanel({
       </li>
     );
   };
+
+  const addButton = canUpload && (
+    <button
+      type="button"
+      onClick={onAddLayer}
+      className={`inline-flex items-center gap-1 rounded bg-petrol-800 px-2 py-1 text-[12px] font-medium text-white hover:bg-petrol-700 max-lg:min-h-11 max-lg:px-3 max-lg:text-[13px] ${embedded ? '' : 'ml-auto'}`}
+    >
+      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+      Adicionar camada
+    </button>
+  );
+  const basemapField = (
+    <fieldset className="pt-1.5">
+      <legend className="flex items-center gap-1 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
+        <MapIcon className="h-3 w-3" aria-hidden="true" />
+        Mapa base
+      </legend>
+      <div className="mt-0.5 flex flex-wrap gap-x-3">
+        {basemaps.map((b) => (
+          <label key={b.id} className="flex cursor-pointer items-center gap-1.5 py-0.5 text-[13px] text-petrol-900 max-lg:min-h-11 max-lg:text-[14px]">
+            <input type="radio" name="basemap" checked={basemap === b.id} onChange={() => onBasemap(b.id)} className="accent-accent-500 max-lg:h-5 max-lg:w-5" />
+            {b.name.replace(/ (.+)$/, '')}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+
+  // Dentro do painel "Camadas e legenda" do mapa: sem cartão próprio (o painel rola).
+  if (embedded) {
+    return (
+      <div className={`cr-layer-tree px-3 pb-2 ${className}`} role="group" aria-label="Camadas do mapa">
+        {addButton && <div className="flex justify-end pt-2">{addButton}</div>}
+        {basemapField}
+        <ul>{tree.map((n) => renderNode(n, 0))}</ul>
+      </div>
+    );
+  }
 
   return (
     <section className={`flex w-[290px] flex-col rounded-md border border-slate-200 bg-white/95 shadow-md backdrop-blur-sm max-lg:w-[min(340px,calc(100vw-1.5rem))] ${className}`} aria-label="Camadas do mapa">

@@ -46,7 +46,7 @@ export default function KpiCards({
   const isReal = mode === 'real';
 
   return (
-    <div className="grid grid-cols-2 gap-3 2xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       <Card
         icon={MapPin}
         label="Pontos importados"

@@ -39,6 +39,7 @@ export function countClients(unitPoints, clientMapped) {
  * @param {object[]} points pontos do resultado (com unitId, client, property)
  * @param {{
  *   nameOf: (u:object) => string|null,
+ *   namesOf?: (u:object) => string[]|null,   // vários nomes (ex.: comunidades); cada um vira uma linha
  *   threshold?: number,
  *   overrides?: Record<string, 'region'|'properties'>,
  *   clientMapped?: boolean,
@@ -51,7 +52,7 @@ export function countClients(unitPoints, clientMapped) {
  * }}
  */
 export function buildAnnouncement(units, points, {
-  nameOf, threshold = 3, overrides = {}, clientMapped = false, propertyMapped = false,
+  nameOf, namesOf = null, threshold = 3, overrides = {}, clientMapped = false, propertyMapped = false,
 }) {
   const byUnit = new Map();
   (points ?? []).forEach((p) => {
@@ -61,11 +62,13 @@ export function buildAnnouncement(units, points, {
   });
 
   const pendingUnits = [];
-  const regionLine = (u) => {
+  const regionLines = (u) => {
+    const many = namesOf?.(u);
+    if (many?.length) return many;
     const name = nameOf(u);
-    if (name) return name;
+    if (name) return [name];
     pendingUnits.push(u);
-    return pendingRegionLabel(u);
+    return [pendingRegionLabel(u)];
   };
 
   const items = (units ?? []).map((u) => {
@@ -78,13 +81,13 @@ export function buildAnnouncement(units, points, {
 
     if (!wantsProperties) {
       return {
-        unit: u, mode: ANNOUNCE_MODE.region, automatic: !override, clients, countLabel, lines: [regionLine(u)], notes,
+        unit: u, mode: ANNOUNCE_MODE.region, automatic: !override, clients, countLabel, lines: regionLines(u), notes,
       };
     }
     if (!propertyMapped) {
       notes.push(`Região ${num(u)}: ${countLabel}, mas o CSV não tem coluna de propriedade mapeada; a região foi citada.`);
       return {
-        unit: u, mode: ANNOUNCE_MODE.region, automatic: !override, clients, countLabel, lines: [regionLine(u)], notes,
+        unit: u, mode: ANNOUNCE_MODE.region, automatic: !override, clients, countLabel, lines: regionLines(u), notes,
       };
     }
 
@@ -99,7 +102,7 @@ export function buildAnnouncement(units, points, {
     });
     if (missing) {
       notes.push(`Região ${num(u)}: ${missing} ponto(s) sem nome de propriedade no CSV; a região também foi citada para que ninguém fique sem aviso.`);
-      lines.push(regionLine(u));
+      lines.push(...regionLines(u));
     }
     return {
       unit: u, mode: ANNOUNCE_MODE.properties, automatic: !override, clients, countLabel, lines, notes,

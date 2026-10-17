@@ -43,14 +43,19 @@ const SECTORS = 'public/data/ibge/camada_piloto.geojson';
 const BASE = `https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/${UF}`;
 const API = 'https://servicodados.ibge.gov.br/api/v1/localidades';
 const SIMPLIFY_M = 5;
+const DIST_SIMPLIFY_M = 2;
+const DIST_BASE = `https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/censo_2022/distritos/shp/UF`;
+const DIST_OUT = 'public/data/ibge/distritos_piloto.geojson';
 const DECIMALS = 7;
 
 mkdirSync(RAW, { recursive: true });
 
-async function download(name) {
+const download = (name) => downloadFrom(BASE, name);
+
+async function downloadFrom(base, name) {
   const path = `${RAW}/${name}`;
   if (!existsSync(path)) {
-    const res = await fetch(`${BASE}/${name}`);
+    const res = await fetch(`${base}/${name}`);
     if (!res.ok) throw new Error(`Falha ao baixar ${name}: HTTP ${res.status}`);
     writeFileSync(path, Buffer.from(await res.arrayBuffer()));
   }
@@ -58,7 +63,7 @@ async function download(name) {
   return {
     buf,
     meta: {
-      arquivo: name, url: `${BASE}/${name}`, tamanhoBytes: buf.length, sha256: createHash('sha256').update(buf).digest('hex'),
+      arquivo: name, url: `${base}/${name}`, tamanhoBytes: buf.length, sha256: createHash('sha256').update(buf).digest('hex'),
     },
   };
 }
@@ -115,10 +120,10 @@ function simplifyRing(ring, tolM) {
 const round = (n) => Math.round(n * 10 ** DECIMALS) / 10 ** DECIMALS;
 const vertexCount = (g) => (g.type === 'Polygon' ? [g.coordinates] : g.coordinates).flat().reduce((s, r) => s + r.length, 0);
 
-function normalizeGeometry(g, simplify) {
+function normalizeGeometry(g, simplify, tolM = SIMPLIFY_M) {
   const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
   const coordinates = polys.map((poly) => poly.map((ring) => {
-    const r = simplify ? simplifyRing(ring, SIMPLIFY_M) : ring;
+    const r = simplify ? simplifyRing(ring, tolM) : ring;
     return r.map(([x, y]) => [round(x), round(y)]);
   }));
   return coordinates.length === 1 ? { type: 'Polygon', coordinates: coordinates[0] } : { type: 'MultiPolygon', coordinates };
@@ -153,6 +158,7 @@ async function main() {
           level,
           parentCode: parentOf(r.properties),
           areaKm2Oficial: r.properties.AREA_KM2 ?? null,
+          ...(level === 'uf' ? { sigla: r.properties.SIGLA_UF ?? null } : {}),
         },
         geometry,
       });
@@ -168,6 +174,27 @@ async function main() {
   }
 
   writeFileSync(OUT, `${JSON.stringify({ type: 'FeatureCollection', features })}\n`);
+
+  // Distritos (Malha de Distritos do Censo 2022) dos municípios da Imediata, em arquivo próprio.
+  // Simplificação de DIST_SIMPLIFY_M: bem abaixo da tolerância de 100 m do serviço de nomes.
+  const distFile = await downloadFrom(DIST_BASE, `${UF}_distritos_CD2022.zip`);
+  const districts = readShapefile(distFile.buf)
+    .filter((r) => munCodes.has(String(r.properties.CD_MUN)))
+    .map((r) => ({
+      type: 'Feature',
+      properties: {
+        code: String(r.properties.CD_DIST),
+        name: r.properties.NM_DIST,
+        level: 'distrito',
+        parentCode: String(r.properties.CD_MUN),
+        // No IBGE, o distrito-sede do município tem o código terminado em 05.
+        sede: String(r.properties.CD_DIST).endsWith('05'),
+      },
+      geometry: normalizeGeometry(r.geometry, true, DIST_SIMPLIFY_M),
+    }));
+  writeFileSync(DIST_OUT, `${JSON.stringify({ type: 'FeatureCollection', features: districts })}\n`);
+  console.log(`Gravado ${DIST_OUT} (${districts.length} distritos).`);
+  files.distritos = distFile;
 
   // Conferência: limite municipal do piloto × união dos setores censitários.
   let conferencia = null;

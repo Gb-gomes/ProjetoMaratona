@@ -1,0 +1,7 @@
+{
+  "descricao": "Arquivos de comunidades (sub-regiões) disponíveis no projeto. Um por município: microrregioes_<COD_IBGE_MUN>.geojson. Contornos aproximados (não oficiais), ajustáveis.",
+  "arquivos": [
+    { "codIbgeMun": "3115300", "municipio": "Cataguases", "uf": "MG", "arquivo": "microrregioes_3115300.geojson", "comunidades": 42 },
+    { "codIbgeMun": "3138401", "municipio": "Leopoldina", "uf": "MG", "arquivo": "microrregioes_3138401.geojson", "comunidades": 76 }
+  ]
+}

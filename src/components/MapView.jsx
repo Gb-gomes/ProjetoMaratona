@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect, useLayoutEffect, useMemo, useRef, useState,
+} from 'react';
 import {
   MapContainer, TileLayer, Polygon, CircleMarker, Marker, Polyline, Tooltip, ZoomControl, useMap,
 } from 'react-leaflet';
 import L from 'leaflet';
 import {
-  LoaderCircle, MapPinned, CircleAlert, TriangleAlert, FlaskConical, CircleCheck, Database, Layers, List, X, ChevronRight,
+  LoaderCircle, MapPinned, CircleAlert, TriangleAlert, FlaskConical, CircleCheck, Database, Layers, X, ChevronRight, Maximize2, Minimize2,
 } from 'lucide-react';
 import LayerControl from './LayerControl.jsx';
-import MapLegend from './MapLegend.jsx';
+import MapLayersDock, { LAYERS_PANEL_ID, MapChromeContext, desktopPadding } from './map/MapLayersDock.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import {
   DEMO_AREA, DEMO_AREA_MARGIN, TILE_LAYER, LAYER_BOUNDS_PADDING,
@@ -93,13 +95,12 @@ const STATUS_TEXT = { matched: null, unmatched: 'Sem correspondência territoria
 
 /** Folga da câmera: no desktop, espaço para o painel de camadas; no celular, para os botões e o cartão. */
 const CAMERA_PADDING = {
-  desktop: { paddingTopLeft: [300, 56], paddingBottomRight: [32, 32] },
   compact: { paddingTopLeft: [20, 64], paddingBottomRight: [20, 96] },
   // Celular em paisagem (mapa baixo): folga mínima para a região caber.
   short: { paddingTopLeft: [16, 16], paddingBottomRight: [16, 16] },
 };
-const cameraPadding = (map, compact) => {
-  if (!compact) return CAMERA_PADDING.desktop;
+const cameraPadding = (map, compact, dockOpen) => {
+  if (!compact) return desktopPadding(dockOpen);
   return map.getSize().y < 420 ? CAMERA_PADDING.short : CAMERA_PADDING.compact;
 };
 
@@ -112,7 +113,7 @@ const cameraPadding = (map, compact) => {
  * A câmera é limitada por maxBounds no MapContainer.
  */
 function MapController({
-  viewKey, targetBounds, maxZoom = 13, visible = true, compact = false,
+  viewKey, targetBounds, maxZoom = 13, visible = true, compact = false, dockOpen = false,
 }) {
   const map = useMap();
   const wasVisible = useRef(visible);
@@ -127,7 +128,7 @@ function MapController({
     if (!targetBounds) return;
     const animate = !prefersReducedMotion();
     map.flyToBounds(targetBounds, {
-      ...cameraPadding(map, compact),
+      ...cameraPadding(map, compact, dockOpen),
       maxZoom,
       duration: animate ? 0.7 : 0,
       animate,
@@ -145,6 +146,31 @@ function MapController({
   return null;
 }
 
+/**
+ * Entrar e sair da tela cheia muda o tamanho do mapa. O ResizeObserver do
+ * MapController reajusta o Leaflet, mas o recentramento arredonda pixels:
+ * aqui a vista (centro e zoom) do momento da troca é restaurada exatamente.
+ */
+function KeepViewOnResize({ trigger }) {
+  const map = useMap();
+  const first = useRef(true);
+  useLayoutEffect(() => {
+    if (first.current) { first.current = false; return undefined; }
+    // Roda antes do navegador aplicar o novo tamanho: a vista ainda é a anterior.
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    let inner;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        map.invalidateSize({ pan: false });
+        map.setView(center, zoom, { animate: false });
+      });
+    });
+    return () => { cancelAnimationFrame(outer); cancelAnimationFrame(inner); };
+  }, [map, trigger]);
+  return null;
+}
+
 /* ------------------------------------------------------------------ */
 /* Mapa                                                                */
 /* ------------------------------------------------------------------ */
@@ -154,7 +180,7 @@ export default function MapView({
   priorityRecords = [], priorityAnalysis = null, priorityFocus = null, onPriorityFocus,
   visible = true, compact = false, onOpenDetails, className = '',
   // Modo real: sistema de camadas e sub-regiões (ver lib/useMapWorkspace.jsx).
-  basemap = null, opPanes = null, opOpacity = null, mapChildren = null, layerPanel = null, overlay = null, headerActions = null, mobileActions = null, editing = false,
+  basemap = null, opPanes = null, opOpacity = null, mapChildren = null, layerPanel = null, overlay = null, headerActions = null, mobileActions = null, editing = false, sectorTooltips = true,
 }) {
   const fade = (st, key) => {
     const k = opOpacity?.[key] ?? 1;
@@ -164,7 +190,42 @@ export default function MapView({
   const paneOf = (key) => (opPanes ? { pane: opPanes[key] } : {});
   const tiles = basemap ?? { url: TILE_LAYER.url, attribution: TILE_LAYER.attribution, maxZoom: TILE_LAYER.maxZoom, className: 'cr-basemap-muted' };
   const pal = MAP_PALETTE[dark ? 'dark' : 'light'];
-  const [sheet, setSheet] = useState(null); // celular: null | 'layers' | 'legend'
+  // Painel "Camadas e legenda": aberto de início só em telas 2xl.
+  const [dockOpen, setDockOpen] = useState(() => !!window.matchMedia?.('(min-width: 1536px)').matches);
+  // Tela cheia por CSS (não a Fullscreen API: ela esconderia toasts e diálogos, que ficam fora do mapa).
+  const [fullscreen, setFullscreen] = useState(false);
+  const fsButtonRef = useRef(null);
+  const wasFullscreen = useRef(false);
+  useEffect(() => {
+    if (!fullscreen) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    // O primeiro Esc fecha só a tela cheia; o Esc do App (limpar foco) volta a valer depois.
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('[aria-modal="true"]')) return; // diálogo aberto trata o próprio Esc
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      setFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, [fullscreen]);
+  useEffect(() => {
+    // Ao sair, o foco do teclado volta para o botão de tela cheia.
+    if (wasFullscreen.current && !fullscreen) fsButtonRef.current?.focus();
+    wasFullscreen.current = fullscreen;
+  }, [fullscreen]);
+  const toggleFullscreen = () => {
+    setFullscreen((v) => {
+      if (!v) setDockOpen(true);
+      return !v;
+    });
+  };
+  const fsLabel = fullscreen ? 'Sair da tela cheia' : 'Abrir mapa em tela cheia';
   const [tileErrors, setTileErrors] = useState(0);
   const [tileLoaded, setTileLoaded] = useState(false);
   const isReal = mode === 'real';
@@ -226,17 +287,48 @@ export default function MapView({
   const showOverlay = isDemo ? phase !== 'done' : (!layerLoaded || phase === 'processing' || phase === 'error');
 
   return (
-    <section className={`flex min-h-[520px] flex-1 flex-col overflow-hidden 2xl:min-h-[360px] rounded-md border border-slate-200 bg-white shadow-panel ${className}`} aria-labelledby="map-title">
-      <div className="flex items-center gap-3 border-b border-slate-100 px-3.5 py-2 max-lg:gap-2 max-lg:px-3 max-lg:[@media(max-height:500px)]:hidden">
-        <h2 id="map-title" className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[13.5px] font-semibold text-petrol-900">
-          <MapPinned className="h-4 w-4 text-petrol-500" aria-hidden="true" />
-          Mapa do desligamento
-        </h2>
-        {phaseBadge}
-        <span className="ml-auto truncate text-[12px] text-slate-500 max-sm:hidden">
-          {layerInfo.title}
-        </span>
-        {headerActions && <span className="shrink-0 max-lg:hidden">{headerActions}</span>}
+    <section
+      className={fullscreen
+        ? 'cr-map-fullscreen fixed inset-0 z-[1000] flex flex-col overflow-hidden bg-white pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]'
+        : `flex min-h-[520px] flex-1 flex-col overflow-hidden lg:h-[74vh] lg:max-h-[900px] lg:min-h-[560px] lg:flex-none rounded-md border border-slate-200 bg-white shadow-panel ${className}`}
+      aria-labelledby="map-title"
+    >
+      <div className={`border-b border-slate-100 px-4 py-2 max-lg:px-3 ${fullscreen ? '' : 'max-lg:[@media(max-height:500px)]:hidden'}`}>
+        <div className="flex items-center gap-3 max-lg:gap-2">
+          <h2 id="map-title" className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[14px] font-semibold text-petrol-900">
+            <MapPinned className="h-4 w-4 text-petrol-500" aria-hidden="true" />
+            Mapa do desligamento
+          </h2>
+          {phaseBadge}
+          <span className="ml-auto" />
+          {headerActions && <span className="shrink-0 max-lg:hidden">{headerActions}</span>}
+          <button
+            ref={fsButtonRef}
+            type="button"
+            onClick={toggleFullscreen}
+            aria-pressed={fullscreen}
+            aria-label={fsLabel}
+            title={fsLabel}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-slate-200 text-petrol-700 hover:bg-slate-50 max-lg:h-11 max-lg:w-11"
+          >
+            {fullscreen ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
+          </button>
+        </div>
+        {/* Situação da camada (antes flutuava sobre o mapa) */}
+        <div className="mt-1 flex min-w-0 items-center gap-2 text-[12px]">
+          {isDemo ? (
+            <span className="inline-flex min-w-0 items-center gap-1.5 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 font-medium text-amber-900" title="Dados demonstrativos — geometrias territoriais ilustrativas">
+              <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">Dados demonstrativos — geometrias territoriais ilustrativas</span>
+            </span>
+          ) : layerLoaded && (
+            <span className="inline-flex min-w-0 items-center gap-1.5 rounded border border-petrol-200 bg-petrol-50 px-2 py-0.5 font-medium text-petrol-800" title={`${layerInfo.statusLabel}${done ? ' | pontos do CSV (processamento local)' : ''}`}>
+              <Database className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">{layerInfo.statusLabel}{done ? ' | pontos do CSV (processamento local)' : ''}</span>
+            </span>
+          )}
+          <span className="min-w-0 truncate text-slate-500 max-sm:hidden">{layerInfo.title}</span>
+        </div>
       </div>
 
       <div className="relative min-h-0 flex-1">
@@ -262,16 +354,18 @@ export default function MapView({
               tileload: () => setTileLoaded(true),
             }}
           />
-          <ZoomControl position="bottomright" />
+          <ZoomControl position={compact ? 'bottomright' : 'topleft'} />
           <MapController
             viewKey={`${phase}|${focusId ?? ''}|${priorityFocus?.recordId ?? ''}|${priorityFocus?.nonce ?? ''}`}
             targetBounds={prioTarget ?? targetBounds}
             maxZoom={prioTarget ? 16 : 13}
             visible={visible}
             compact={compact}
+            dockOpen={dockOpen && !compact}
           />
+          <KeepViewOnResize trigger={fullscreen} />
           {/* Panes, camadas da organização, editor e cliques (modo real); antes das operacionais, que usam os panes. */}
-          {mapChildren}
+          <MapChromeContext.Provider value={{ dockOpen: dockOpen && !compact, compact }}>{mapChildren}</MapChromeContext.Provider>
 
           {showTerritories && territories.features.map((feature) => {
             const { id } = feature.properties;
@@ -306,7 +400,7 @@ export default function MapView({
                     </span>
                   </Tooltip>
                 )}
-                {!affected && isReal && (
+                {!affected && isReal && sectorTooltips && (
                   <Tooltip sticky className="cr-point-tip">
                     {layerInfo.unitType} {feature.properties.code}
                     {feature.properties.name && <><br />{feature.properties.name}</>}
@@ -349,8 +443,16 @@ export default function MapView({
                     <>
                       <strong>{p.id ?? `Linha ${p.line}`}</strong>{p.id && ` | linha ${p.line}`}
                       <br />
-                      {unit ? `${layerInfo.unitType} ${unit.code}` : STATUS_TEXT[p.status]}
+                      {unit ? `${layerInfo.unitType} ${p.sectorCode ?? unit.code}` : STATUS_TEXT[p.status]}
                       {p.status === 'ambiguous' && <><br />Candidatas: {p.candidates.join(', ')}</>}
+                      {p.place?.rotulo && (
+                        <>
+                          <br />
+                          {p.place.rotulo}
+                          {p.place.comunidade?.aproximada && ' (localização aproximada)'}
+                          {p.place.origem_nome === 'comunidade_proxima' && ' (comunidade mais próxima)'}
+                        </>
+                      )}
                     </>
                   )}
                 </Tooltip>
@@ -394,10 +496,10 @@ export default function MapView({
           })}
         </MapContainer>
 
-        {/* Controles flutuantes (desktop) */}
-        <div className={`pointer-events-none absolute left-3 top-3 z-[500] hidden ${editing ? '' : 'lg:flex'} ${layerPanel ? 'bottom-[11.5rem] flex-col' : ''}`}>
-          <div className="pointer-events-auto flex min-h-0 flex-col">
-            {layerPanel ?? <LayerControl
+        {/* Camadas e legenda: um só painel (canto superior direito; no celular, folha de baixo para cima) */}
+        <MapLayersDock open={dockOpen} onOpenChange={setDockOpen} sheet={compact} hidden={editing}>
+          {layerPanel ?? (
+            <LayerControl
               layers={layers}
               onToggle={onToggleLayer}
               territorialTitle={isDemo ? 'Demonstrativa' : `${layerInfo.unitType} — IBGE ${layerInfo.referenceYear}`}
@@ -405,65 +507,29 @@ export default function MapView({
               onTogglePointFilter={onTogglePointFilter}
               counts={counts}
               priorityCount={priorityRecords.length}
-            />}
-          </div>
-        </div>
-        <div className="pointer-events-none absolute bottom-3 left-3 z-[500] hidden lg:block">
-          <div className="pointer-events-auto"><MapLegend demo={isDemo} layerInfo={layerInfo} showPriority={layers.priority && priorityRecords.length > 0} /></div>
-        </div>
-
-        {/* Celular/tablet: camadas e legenda recolhíveis */}
-        <div className={`pointer-events-none absolute bottom-3 left-3 top-3 z-[600] flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2 lg:hidden ${editing ? 'hidden' : ''}`}>
-          <div className="pointer-events-auto flex flex-wrap gap-2">
-            {[['layers', 'Camadas', Layers], ['legend', 'Legenda', List]].map(([key, label, Icon]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setSheet((cur) => (cur === key ? null : key))}
-                aria-expanded={sheet === key}
-                aria-controls={`map-sheet-${key}`}
-                className={`inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-[14px] font-medium shadow-md ${
-                  sheet === key ? 'border-petrol-700 bg-petrol-700 text-white' : 'border-slate-200 bg-white text-petrol-800'
-                }`}
-              >
-                <Icon className="h-4 w-4" aria-hidden="true" />
-                {label}
-              </button>
-            ))}
-            {mobileActions}
-          </div>
-          {sheet && (
-            <div id={`map-sheet-${sheet}`} className="pointer-events-auto min-h-0 overflow-y-auto rounded-md">
-              {sheet === 'layers' ? (layerPanel ?? (
-                <LayerControl
-                  layers={layers}
-                  onToggle={onToggleLayer}
-                  territorialTitle={isDemo ? 'Demonstrativa' : `${layerInfo.unitType} — IBGE ${layerInfo.referenceYear}`}
-                  pointFilter={isReal ? pointFilter : null}
-                  onTogglePointFilter={onTogglePointFilter}
-                  counts={counts}
-                  priorityCount={priorityRecords.length}
-                />
-              )) : (
-                <MapLegend demo={isDemo} layerInfo={layerInfo} showPriority={layers.priority && priorityRecords.length > 0} />
-              )}
-            </div>
+              demo={isDemo}
+            />
           )}
-        </div>
+        </MapLayersDock>
 
-        <div className={`pointer-events-none absolute left-3 right-3 top-3 z-[500] flex justify-end md:left-auto md:max-w-[calc(100%-260px)] ${mobileActions ? 'max-md:top-[7.5rem]' : 'max-md:top-[4.25rem]'} ${sheet ? 'max-lg:hidden' : ''} ${editing ? 'hidden' : ''}`}>
-          {isDemo ? (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-1.5 text-[12px] font-medium text-amber-900 shadow-sm">
-              <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
-              Dados demonstrativos — geometrias territoriais ilustrativas
-            </span>
-          ) : layerLoaded && (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-petrol-200 bg-white/95 px-3 py-1.5 text-[12px] font-medium text-petrol-800 shadow-sm">
-              <Database className="h-3.5 w-3.5" aria-hidden="true" />
-              {layerInfo.statusLabel}{done ? ' | pontos do CSV (processamento local)' : ''}
-            </span>
-          )}
-        </div>
+        {/* Celular/tablet: botão do painel e atalhos do mapa */}
+        {compact && !editing && (
+          <div className="pointer-events-none absolute left-3 right-3 top-3 z-[600] flex flex-wrap items-start gap-2">
+            <button
+              type="button"
+              onClick={() => setDockOpen((v) => !v)}
+              aria-expanded={dockOpen}
+              aria-controls={LAYERS_PANEL_ID}
+              className={`pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-[14px] font-medium shadow-md ${
+                dockOpen ? 'border-petrol-700 bg-petrol-700 text-white' : 'border-slate-200 bg-white text-petrol-800'
+              }`}
+            >
+              <Layers className="h-4 w-4" aria-hidden="true" />
+              Camadas e legenda
+            </button>
+            {mobileActions && <div className="pointer-events-auto contents">{mobileActions}</div>}
+          </div>
+        )}
 
         {/* Celular: região em foco, com atalho para os detalhes */}
         {overlay}

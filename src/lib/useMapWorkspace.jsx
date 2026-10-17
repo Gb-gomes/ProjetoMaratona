@@ -9,9 +9,9 @@
 import {
   Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
-import { Shapes } from 'lucide-react';
+import { Shapes, Search } from 'lucide-react';
 import {
-  BASEMAPS, IBGE_HIERARCHY, ORGANIZATION, ROLES, CUSTOM_REGION_RULES, PILOT_CONFIG,
+  BASEMAPS, IBGE_HIERARCHY, ORGANIZATION, ROLES, CUSTOM_REGION_RULES, PILOT_CONFIG, COMMUNITIES,
 } from '../config.js';
 import { loadHierarchy, LEVEL_LABEL } from './ibgeHierarchy.js';
 import { useCustomRegions } from './useCustomRegions.js';
@@ -25,8 +25,13 @@ import {
 import { request } from './layers/workerClient.js';
 import {
   validateDraft, createRegion, updateRegion, softDeleteRegion, restoreRegion, duplicateDraft, regionsToGeoJSON,
-  polygonFromGeoJSON, descendantsOf, REGION_COLORS, isActive,
+  polygonFromGeoJSON, descendantsOf, REGION_COLORS, isActive, mergeRegions,
 } from './customRegions.js';
+import {
+  isCommunity, COMMUNITY_SET, COMMUNITY_COLOR, parseCommunityFile, importCommunities, parseNameCorrections, applyNameCorrections,
+  namesSpreadsheet, splitCommunity,
+} from './communities.js';
+import { createPlaceLocator } from './placeNames.js';
 import {
   unionGeometries, areaKm2, perimeterKm, labelPoint, pointInGeometry, preparePointInPolygon, geometryBboxAny,
 } from './geoOps.js';
@@ -39,15 +44,20 @@ import LayerPanel from '../components/layers/LayerPanel.jsx';
 import SubRegionEditorPanel from '../components/subregions/SubRegionEditorPanel.jsx';
 import SubRegionsPanel from '../components/subregions/SubRegionsPanel.jsx';
 import MapPickCard from '../components/subregions/MapPickCard.jsx';
+import PlaceSearch from '../components/subregions/PlaceSearch.jsx';
+import { CommunitiesLayer, CommunityHover } from '../components/map/CommunityLayers.jsx';
+import { TerritoryLegend, PriorityLegend } from '../components/MapLegend.jsx';
 
 // Carregados sob demanda: editor (Leaflet-Geoman) e diálogos de importação/configuração
 // (leitores de Shapefile/KML, proj4) não pesam para quem só usa a demonstração.
 const SubRegionEditorMap = lazy(() => import('../components/map/SubRegionEditorMap.jsx'));
 const LayerUploadDialog = lazy(() => import('../components/layers/LayerUploadDialog.jsx'));
 const LayerSettingsDialog = lazy(() => import('../components/layers/LayerSettingsDialog.jsx'));
+const CommunitiesDialog = lazy(() => import('../components/subregions/CommunitiesDialog.jsx'));
 
 const SYSTEM_GROUPS = [
   { id: 'grp:operacao', name: 'Operação do desligamento', sortOrder: 300 },
+  { id: 'grp:comunidades', name: 'Comunidades', sortOrder: 275 },
   { id: 'grp:subregioes', name: 'Sub-regiões', sortOrder: 250 },
   { id: 'grp:ibge', name: 'Limites IBGE (somente leitura)', sortOrder: 100 },
 ];
@@ -82,7 +92,7 @@ export function useMapWorkspace({
   useEffect(() => {
     if (!enabled || hier.status !== 'idle') return;
     setHier((h) => ({ ...h, status: 'loading' }));
-    loadHierarchy(IBGE_HIERARCHY.url)
+    loadHierarchy(IBGE_HIERARCHY.url, { districtsUrl: IBGE_HIERARCHY.districtsUrl })
       .then((data) => setHier({ status: 'ready', data, error: '' }))
       .catch((err) => { setHier({ status: 'error', data: null, error: err.message }); notify('warning', err.message); });
   }, [enabled, hier.status, notify]);
@@ -93,7 +103,79 @@ export function useMapWorkspace({
   });
   const rules = useMemo(() => ({ ...RULES, allowSiblingOverlap: !!regionsHook.settings?.allowSiblingOverlap }), [regionsHook.settings]);
   const regions = regionsHook.regions;
-  const activeRegions = regionsHook.active;
+  // Sub-regiões da organização e comunidades são conjuntos separados (lib/communities.js).
+  const activeRegions = useMemo(() => regionsHook.active.filter((r) => !isCommunity(r)), [regionsHook.active]);
+  const activeCommunities = useMemo(() => regionsHook.active.filter(isCommunity), [regionsHook.active]);
+  const communitiesByMun = useMemo(() => {
+    const m = new Map();
+    activeCommunities.forEach((c) => { if (!m.has(c.ibgeParentCode)) m.set(c.ibgeParentCode, []); m.get(c.ibgeParentCode).push(c); });
+    return m;
+  }, [activeCommunities]);
+  // Serviço único coordenada → nome (lib/placeNames.js), usado em todo o sistema.
+  const locator = useMemo(() => (hierarchy ? createPlaceLocator({ hierarchy, communities: activeCommunities }) : null), [hierarchy, activeCommunities]);
+  const [manifest, setManifest] = useState(null);
+  useEffect(() => {
+    if (!enabled || manifest) return;
+    fetch(COMMUNITIES.manifestUrl, { cache: 'no-cache' })
+      .then((r) => (r.ok && !(r.headers.get('content-type') ?? '').includes('text/html') ? r.json() : null))
+      .then((j) => setManifest(j ? { ...j, baseUrl: COMMUNITIES.baseUrl } : { arquivos: [], baseUrl: COMMUNITIES.baseUrl }))
+      .catch(() => setManifest({ arquivos: [], baseUrl: COMMUNITIES.baseUrl }));
+  }, [enabled, manifest]);
+  const [communitiesOpen, setCommunitiesOpen] = useState(false);
+  const [lastCommunityReport, setLastCommunityReport] = useState(null);
+  const [hoveredCommunity, setHoveredCommunity] = useState(null);
+
+  // Primeiro uso do modo real: sem microrregiões no navegador, as do projeto (index.json)
+  // são importadas automaticamente, com relatório e histórico (responsável: o sistema).
+  // Cada município só uma vez (settings.communitiesAutoImported): o que o operador excluir
+  // depois não volta sozinho. A importação manual continua disponível.
+  const autoImportRan = useRef(false);
+  useEffect(() => {
+    if (!enabled || autoImportRan.current || regionsHook.status !== 'ready' || !hierarchy || !manifest) return;
+    autoImportRan.current = true;
+    const stamped = regionsHook.settings?.communitiesAutoImported ?? {};
+    const present = new Set(regionsHook.current().filter(isCommunity).map((c) => c.ibgeParentCode));
+    const pending = (manifest.arquivos ?? []).filter((f) => !present.has(f.codIbgeMun) && !stamped[f.codIbgeMun]
+      && hierarchy.byCode.get(f.codIbgeMun)?.level === 'municipio');
+    if (!pending.length) return;
+    (async () => {
+      const files = await Promise.all(pending.map(async (f) => {
+        try {
+          const res = await fetch(`${manifest.baseUrl}${f.arquivo}`, { cache: 'no-cache' });
+          if (!res.ok) throw new Error(`arquivo ${f.arquivo} não encontrado`);
+          return { f, gj: await res.json() };
+        } catch (err) {
+          notify('warning', `Microrregiões de ${f.municipio ?? f.codIbgeMun} não carregadas: ${err.message}.`);
+          return null;
+        }
+      }));
+      const by = 'sistema (arquivos do projeto)';
+      const at = new Date().toISOString();
+      let next = regionsHook.current();
+      const done = [];
+      let lastReport = null;
+      files.filter(Boolean).forEach(({ f, gj }) => {
+        const parsed = parseCommunityFile(gj, { fileName: f.arquivo, municipalityExists: (cod) => hierarchy.byCode.get(cod)?.level === 'municipio' });
+        if (parsed.errors.length) { notify('warning', `${f.arquivo}: ${parsed.errors.join(' ')}`); return; }
+        // Outra aba ou importação manual já trouxe este município: não reimporta.
+        if (next.some((r) => isCommunity(r) && r.ibgeParentCode === parsed.codMun)) return;
+        const mun = hierarchy.byCode.get(parsed.codMun);
+        const out = importCommunities(next, parsed, {
+          orgId: ORGANIZATION.id, municipalityGeometry: mun.geometry, municipalityName: mun.name, fileName: f.arquivo, overwriteEdits: false, by, rules,
+        });
+        next = out.regions;
+        lastReport = out.report;
+        done.push({ cod: parsed.codMun, label: `${mun.name} (${out.report.created.length})` });
+      });
+      if (!done.length) return;
+      if (!(await regionsHook.commit(next))) return;
+      await regionsHook.saveSettings({
+        ...regionsHook.settings, communitiesAutoImported: { ...stamped, ...Object.fromEntries(done.map((d) => [d.cod, at])) },
+      });
+      setLastCommunityReport(lastReport);
+      notify('info', `Microrregiões do projeto carregadas: ${done.map((d) => d.label).join(', ')}. Relatório em Sub-regiões › Comunidades.`);
+    })();
+  }, [enabled, regionsHook, hierarchy, manifest, rules, notify]);
 
   const registry = useLayerRegistry({ orgId: ORGANIZATION.id, enabled, onError: (m) => notify('error', m) });
 
@@ -149,7 +231,7 @@ export function useMapWorkspace({
     const out = [
       {
         id: 'op:points', groupId: 'grp:operacao', defaultOrder: 3, kind: 'operational', name: 'Pontos importados (CSV)', geometryType: 'point',
-        subtitle: done ? `${result.total} ponto(s) do processamento` : 'Disponível após processar o CSV',
+        subtitle: done ? `${result.points.length} ponto(s) do processamento` : 'Disponível após processar o CSV',
         legend: { items: [{ geometryType: 'point', color: '#112F44' }] },
         bounds: done && result.points.length ? padBounds(bboxToBounds(geometryBboxAny({ type: 'MultiPoint', coordinates: result.points.map((p) => [p.lng, p.lat]) })), 0.1) : null,
       },
@@ -168,6 +250,22 @@ export function useMapWorkspace({
         legend: { items: [{ geometryType: 'polygon', color: '#0E7490' }] }, defaultVisible: true, canConfigure: true, configureLabel: 'Gerenciar sub-regiões',
         bounds: activeRegions.length ? bboxToBounds(activeRegions.map((r) => geometryBboxAny(r.geometry)).reduce((a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])])) : null,
       },
+      ...(communitiesByMun.size ? [...communitiesByMun.entries()].map(([cod, list], i) => ({
+        id: `communities:${cod}`, groupId: 'grp:comunidades', defaultOrder: 100 - i, kind: 'communities', codMun: cod,
+        name: `${hierarchy?.byCode.get(cod)?.name ?? cod} (${list.length})`, geometryType: 'polygon',
+        subtitle: `${list.filter((c) => c.confidence === 'baixa').length} de localização aproximada`,
+        legend: {
+          items: [
+            { geometryType: 'polygon', color: COMMUNITY_COLOR, fillOpacity: 0.05, label: 'Comunidade' },
+            { geometryType: 'polygon', color: COMMUNITY_COLOR, fillOpacity: 0.05, dash: '4 3', label: 'Localização aproximada (confiança baixa)' },
+          ],
+        },
+        defaultVisible: true, canConfigure: true, configureLabel: 'Gerenciar comunidades',
+        bounds: hierarchy?.byCode.get(cod)?.bounds ?? null,
+      })) : [{
+        id: 'communities:none', groupId: 'grp:comunidades', defaultOrder: 1, kind: 'communities', name: 'Nenhuma comunidade importada', geometryType: 'polygon',
+        disabled: true, disabledReason: 'Importe um arquivo de comunidades (Configurar)', canConfigure: true, configureLabel: 'Importar comunidades',
+      }]),
       ...IBGE_HIERARCHY.levels.map((lv, i) => ({
         id: lv.layerId, groupId: 'grp:ibge', defaultOrder: 10 + i, kind: 'ibge', name: lv.name, geometryType: 'polygon', readOnly: true,
         subtitle: (hierarchy?.byLevel[lv.level] ?? []).map((r) => r.name).slice(0, 3).join(', ') + ((hierarchy?.byLevel[lv.level]?.length ?? 0) > 3 ? '…' : ''),
@@ -191,7 +289,7 @@ export function useMapWorkspace({
       })),
     ];
     return out;
-  }, [done, result, priorityRecords.length, sectorLayer, activeRegions, hierarchy, hier, dataLayers]);
+  }, [done, result, priorityRecords.length, sectorLayer, activeRegions, communitiesByMun, hierarchy, hier, dataLayers]);
 
   const tree = useMemo(() => buildTree(groups, catalog, ls), [groups, catalog, ls]);
   const ordered = useMemo(() => flattenLayers(tree), [tree]);
@@ -331,8 +429,9 @@ export function useMapWorkspace({
       const p = labelPoint(g);
       return p && pointInGeometry(p, parent.geometry);
     };
-    if (parent.level === 'municipio') {
-      const sectors = parent.ibgeParentCode === PILOT_CONFIG.territory.ibgeCode ? (sectorLayer?.features ?? []) : [];
+    if (parent.level === 'municipio' || parent.level === 'distrito') {
+      const munCode = parent.level === 'distrito' ? hierarchy?.byCode.get(parent.ibgeParentCode)?.parentCode : parent.ibgeParentCode;
+      const sectors = munCode === PILOT_CONFIG.territory.ibgeCode ? (sectorLayer?.features ?? []) : [];
       return {
         method: 'sectors',
         label: 'setores censitários',
@@ -357,6 +456,7 @@ export function useMapWorkspace({
     const used = new Set(activeRegions.map((r) => r.color));
     setEditor({
       mode: 'create',
+      regionSet: null,
       parent,
       method: preset?.geometry ? 'drawn' : null,
       tool: null,
@@ -380,8 +480,9 @@ export function useMapWorkspace({
     if (!r) return;
     const parent = resolveParent(r.parentCustomRegionId ? { kind: 'custom', id: r.parentCustomRegionId } : { kind: 'ibge', code: r.ibgeParentCode });
     if (!parent) { notify('error', 'A região-mãe desta sub-região não está disponível.'); return; }
+    if (isCommunity(r) && !canManage) { notify('warning', 'Só administradores ajustam o contorno das comunidades.'); return; }
     setEditor({
-      mode: 'edit-geometry', editingId: id, parent, method: 'drawn', tool: null, geometry: r.geometry, selection: [], draftNonce: Date.now(), sourceFile: null,
+      mode: 'edit-geometry', editingId: id, regionSet: r.regionSet ?? null, parent, method: 'drawn', tool: null, geometry: r.geometry, selection: [], draftNonce: Date.now(), sourceFile: null,
       form: {
         name: r.name, description: r.description ?? '', color: r.color, internalCode: r.internalCode ?? '', tags: (r.tags ?? []).join(', '),
       },
@@ -416,9 +517,15 @@ export function useMapWorkspace({
     const t = setTimeout(() => {
       try {
         const v = validateDraft({
-          ...editor.form, geometry: draftGeometry, ibgeParentCode: editor.parent.ibgeParentCode, parentCustomRegionId: editor.parent.parentCustomRegionId,
+          ...editor.form, geometry: draftGeometry, ibgeParentCode: editor.parent.ibgeParentCode, parentCustomRegionId: editor.parent.parentCustomRegionId, regionSet: editor.regionSet ?? null,
         }, {
-          regions, orgId: ORGANIZATION.id, parentGeometry: editor.parent.geometry, editingId: editor.editingId ?? null, rules,
+          regions,
+          orgId: ORGANIZATION.id,
+          parentGeometry: editor.parent.geometry,
+          editingId: editor.editingId ?? null,
+          rules,
+          // Divisão: a parte nova fica dentro da comunidade original (que será reduzida).
+          ignoreOverlapIds: editor.mode === 'split' ? [editor.splitSourceId] : [],
         });
         const g = v.prepared?.geometry;
         setValidation({ ...v, metrics: g ? { areaKm2: areaKm2(g), perimeterKm: perimeterKm(g) } : { areaKm2: 0, perimeterKm: 0 } });
@@ -436,7 +543,7 @@ export function useMapWorkspace({
     onMethod: (m) => {
       if (m === 'units') {
         if (!editorUnits?.units.length) {
-          notify('warning', editor.parent.level === 'municipio'
+          notify('warning', editor.parent.level === 'municipio' || editor.parent.level === 'distrito'
             ? 'Não há setores censitários carregados para esta região-mãe (só o município piloto tem setores).'
             : 'Não há municípios carregados dentro desta região-mãe.');
           return;
@@ -501,6 +608,8 @@ export function useMapWorkspace({
         let next;
         if (editor.mode === 'edit-geometry') {
           ({ regions: next, region: saved } = updateRegion(ctx.regions, editor.editingId, { geometry: draftGeometry, creationMethod: 'drawn' }, ctx, { by }));
+        } else if (editor.mode === 'split') {
+          ({ regions: next, created: saved } = splitCommunity(ctx.regions, editor.splitSourceId, { part: validation.prepared.geometry, name: editor.form.name, by }));
         } else {
           ({ regions: next, region: saved } = createRegion(ctx.regions, {
             ...editor.form,
@@ -516,7 +625,8 @@ export function useMapWorkspace({
         regionsHook.commit(next);
         rememberOperator(by);
         const clip = validation?.prepared?.clipped && validation.prepared.beyondTolerance;
-        notify(clip ? 'warning' : 'success', `Sub-região "${saved.name}" ${editor.mode === 'edit-geometry' ? 'atualizada' : 'criada'}.${clip ? ' A parte fora da região-mãe foi recortada.' : ''}`);
+        if (editor.mode === 'split') notify('success', `Comunidade dividida: "${saved.name}" (${saved.externalCode}) criada.`);
+        else notify(clip ? 'warning' : 'success', `Sub-região "${saved.name}" ${editor.mode === 'edit-geometry' ? 'atualizada' : 'criada'}.${clip ? ' A parte fora da região-mãe foi recortada.' : ''}`);
         setEditor(null);
         setValidation(null);
         updateLs((cur) => patchLayer(cur, 'custom_regions', { visible: true }));
@@ -526,6 +636,89 @@ export function useMapWorkspace({
         notify('error', err.message);
       }
     },
+  };
+
+  /* ---------------- Comunidades: importação, nomes, divisão, união ---------------- */
+  const startSplit = useCallback((id) => {
+    const r = regionById.get(id);
+    if (!r || !isCommunity(r)) return;
+    if (!canManage) { notify('warning', 'Só administradores dividem comunidades.'); return; }
+    setEditor({
+      mode: 'split',
+      splitSourceId: id,
+      regionSet: COMMUNITY_SET,
+      parent: {
+        kind: 'split', id, ibgeParentCode: r.ibgeParentCode, parentCustomRegionId: null, geometry: r.geometry, bounds: bboxToBounds(geometryBboxAny(r.geometry)), label: `${r.name} (comunidade a dividir)`, level: 'municipio',
+      },
+      method: 'drawn',
+      tool: 'polygon',
+      geometry: null,
+      selection: [],
+      draftNonce: Date.now(),
+      sourceFile: null,
+      form: {
+        ...EMPTY_FORM, color: COMMUNITY_COLOR, name: '', splitOf: r.name,
+      },
+    });
+    setPick(null);
+    setPanel((pp) => ({ ...pp, open: false }));
+    flyTo(bboxToBounds(geometryBboxAny(r.geometry)), 16);
+    onShowMap?.();
+  }, [regionById, canManage, notify, flyTo, onShowMap]);
+
+  const communityActions = {
+    onImport: async ({
+      gj, fileName, overwriteEdits, by: typedBy,
+    }) => {
+      const by = authorFor(typedBy);
+      if (!String(by ?? '').trim()) throw new Error('Informe o responsável pela importação.');
+      if (!hierarchy) throw new Error('A base do IBGE ainda está carregando.');
+      const parsed = parseCommunityFile(gj, { fileName, municipalityExists: (cod) => hierarchy.byCode.get(cod)?.level === 'municipio' });
+      if (parsed.errors.length) throw new Error(parsed.errors.join(' '));
+      const mun = hierarchy.byCode.get(parsed.codMun);
+      const { regions: next, report } = importCommunities(regionsHook.current(), parsed, {
+        orgId: ORGANIZATION.id, municipalityGeometry: mun.geometry, municipalityName: mun.name, fileName, overwriteEdits, by, rules,
+      });
+      await regionsHook.commit(next);
+      rememberOperator(by);
+      setLastCommunityReport(report);
+      updateLs((cur) => patchLayer(cur, `communities:${parsed.codMun}`, { visible: true }));
+      notify('success', `${mun.name}: ${report.created.length} comunidade(s) importada(s), ${report.updated.length} atualizada(s), ${report.unchanged.length} sem alteração.`);
+      flyTo(mun.bounds, 13);
+      return report;
+    },
+    onApplyNames: async (text, typedBy) => {
+      const by = authorFor(typedBy);
+      const rows = parseNameCorrections(text);
+      const { regions: next, report } = applyNameCorrections(regionsHook.current(), rows, { by });
+      if (report.changed.length) await regionsHook.commit(next);
+      rememberOperator(by);
+      notify('success', `${report.changed.length} nome(s) de comunidade corrigido(s).`);
+      return report;
+    },
+    onExportNames: (codMun) => {
+      const url = URL.createObjectURL(new Blob([namesSpreadsheet(regionsHook.current(), codMun)], { type: 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `nomes_comunidades${codMun ? `_${codMun}` : ''}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    onMerge: (keepId, otherId, typedBy) => {
+      const by = authorFor(typedBy);
+      const keep = regionById.get(keepId);
+      const other = regionById.get(otherId);
+      // eslint-disable-next-line no-alert
+      if (!window.confirm(`Unir "${other.name}" a "${keep.name}"? "${keep.name}" fica com a área das duas; "${other.name}" é excluída (o histórico fica).`)) return;
+      try {
+        regionsHook.commit(mergeRegions(regionsHook.current(), keepId, otherId, { by }));
+        rememberOperator(by);
+        notify('success', `"${other.name}" unida a "${keep.name}".`);
+      } catch (err) {
+        notify('error', err.message);
+      }
+    },
+    onSplit: startSplit,
   };
 
   /* ---------------- Ações de sub-região (painel) ---------------- */
@@ -613,7 +806,8 @@ export function useMapWorkspace({
     onBasemap: (id) => updateLs((cur) => ({ ...cur, basemap: id })),
     onZoomTo: (l) => flyTo(l.bounds, 15),
     onConfigure: (l) => {
-      if (l.kind === 'custom_regions') setPanel({ open: true, detailId: null, focusCode: null });
+      if (l.kind === 'communities') setCommunitiesOpen(true);
+      else if (l.kind === 'custom_regions') setPanel({ open: true, detailId: null, focusCode: null });
       else setSettingsId(l.id);
     },
     onAddLayer: () => setUploadTarget({ target: null }),
@@ -759,6 +953,12 @@ export function useMapWorkspace({
         kind: 'custom', id: r.id, key: `c:${r.id}`, short: r.name, geometry: r.geometry, bbox: geometryBboxAny(r.geometry),
       }));
     }
+    communitiesByMun.forEach((list, cod) => {
+      if (!effective[`communities:${cod}`]?.visible) return;
+      list.forEach((r) => out.push({
+        kind: 'custom', id: r.id, key: `c:${r.id}`, short: `Comunidade ${r.name}`, geometry: r.geometry, bbox: geometryBboxAny(r.geometry),
+      }));
+    });
     [...IBGE_HIERARCHY.levels].reverse().forEach((lv) => {
       if (!effective[lv.layerId]?.visible) return;
       (hierarchy?.byLevel[lv.level] ?? []).forEach((r) => out.push({
@@ -766,7 +966,7 @@ export function useMapWorkspace({
       }));
     });
     return out;
-  }, [effective, activeRegions, hierarchy, regionById]);
+  }, [effective, activeRegions, communitiesByMun, hierarchy, regionById]);
 
   const pickCurrent = useMemo(() => {
     const it = pick?.items[pick.index];
@@ -784,6 +984,28 @@ export function useMapWorkspace({
     ...l, filterKey: effective[l.id]?.filterRegionId ? filterStatus[l.id]?.readyKey ?? null : null,
   }));
 
+  const visibleCommunityMuns = useMemo(
+    () => [...communitiesByMun.keys()].filter((cod) => effective[`communities:${cod}`]?.visible),
+    [communitiesByMun, effective],
+  );
+
+  /* ---------------- Busca de lugares ---------------- */
+  const [mobileSearch, setMobileSearch] = useState(false);
+  const onSearchSelect = (r) => {
+    if (r.kind === 'comunidade') {
+      const reg = regionById.get(r.id);
+      updateLs((cur) => patchLayer(cur, `communities:${reg.ibgeParentCode}`, { visible: true }));
+      setPick({ latlng: null, items: [{ kind: 'custom', id: r.id, key: `c:${r.id}`, short: `Comunidade ${r.nome}` }], index: 0 });
+    } else {
+      const lv = IBGE_HIERARCHY.levels.find((x) => x.level === r.kind);
+      if (lv) updateLs((cur) => patchLayer(cur, lv.layerId, { visible: true }));
+      setPick({ latlng: null, items: [{ kind: 'ibge', code: r.id, key: `i:${r.id}`, short: r.nome }], index: 0 });
+    }
+    setMobileSearch(false);
+    flyTo(bboxToBounds(r.bbox), 15);
+    onShowMap?.();
+  };
+
   /* ---------------- Saída para o MapView ---------------- */
   const basemap = BASEMAPS.find((b) => b.id === ls.basemap) ?? BASEMAPS[0];
   const navBounds = useMemo(() => (hierarchy ? padBounds(hierarchy.bounds, 0.15) : null), [hierarchy]);
@@ -796,6 +1018,9 @@ export function useMapWorkspace({
       <CameraRequest request={camera} compact={isMobile} editing={!!editor} />
       {visibleOrdered.map((l) => {
         if (l.kind === 'ibge') return <IbgeLevelLayer key={l.id} layer={l} regions={hierarchy?.byLevel[l.levelStyle.level] ?? []} highlightCode={highlightCode} />;
+        if (l.kind === 'communities') {
+          return l.codMun ? <CommunitiesLayer key={l.id} layer={l} regions={communitiesByMun.get(l.codMun) ?? []} hoveredId={hoveredCommunity} selectedId={selectedRegionId} /> : null;
+        }
         if (l.kind === 'custom_regions') {
           return <CustomRegionsLayer key={l.id} layer={l} regions={activeRegions} selectedId={selectedRegionId} editingId={editor?.editingId ?? null} />;
         }
@@ -818,6 +1043,13 @@ export function useMapWorkspace({
         />
         </Suspense>
       )}
+      <CommunityHover
+        enabled={!editor && visibleCommunityMuns.length > 0}
+        locator={locator}
+        visibleMunicipalities={visibleCommunityMuns}
+        regionsById={regionById}
+        onHover={setHoveredCommunity}
+      />
       <MapClickRouter
         enabled={!editor}
         dataLayers={dataForClick}
@@ -847,8 +1079,8 @@ export function useMapWorkspace({
       regionsForFilter={activeRegions}
       onFilter={setLayerFilter}
       filterStatus={filterStatus}
-      extras={{ 'op:points': pointFilterExtra }}
-      className="max-h-full"
+      extras={{ 'op:points': pointFilterExtra, 'op:territories': <TerritoryLegend />, 'op:priority': <PriorityLegend /> }}
+      embedded
     />
   ) : null;
 
@@ -882,11 +1114,12 @@ export function useMapWorkspace({
         </div>
       )}
       {!editor && pickCurrent && (
-        <div className="pointer-events-none absolute right-3 top-14 z-[700] max-lg:inset-x-3 max-lg:bottom-3 max-lg:top-auto max-lg:z-[1001]">
+        <div className="pointer-events-none absolute bottom-3 left-3 z-[700] max-lg:inset-x-3 max-lg:z-[1001]">
           <MapPickCard
             pick={pick}
             current={pickCurrent}
             summary={pickCurrent.kind === 'custom' ? summary : null}
+            place={pickCurrent.kind === 'custom' && isCommunity(pickCurrent.region) && locator ? locator.locate(pickCurrent.region.labelPoint) : null}
             canCreate={canEditRegions}
             onSelect={(i) => setPick((p) => ({ ...p, index: i }))}
             onClose={() => setPick(null)}
@@ -907,6 +1140,20 @@ export function useMapWorkspace({
     </>
   ) : null;
 
+  const searchBox = enabled && hierarchy ? (
+    <PlaceSearch hierarchy={hierarchy} communities={activeCommunities} onSelect={onSearchSelect} />
+  ) : null;
+  const mobileSearchButton = enabled && hierarchy ? (
+    <button
+      type="button"
+      onClick={() => setMobileSearch((v) => !v)}
+      aria-expanded={mobileSearch}
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-[14px] font-medium text-petrol-800 shadow-md"
+    >
+      <Search className="h-4 w-4" aria-hidden="true" />
+      Buscar
+    </button>
+  ) : null;
   const subRegionsButton = enabled ? (
     <button
       type="button"
@@ -932,6 +1179,21 @@ export function useMapWorkspace({
         onSaved={onUploadSaved}
         onSavedExternal={onExternalSaved}
         newId={registry.newId}
+      />
+      )}
+      {communitiesOpen && (
+      <CommunitiesDialog
+        open
+        onClose={() => setCommunitiesOpen(false)}
+        manifest={manifest}
+        countsByMun={Object.fromEntries([...communitiesByMun.entries()].map(([k, v]) => [k, v.length]))}
+        canManage={canManage}
+        operator={operator}
+        operatorLocked={operatorLocked}
+        lastReport={lastCommunityReport}
+        onImport={communityActions.onImport}
+        onApplyNames={communityActions.onApplyNames}
+        onExportNames={communityActions.onExportNames}
       />
       )}
       {settingsLayer && (
@@ -965,6 +1227,10 @@ export function useMapWorkspace({
         onEditGeometry={startEditGeometry}
         onDuplicate={startDuplicate}
         focusCode={panel.focusCode}
+        locator={locator}
+        onOpenCommunities={() => setCommunitiesOpen(true)}
+        onSplitCommunity={startSplit}
+        onMergeCommunity={communityActions.onMerge}
         {...regionActions}
       />
     </>
@@ -982,6 +1248,15 @@ export function useMapWorkspace({
     layerPanel,
     overlay,
     subRegionsButton,
+    headerActions: enabled ? <span className="flex items-center gap-2">{searchBox}{subRegionsButton}</span> : null,
+    mobileActions: enabled ? <>{mobileSearchButton}{subRegionsButton}</> : null,
+    mobileSearch: enabled && mobileSearch && hierarchy ? (
+      <div className="pointer-events-auto absolute inset-x-3 top-3 z-[1001] lg:hidden">
+        <PlaceSearch hierarchy={hierarchy} communities={activeCommunities} onSelect={onSearchSelect} compact autoFocus onClose={() => setMobileSearch(false)} />
+      </div>
+    ) : null,
+    locator,
+    communitiesVisible: visibleCommunityMuns.length > 0,
     dialogs,
     editing: !!editor,
     modalOpen: !!uploadTarget || !!settingsId || panel.open,

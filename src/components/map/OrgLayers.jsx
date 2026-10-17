@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import {
+  useContext, useEffect, useMemo, useState,
+} from 'react';
 import {
   Polygon, TileLayer, WMSTileLayer, Tooltip, useMap, useMapEvents,
 } from 'react-leaflet';
 import L from 'leaflet';
 import DataTileLayer from './DataTileLayer.jsx';
+import { MapChromeContext, desktopPadding } from './MapLayersDock.jsx';
 import { paneName } from './PaneManager.jsx';
 import { geometryToLatLngs } from '../../lib/geo.js';
 import { compileStyle, styleFields } from '../../lib/layers/layerModel.js';
@@ -172,13 +175,14 @@ export function MapClickRouter({
 /** Voa até uma caixa pedida pela interface ("zoom para a camada", "ver no mapa"). */
 export function CameraRequest({ request: req, compact, editing = false }) {
   const map = useMap();
+  const { dockOpen } = useContext(MapChromeContext);
   useEffect(() => {
     if (!req?.bounds) return;
     // Folga para os painéis: camadas à esquerda (desktop), editor à direita (desktop) ou embaixo (celular).
     let padding;
     if (compact) padding = { paddingTopLeft: [16, 64], paddingBottomRight: [16, editing ? Math.round(map.getSize().y * 0.52) : 120] };
     else if (editing) padding = { paddingTopLeft: [32, 32], paddingBottomRight: [372, 32] };
-    else padding = { paddingTopLeft: [310, 40], paddingBottomRight: [40, 40] };
+    else padding = desktopPadding(dockOpen);
     map.flyToBounds(req.bounds, { ...padding, maxZoom: req.maxZoom ?? 15, duration: 0.6 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [req?.nonce]);

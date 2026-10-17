@@ -238,13 +238,27 @@ export const BASEMAPS = [
  */
 export const IBGE_HIERARCHY = {
   url: '/data/ibge/hierarquia_piloto.geojson',
-  source: 'IBGE — Malha Municipal 2022',
+  // Malha de Distritos do Censo 2022 (mesmo script). Sem ela, o serviço de nomes não informa o distrito.
+  districtsUrl: '/data/ibge/distritos_piloto.geojson',
+  source: 'IBGE — Malha Municipal 2022 e Malha de Distritos do Censo 2022',
   levels: [
     { level: 'uf', layerId: 'ibge:uf', name: 'Unidade da Federação', short: 'UF', color: '#334155', weight: 2.4, dash: null },
     { level: 'intermediaria', layerId: 'ibge:intermediaria', name: 'Região Geográfica Intermediária', short: 'Intermediária', color: '#7C3AED', weight: 2, dash: '8 4' },
     { level: 'imediata', layerId: 'ibge:imediata', name: 'Região Geográfica Imediata', short: 'Imediata', color: '#0369A1', weight: 1.8, dash: '6 3' },
     { level: 'municipio', layerId: 'ibge:municipio', name: 'Municípios', short: 'Município', color: '#B45309', weight: 1.4, dash: null },
+    { level: 'distrito', layerId: 'ibge:distrito', name: 'Distritos', short: 'Distrito', color: '#A16207', weight: 1, dash: '2 4' },
   ],
+};
+
+/**
+ * Comunidades (camada de nomes abaixo do distrito; ver lib/communities.js).
+ * manifestUrl lista os arquivos microrregioes_<COD_IBGE_MUN>.geojson do projeto.
+ * nearMeters: lacuna entre polígonos em que vale a comunidade mais próxima.
+ */
+export const COMMUNITIES = {
+  manifestUrl: '/data/comunidades/index.json',
+  baseUrl: '/data/comunidades/',
+  nearMeters: 100,
 };
 
 /**

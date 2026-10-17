@@ -53,6 +53,15 @@ export default function RegionDetailScreen({
               {speak.origin === 'operator' && (
                 <span className="rounded bg-petrol-50 px-1.5 py-px text-[12px] font-medium text-petrol-700 ring-1 ring-inset ring-petrol-100">nome alterado</span>
               )}
+              {speak.origin === 'comunidade' && (
+                <span className="rounded bg-emerald-50 px-1.5 py-px text-[12px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">comunidades</span>
+              )}
+              {u.kind === 'microrregiao' && speak.origin !== 'operator' && (
+                <span className="rounded bg-emerald-50 px-1.5 py-px text-[12px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">microrregião</span>
+              )}
+              {u.kind === 'microrregiao' && u.confianca === 'baixa' && (
+                <span className="rounded bg-amber-50 px-1.5 py-px text-[12px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200">localização aproximada</span>
+              )}
               {speak.origin === 'ibge' && (
                 <span className="rounded bg-slate-100 px-1.5 py-px text-[12px] font-medium text-slate-600 ring-1 ring-inset ring-slate-200">nome IBGE</span>
               )}

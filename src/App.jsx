@@ -39,7 +39,12 @@ import {
   parseCsv, validateCoordinates, readFileAsText, readFileWithEncoding, suggestMapping, validateRecords, isProcessableCrs,
 } from './lib/csv.js';
 import { buildOutageView, EMPTY_OUTAGE_FORM } from './lib/outage.js';
-import { summarize, DEFAULT_POINT_FILTER } from './lib/summary.js';
+import {
+  summarize, DEFAULT_POINT_FILTER, attachPlaces, communitiesByUnit,
+} from './lib/summary.js';
+import { groupByPlace } from './lib/placeRegions.js';
+import { placeSnapshot, placeChanged } from './lib/placeNames.js';
+import { isValidCoordinate } from './lib/priorityRecords.js';
 import { useTheme } from './lib/theme.js';
 import { useAccessIdentity } from './lib/useAccessIdentity.js';
 import { usePriorityRegistry } from './lib/usePriorityRegistry.js';
@@ -89,7 +94,8 @@ export default function App() {
   const [phase, setPhase] = useState('idle'); // idle | processing | done | error
   const [stepIndex, setStepIndex] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
-  const [result, setResult] = useState(null);
+  // Cruzamento bruto (por setor censitário). A lista de regiões usa `result`, derivado abaixo.
+  const [joinResult, setResult] = useState(null);
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
   const [pointFilter, setPointFilter] = useState(DEFAULT_POINT_FILTER);
   const [focusId, setFocusId] = useState(null);
@@ -163,6 +169,77 @@ export default function App() {
   };
   useEffect(() => clearTimers, []);
 
+  const priorityRecordsActive = useMemo(
+    () => priorityRegistry.records.filter((r) => r.status === 'active' && Number.isFinite(r.lat) && Number.isFinite(r.lng)),
+    [priorityRegistry.records],
+  );
+
+  /* ---------------- Camadas e sub-regiões (somente modo real) ---------------- */
+  const done = phase === 'done' && joinResult;
+  const ws = useMapWorkspace({
+    enabled: isReal,
+    identity,
+    operator,
+    operatorLocked,
+    authorFor,
+    rememberOperator,
+    notify,
+    opLayers: layers,
+    setOpLayers: setLayers,
+    pointFilterExtra: isReal && done ? (
+      <PointFilters
+        pointFilter={pointFilter}
+        onTogglePointFilter={(key) => setPointFilter((f) => ({ ...f, [key]: !f[key] }))}
+        counts={{ matched: joinResult.matched, unmatched: joinResult.unmatched, ambiguous: joinResult.ambiguous }}
+      />
+    ) : null,
+    result: done ? joinResult : null,
+    priorityRecords: priorityRecordsActive,
+    sectorLayer: layerState.layer,
+    isMobile,
+    onShowMap: () => setMobileTab('mapa'),
+  });
+
+
+  /* ---------------- Localização dos pontos e regiões por microrregião ---------------- */
+  // Modo real: cada ponto recebe o lugar (IBGE + comunidades) e a lista de regiões passa a
+  // ter uma região por microrregião (lib/placeRegions.js). Cache por resultado e localizador:
+  // o mesmo processamento não é relocalizado a cada renderização.
+  const placeCache = useRef({ locator: null, layer: null, map: new WeakMap() });
+  const placesFor = useCallback((joined) => {
+    const locator = isReal ? ws.locator : null;
+    if (!joined || !locator || joined.source === 'demo') return { placed: joined, communities: new Map() };
+    const sectorLayer = layerState.layer;
+    if (placeCache.current.locator !== locator || placeCache.current.layer !== sectorLayer) {
+      placeCache.current = { locator, layer: sectorLayer, map: new WeakMap() };
+    }
+    let hit = placeCache.current.map.get(joined);
+    if (!hit) {
+      const placed = groupByPlace(attachPlaces(joined, locator), { locator, sectorLayer });
+      hit = { placed, communities: communitiesByUnit(placed) };
+      placeCache.current.map.set(joined, hit);
+      placeCache.current.map.set(placed, hit);
+    }
+    return hit;
+  }, [isReal, ws.locator, layerState.layer]);
+  const placed = useMemo(() => placesFor(joinResult), [placesFor, joinResult]);
+  const result = placed.placed;
+
+  // Quando as regiões mudam depois do processamento (comunidades importadas ou editadas),
+  // a seleção acompanha: regiões novas entram no aviso; as retiradas pelo operador continuam fora.
+  const unitIdsKey = result?.units.map((u) => u.id).join('|') ?? '';
+  const prevUnits = useRef({ key: '', ids: [] });
+  useEffect(() => {
+    const prev = prevUnits.current;
+    const ids = unitIdsKey ? unitIdsKey.split('|') : [];
+    prevUnits.current = { key: unitIdsKey, ids };
+    if (phase !== 'done' || !prev.key || prev.key === unitIdsKey) return;
+    const known = new Set(prev.ids);
+    setSelectedIds((sel) => ids.filter((id) => sel.includes(id) || !known.has(id)));
+    setFocusId((f) => (f && ids.includes(f) ? f : null));
+    setRegionDetailId((d) => (d && ids.includes(d) ? d : null));
+  }, [unitIdsKey, phase]);
+
   /* ---------------- Camada oficial (modo real) ---------------- */
   // A camada (dado público) é carregada uma vez e mantida entre trocas de modo.
   const layerSettled = useRef(false);
@@ -212,7 +289,8 @@ export default function App() {
     correspondence: { ...layerState.correspondence, ...storeToCorrespondence(regionStore) },
     officialNameApproved: PILOT_CONFIG.layer.officialNameApproved,
     unitType: PILOT_CONFIG.layer.unitType,
-  }), [layerState.correspondence, regionStore]);
+    communityNames: placed.communities,
+  }), [layerState.correspondence, regionStore, placed.communities]);
 
   const traditionalText = useMemo(() => {
     if (!isReal) return buildTraditionalNotice(DEMO_POINTS, OUTAGE);
@@ -231,8 +309,12 @@ export default function App() {
     if (!joined) return { text: '', pendingUnits: [], missingOutage: [], notes: [], items: [] };
     const units = joined.units.filter((u) => ids.includes(u.id));
     const demo = joined.source === 'demo';
+    // Comunidades calculadas para ESTE resultado (pode ser um processamento recém-concluído).
+    const opts = demo ? nameOptions : { ...nameOptions, communityNames: placesFor(joined).communities };
     const announcement = buildAnnouncement(units, joined.points, {
-      nameOf: demo ? (u) => u.name : (u) => resolveSpeakableName(u, nameOptions).name,
+      nameOf: demo ? (u) => u.name : (u) => resolveSpeakableName(u, opts).name,
+      // Cada comunidade vira uma linha de ENDEREÇOS (sem repetir entre regiões).
+      namesOf: demo ? null : (u) => resolveSpeakableName(u, opts).names ?? null,
       threshold: ANNOUNCEMENT_RULES.minClientsForRegion,
       overrides,
       clientMapped: !demo && imp.mapping.client != null,
@@ -244,7 +326,7 @@ export default function App() {
       notes: announcement.notes,
       items: announcement.items,
     };
-  }, [nameOptions, announceOverrides, imp.mapping.client, imp.mapping.property]);
+  }, [nameOptions, announceOverrides, imp.mapping.client, imp.mapping.property, placesFor]);
   const noticeFor = useCallback((ids) => letterFor(result, ids, outage), [letterFor, result, outage]);
 
   const currentNotice = useMemo(() => noticeFor(selectedIds), [noticeFor, selectedIds]);
@@ -275,10 +357,6 @@ export default function App() {
   };
 
   /* ---------------- Pontos prioritários ---------------- */
-  const priorityRecordsActive = useMemo(
-    () => priorityRegistry.records.filter((r) => r.status === 'active' && Number.isFinite(r.lat) && Number.isFinite(r.lng)),
-    [priorityRegistry.records],
-  );
   const priorityAnalysis = useMemo(() => {
     if (!result || !analysisRef || priorityRegistry.status !== 'ready') return null;
     return matchPriorityPoints({
@@ -334,36 +412,43 @@ export default function App() {
     if (force !== false) setFocusId(null);
   }, [priorityAnalysis]);
 
-  /* ---------------- Camadas e sub-regiões (somente modo real) ---------------- */
-  const done = phase === 'done' && result;
-  const ws = useMapWorkspace({
-    enabled: isReal,
-    identity,
-    operator,
-    operatorLocked,
-    authorFor,
-    rememberOperator,
-    notify,
-    opLayers: layers,
-    setOpLayers: setLayers,
-    pointFilterExtra: isReal && done ? (
-      <PointFilters
-        pointFilter={pointFilter}
-        onTogglePointFilter={(key) => setPointFilter((f) => ({ ...f, [key]: !f[key] }))}
-        counts={{ matched: result.matched, unmatched: result.unmatched, ambiguous: result.ambiguous }}
-      />
-    ) : null,
-    result: done ? result : null,
-    priorityRecords: priorityRecordsActive,
-    sectorLayer: layerState.layer,
-    isMobile,
-    onShowMap: () => setMobileTab('mapa'),
-  });
+  /** Município, distrito e comunidade de uma coordenada (só no modo real). */
+  const placeOf = useCallback((lat, lng) => (isReal && ws.locator && isValidCoordinate(lat, lng) ? ws.locator.locate([lng, lat]) : null), [isReal, ws.locator]);
+
+  // Quando as comunidades mudam (importação, edição), a localização gravada dos
+  // pontos prioritários é reavaliada; o operador vê quantos mudaram de comunidade.
+  const { records: priorityRecordsAll, commitRecords: commitPriorityRecords, status: priorityStatus } = priorityRegistry;
+  useEffect(() => {
+    if (!isReal || !ws.locator || priorityStatus !== 'ready') return;
+    let moved = 0;
+    let filled = 0;
+    const at = new Date().toISOString();
+    const next = priorityRecordsAll.map((r) => {
+      if (!isValidCoordinate(r.lat, r.lng)) return r;
+      const snap = placeSnapshot(ws.locator.locate([r.lng, r.lat]), at);
+      if (!snap || !placeChanged(r.location, snap)) return r;
+      if (!r.location) { filled += 1; return { ...r, location: snap }; }
+      moved += 1;
+      return {
+        ...r,
+        location: snap,
+        history: [...(r.history ?? []), {
+          action: 'localização reavaliada', by: 'sistema', at, fields: [`${r.location.comunidade ?? r.location.rotulo} → ${snap.comunidade ?? snap.rotulo}`],
+        }],
+      };
+    });
+    if (moved + filled) {
+      commitPriorityRecords(next);
+      if (moved) notify('info', `Comunidades alteradas: ${moved} ponto(s) prioritário(s) mudaram de comunidade (registrado no histórico).`);
+    }
+  }, [isReal, ws.locator, priorityStatus, priorityRecordsAll, commitPriorityRecords, notify]);
 
   const handleSaveRecord = (value, editingId, typedBy) => {
     const by = authorFor(typedBy);
     try {
-      const next = upsertRecord(priorityRegistry.records, value, { by, editingId });
+      const place = placeOf(value.lat, value.lng);
+      const withPlace = place ? { ...value, location: placeSnapshot(place) } : value;
+      const next = upsertRecord(priorityRegistry.records, withPlace, { by, editingId });
       if (next === priorityRegistry.records) {
         notify('info', 'Nenhuma alteração para salvar.');
       } else {
@@ -643,8 +728,8 @@ export default function App() {
           if (!joined.checks.unitSumEqualsMatched || !joined.checks.statusSumEqualsValid) {
             throw new Error('Verificação de consistência falhou: as contagens não fecham. Resultado descartado.');
           }
-          finishProcessing(joined);
-          const parts = [`${joined.matched} associado(s) em ${joined.units.length} unidade(s)`];
+          const view = finishProcessing(joined);
+          const parts = [`${joined.matched} associado(s) em ${view.units.length} região(ões)`];
           if (joined.unmatched) parts.push(`${joined.unmatched} sem correspondência`);
           if (joined.ambiguous) parts.push(`${joined.ambiguous} ambíguo(s)`);
           notify(joined.unmatched || joined.ambiguous ? 'warning' : 'success', `Cruzamento concluído: ${parts.join(', ')}.`);
@@ -656,8 +741,11 @@ export default function App() {
     }, 30));
   };
 
+  /** Guarda o cruzamento e monta a carta inicial; devolve as regiões exibidas (microrregiões no modo real). */
   const finishProcessing = (joined) => {
-    const ids = joined.units.map((u) => u.id);
+    const view = placesFor(joined).placed;
+    const ids = view.units.map((u) => u.id);
+    prevUnits.current = { key: ids.join('|'), ids };
     setResult(joined);
     setSelectedIds(ids);
     setPhase('done');
@@ -668,7 +756,7 @@ export default function App() {
     const outageView = joined.source === 'demo'
       ? OUTAGE
       : buildOutageView(outageForm, { defaultAudience: PILOT_CONFIG.territory.name });
-    const { text } = letterFor(joined, ids, outageView, {});
+    const { text } = letterFor(view, ids, outageView, {});
     setNotice({ text, status: 'draft', dirty: false, stale: false });
     // Referência do desligamento usada nos alertas de pontos prioritários.
     setAnalysisRef({
@@ -681,6 +769,7 @@ export default function App() {
       crs: joined.source === 'demo' ? null : imp.crs,
       sharedIdMapped: joined.source !== 'demo' && imp.mapping[PRIORITY_MATCH.sharedIdField] != null,
     });
+    return view;
   };
 
   const failProcessing = (err) => {
@@ -854,10 +943,16 @@ export default function App() {
   const mapScreen = mobileTab === 'mapa';
 
   /* ---------------- Layout ---------------- */
-  const territories = isReal ? layerState.layer : DEMO_TERRITORIES;
+  // Modo real: setores da camada oficial + contornos das regiões por microrregião (por cima).
+  const territories = useMemo(() => {
+    if (!isReal) return DEMO_TERRITORIES;
+    const layer = layerState.layer;
+    if (!layer || !result?.features?.length) return layer;
+    return { ...layer, features: [...layer.features, ...result.features] };
+  }, [isReal, layerState.layer, result]);
 
   return (
-    <div className="cr-app flex min-h-screen flex-col bg-slate-100 font-sans text-petrol-900 2xl:h-screen 2xl:min-h-[860px]">
+    <div className="cr-app flex min-h-screen flex-col bg-slate-100 font-sans text-petrol-900">
       <Header
         mode={mode}
         onModeChange={handleModeChange}
@@ -870,14 +965,14 @@ export default function App() {
       <main
         ref={mainRef}
         onScroll={(e) => { scrollByScreen.current[screenKeyRef.current] = e.currentTarget.scrollTop; }}
-        className={`grid flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_330px] 2xl:min-h-0 2xl:grid-cols-[300px_minmax(0,1fr)_360px] 2xl:grid-rows-[minmax(0,1fr)_304px] max-lg:min-h-0 max-lg:overflow-x-hidden max-lg:overscroll-contain ${
+        className={`grid flex-1 grid-cols-1 content-start gap-3 p-3 lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)] max-lg:min-h-0 max-lg:overflow-x-hidden max-lg:overscroll-contain ${
           mapScreen
             ? 'max-lg:flex max-lg:flex-col max-lg:overflow-y-hidden max-lg:p-0'
             : 'max-lg:overflow-y-auto max-lg:pl-[max(0.75rem,env(safe-area-inset-left))] max-lg:pr-[max(0.75rem,env(safe-area-inset-right))]'
         }`}
       >
         {/* Coluna esquerda: importação e informações (celular: telas Dados e Alertas) */}
-        <aside className={`flex flex-col gap-3 lg:row-span-3 xl:row-span-2 2xl:min-h-0 2xl:overflow-y-auto ${screen('dados', 'alertas')}`} aria-label="Importação e informações do desligamento">
+        <aside className={`flex flex-col gap-3 lg:row-span-3 ${screen('dados', 'alertas')}`} aria-label="Importação e informações do desligamento">
           <section className={`rounded-md border border-slate-200 bg-white px-3.5 py-3 shadow-panel lg:hidden ${screen('dados')}`} aria-label="Modo de operação">
             <p className="mb-1.5 text-[13px] font-semibold text-petrol-900">Modo de operação</p>
             <ModeSwitch mode={mode} onModeChange={handleModeChange} modeLocked={phase === 'processing'} />
@@ -997,9 +1092,10 @@ export default function App() {
             opOpacity={ws.opOpacity}
             mapChildren={ws.mapChildren}
             layerPanel={ws.layerPanel}
-            overlay={ws.overlay}
-            headerActions={ws.subRegionsButton}
-            mobileActions={ws.subRegionsButton}
+            overlay={<>{ws.overlay}{ws.mobileSearch}</>}
+            headerActions={ws.headerActions}
+            mobileActions={ws.mobileActions}
+            sectorTooltips={!ws.communitiesVisible}
             editing={ws.editing}
           />
         </div>
@@ -1011,7 +1107,7 @@ export default function App() {
 
         {/* Direita: resultados territoriais (celular: tela Regiões) */}
         <RegionPanel
-          className={screen('regioes')}
+          className={`lg:col-start-2 ${screen('regioes')}`}
           mobile={isMobile}
           detailId={regionDetailId}
           onOpenDetail={openRegionDetail}
@@ -1044,7 +1140,7 @@ export default function App() {
         />
 
         {/* Inferior: comunicação (celular: tela Aviso) */}
-        <div className={`lg:col-start-2 xl:col-span-2 2xl:min-h-0 ${screen('aviso')}`}>
+        <div className={`lg:col-start-2 ${screen('aviso')}`}>
           <CommunicationPanel
             mode={mode}
             phase={phase}
@@ -1087,6 +1183,7 @@ export default function App() {
         onClose={closeRegistry}
         onNavigate={setRegistryNav}
         onSave={handleSaveRecord}
+        placeOf={placeOf}
         onSetStatus={handleRecordStatus}
         onDelete={handleDeleteRecord}
         onViewOnMap={handleViewRecord}

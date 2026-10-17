@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  X, Search, Plus, ArrowLeft, MapPin, Pencil, Copy, Trash2, Download, RotateCcw, History, Info, ChevronRight, Shapes, Save,
+  X, Search, Plus, ArrowLeft, MapPin, Pencil, Copy, Trash2, Download, RotateCcw, History, Info, ChevronRight, Shapes, Save, Users, Scissors, Combine,
 } from 'lucide-react';
 import RegionSummary from './RegionSummary.jsx';
 import StatusBadge from '../StatusBadge.jsx';
@@ -9,6 +9,8 @@ import {
 } from '../../lib/customRegions.js';
 import { LEVEL_LABEL, LEVEL_RANK, hierarchyPath } from '../../lib/ibgeHierarchy.js';
 import { ROLE_LABEL } from '../../lib/layers/layerModel.js';
+import { isCommunity, confidenceReason } from '../../lib/communities.js';
+import { geometryBboxAny, bboxIntersects } from '../../lib/geoOps.js';
 
 const fmtDate = (iso) => {
   const d = new Date(iso);
@@ -16,6 +18,7 @@ const fmtDate = (iso) => {
 };
 const ACTION_TEXT = {
   criada: 'Criada', editada: 'Editada', 'geometria editada': 'Área editada', excluída: 'Excluída', restaurada: 'Restaurada',
+  importada: 'Importada', reimportada: 'Reimportada', unida: 'Unida', dividida: 'Dividida',
 };
 const FIELD_TEXT = {
   name: 'nome', description: 'descrição', color: 'cor', internalCode: 'código interno', tags: 'tags', geometry: 'área',
@@ -29,7 +32,7 @@ const FIELD_TEXT = {
 export default function SubRegionsPanel({
   open, onClose, hierarchy, regions, sectorsLabel, detailId, onOpenDetail, summary, settings, role, canEdit, canManage,
   operator, operatorLocked, onSetAllowOverlap, onCreate, onEditGeometry, onDuplicate, onDelete, onRestore, onUpdate, onExport, onShowOnMap,
-  focusCode = null,
+  focusCode = null, locator = null, onOpenCommunities, onSplitCommunity, onMergeCommunity,
 }) {
   const panelRef = useRef(null);
   const [query, setQuery] = useState('');
@@ -64,7 +67,7 @@ export default function SubRegionsPanel({
             </button>
           )}
           <Shapes className="h-4 w-4 text-petrol-500 max-lg:hidden" aria-hidden="true" />
-          <h2 id="subregions-title" className="min-w-0 flex-1 truncate text-[14px] font-semibold text-petrol-900 max-lg:text-[15px]">{detail ? detail.name : `Sub-regiões (${active.length})`}</h2>
+          <h2 id="subregions-title" className="min-w-0 flex-1 truncate text-[14px] font-semibold text-petrol-900 max-lg:text-[15px]">{detail ? detail.name : `Sub-regiões (${active.filter((r) => !isCommunity(r)).length})`}</h2>
           <button type="button" onClick={onClose} className="ml-auto rounded p-1 text-slate-500 hover:bg-slate-100 max-lg:inline-flex max-lg:min-h-11 max-lg:items-center max-lg:gap-1 max-lg:px-3 max-lg:text-[15px] max-lg:font-medium max-lg:text-petrol-700" aria-label="Fechar">
             <X className="h-4 w-4 max-lg:h-5 max-lg:w-5" />
             <span className="lg:hidden" aria-hidden="true">Fechar</span>
@@ -108,6 +111,10 @@ export default function SubRegionsPanel({
               onCreate={onCreate}
               onOpenDetail={onOpenDetail}
               sectorsLabel={sectorsLabel}
+              canManage={canManage}
+              locator={locator}
+              onSplit={onSplitCommunity}
+              onMerge={onMergeCommunity}
             />
           ) : (
             <RegionTree
@@ -121,6 +128,7 @@ export default function SubRegionsPanel({
               onShowOnMap={onShowOnMap}
               onRestore={(id) => onRestore(id, who)}
               focusCode={focusCode}
+              onOpenCommunities={onOpenCommunities}
             />
           )}
         </div>
@@ -136,6 +144,12 @@ export default function SubRegionsPanel({
                 <input type="checkbox" checked={!!settings.allowSiblingOverlap} disabled={!canManage} onChange={() => onSetAllowOverlap(!settings.allowSiblingOverlap)} className="accent-accent-500 max-lg:h-5 max-lg:w-5" />
                 Permitir sobreposição entre sub-regiões irmãs
               </label>
+              {onOpenCommunities && (
+                <button type="button" onClick={onOpenCommunities} className="inline-flex items-center gap-1 font-medium text-petrol-700 hover:underline max-lg:min-h-11">
+                  <Users className="h-3 w-3" aria-hidden="true" />
+                  Comunidades (importar, nomes)
+                </button>
+              )}
               <button type="button" onClick={() => onExport(active)} disabled={!active.length} className="inline-flex items-center gap-1 font-medium text-petrol-700 hover:underline disabled:opacity-40 max-lg:min-h-11">
                 <Download className="h-3 w-3" aria-hidden="true" />
                 Exportar todas (GeoJSON)
@@ -155,7 +169,7 @@ export default function SubRegionsPanel({
 }
 
 function RegionTree({
-  hierarchy, regions, query, setQuery, canEdit, onCreate, onOpenDetail, onShowOnMap, onRestore, focusCode,
+  hierarchy, regions, query, setQuery, canEdit, onCreate, onOpenDetail, onShowOnMap, onRestore, focusCode, onOpenCommunities,
 }) {
   const q = nameKey(query);
   const byParent = useMemo(() => {
@@ -169,7 +183,7 @@ function RegionTree({
     return m;
   }, [regions]);
 
-  const matches = (r) => !q || nameKey(r.name).includes(q) || nameKey(r.internalCode ?? '').includes(q) || (r.tags ?? []).some((t) => nameKey(t).includes(q));
+  const matches = (r) => !q || nameKey(r.name).includes(q) || nameKey(r.originalName ?? '').includes(q) || nameKey(r.internalCode ?? '').includes(q) || (r.tags ?? []).some((t) => nameKey(t).includes(q));
   const ibgeRegions = [...(hierarchy?.regions ?? [])].sort((a, b) => LEVEL_RANK[a.level] - LEVEL_RANK[b.level] || a.name.localeCompare(b.name, 'pt-BR'));
 
   const renderRegion = (r, depth) => {
@@ -180,6 +194,8 @@ function RegionTree({
           <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: r.color }} aria-hidden="true" />
           <button type="button" onClick={() => onOpenDetail(r.id)} className="min-w-0 flex-1 truncate text-left font-medium">
             {r.name}
+            {isCommunity(r) && r.confidence === 'baixa' && <span className="ml-1 text-[11px] font-normal text-amber-700" title={confidenceReason(r)}>≈</span>}
+            {isCommunity(r) && r.nameEdited && <span className="ml-1 rounded bg-petrol-50 px-1 text-[10px] font-normal text-petrol-700">nome editado</span>}
             <span className="ml-1.5 font-normal text-slate-500">{fmtArea(r.areaKm2)}</span>
             {r.internalCode && <span className="ml-1.5 font-mono text-[11px] text-slate-500">{r.internalCode}</span>}
           </button>
@@ -209,7 +225,9 @@ function RegionTree({
           {!regions.some(matches) && <li className="text-slate-500">Nenhuma sub-região encontrada.</li>}
         </ul>
       ) : ibgeRegions.map((ib) => {
-        const top = byParent.get(`ibge:${ib.code}`)?.filter((r) => !r.parentCustomRegionId) ?? [];
+        const all = byParent.get(`ibge:${ib.code}`)?.filter((r) => !r.parentCustomRegionId) ?? [];
+        const top = all.filter((r) => !isCommunity(r));
+        const comms = all.filter(isCommunity);
         return (
           <section key={ib.code} id={`ibge-${ib.code}`} className={`rounded border ${focusCode === ib.code ? 'border-accent-300 bg-accent-50/40' : 'border-slate-200'}`}>
             <div className="flex items-center gap-2 border-b border-slate-100 px-2.5 py-1.5">
@@ -217,7 +235,7 @@ function RegionTree({
                 <p className="truncate font-semibold">{ib.name}</p>
                 <p className="text-[11px] text-slate-500 max-lg:text-[12px]">{LEVEL_LABEL[ib.level]} · IBGE {ib.code}</p>
               </div>
-              <StatusBadge tone="neutral">{descendantCount(byParent, ib.code)}</StatusBadge>
+              <StatusBadge tone="neutral">{descendantCount(byParent, ib.code) - comms.length}</StatusBadge>
               {canEdit && (
                 <button type="button" onClick={() => onCreate({ kind: 'ibge', code: ib.code })} className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11.5px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-2.5" aria-label={`Nova sub-região em ${ib.name}`}>
                   <Plus className="h-3 w-3" aria-hidden="true" />
@@ -226,6 +244,16 @@ function RegionTree({
               )}
             </div>
             {top.length ? <ul className="py-1">{top.map((r) => renderRegion(r, 0))}</ul> : <p className="px-2.5 py-1.5 text-[11.5px] text-slate-500">Nenhuma sub-região.</p>}
+            {comms.length > 0 && (
+              <details className="border-t border-slate-100" open={focusCode === ib.code}>
+                <summary className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 font-medium text-petrol-800 max-lg:min-h-11">
+                  <Users className="h-3.5 w-3.5 text-petrol-500" aria-hidden="true" />
+                  Comunidades ({comms.length})
+                  <span className="text-[11px] font-normal text-slate-500">· {comms.filter((c) => c.confidence === 'baixa').length} aproximada(s)</span>
+                </summary>
+                <ul className="pb-1">{comms.map((r) => renderRegion(r, 0))}</ul>
+              </details>
+            )}
           </section>
         );
       })}
@@ -245,8 +273,16 @@ function descendantCount(byParent, ibgeCode) {
 }
 
 function RegionDetail({
-  region: r, regions, hierarchy, summary, canEdit, by, onUpdate, onEditGeometry, onDuplicate, onDelete, onRestore, onExport, onShowOnMap, onCreate, onOpenDetail, sectorsLabel,
+  region: r, regions, hierarchy, summary, canEdit: canEditRegion, by, onUpdate, onEditGeometry, onDuplicate, onDelete, onRestore, onExport, onShowOnMap, onCreate, onOpenDetail, sectorsLabel,
+  canManage, locator, onSplit, onMerge,
 }) {
+  const community = isCommunity(r);
+  // Comunidades: só administradores renomeiam, ajustam, dividem ou unem.
+  const canEdit = community ? canManage : canEditRegion;
+  const [mergeWith, setMergeWith] = useState('');
+  const neighbors = community ? regions.filter((x) => x.id !== r.id && !x.deletedAt && isCommunity(x) && x.ibgeParentCode === r.ibgeParentCode
+    && bboxIntersects(geometryBboxAny(x.geometry), geometryBboxAny(r.geometry))).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')) : [];
+  const place = community && locator && r.labelPoint ? locator.locate(r.labelPoint) : null;
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(() => ({
     name: r.name, description: r.description ?? '', color: r.color, internalCode: r.internalCode ?? '', tags: (r.tags ?? []).join(', '),
@@ -279,9 +315,10 @@ function RegionDetail({
       <div className="flex flex-wrap gap-1.5">
         {!deleted && <Action icon={MapPin} onClick={() => onShowOnMap(r.id)}>Ver no mapa</Action>}
         {canEdit && !deleted && <Action icon={Pencil} onClick={() => setEditing((v) => !v)}>Renomear / detalhes</Action>}
-        {canEdit && !deleted && <Action icon={Shapes} onClick={() => onEditGeometry(r.id)}>Editar área</Action>}
-        {canEdit && !deleted && <Action icon={Plus} onClick={() => onCreate({ kind: 'custom', id: r.id })}>Sub-região dentro</Action>}
-        {canEdit && !deleted && <Action icon={Copy} onClick={() => onDuplicate(r.id)}>Duplicar</Action>}
+        {canEdit && !deleted && <Action icon={Shapes} onClick={() => onEditGeometry(r.id)}>{community ? 'Ajustar contorno' : 'Editar área'}</Action>}
+        {canEdit && !deleted && community && <Action icon={Scissors} onClick={() => onSplit(r.id)}>Dividir</Action>}
+        {canEditRegion && !deleted && !community && <Action icon={Plus} onClick={() => onCreate({ kind: 'custom', id: r.id })}>Sub-região dentro</Action>}
+        {canEdit && !deleted && !community && <Action icon={Copy} onClick={() => onDuplicate(r.id)}>Duplicar</Action>}
         {!deleted && <Action icon={Download} onClick={() => onExport([r, ...descendantsOf(regions, r.id)])}>Exportar GeoJSON</Action>}
         {canEdit && !deleted && <Action icon={Trash2} danger onClick={() => onDelete(r.id, by)}>Excluir</Action>}
         {canEdit && deleted && <Action icon={RotateCcw} onClick={() => onRestore(r.id, by)}>Restaurar</Action>}
@@ -313,6 +350,36 @@ function RegionDetail({
             <button type="button" onClick={() => setEditing(false)} className="rounded border border-slate-300 px-3 py-1 max-lg:min-h-11">Cancelar</button>
           </div>
         </form>
+      )}
+
+      {canEdit && !deleted && community && neighbors.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded border border-slate-200 px-3 py-2">
+          <Combine className="h-3.5 w-3.5 text-petrol-500" aria-hidden="true" />
+          <label className="flex min-w-0 flex-1 items-center gap-2">
+            Unir com
+            <select value={mergeWith} onChange={(e) => setMergeWith(e.target.value)} className="min-w-0 flex-1 rounded border border-slate-300 px-1.5 py-0.5 max-lg:min-h-11">
+              <option value="">vizinha…</option>
+              {neighbors.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
+            </select>
+          </label>
+          <button type="button" disabled={!mergeWith} onClick={() => { onMerge(r.id, mergeWith, by); setMergeWith(''); }} className="rounded border border-slate-300 px-2 py-0.5 font-medium disabled:opacity-40 max-lg:min-h-11">Unir</button>
+        </div>
+      )}
+
+      {community && (
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 rounded border border-petrol-100 bg-petrol-50/50 px-3 py-2 text-[12px] max-lg:text-[13.5px]">
+          {place?.rotulo && (<><dt className="text-slate-500">Localização</dt><dd>{place.rotulo}</dd></>)}
+          <dt className="text-slate-500">ID</dt><dd className="font-mono">{r.externalCode}</dd>
+          {r.originalName && r.originalName !== r.name && (<><dt className="text-slate-500">Nome no arquivo</dt><dd>{r.originalName}</dd></>)}
+          <dt className="text-slate-500">Confiança</dt>
+          <dd>{r.confidence === 'baixa' ? <span className="text-amber-800">≈ baixa — localização aproximada ({confidenceReason(r)})</span> : 'boa'}</dd>
+          {r.metadata?.CONFIRMADO_EM && (<><dt className="text-slate-500">Fontes</dt><dd>{r.metadata.CONFIRMADO_EM}</dd></>)}
+          {r.metadata?.ENDERECOS_IBGE != null && (<><dt className="text-slate-500">Endereços (Censo)</dt><dd>{Number(r.metadata.ENDERECOS_IBGE).toLocaleString('pt-BR')}</dd></>)}
+          {r.metadata?.DISTRITOS && (<><dt className="text-slate-500">Distritos tocados</dt><dd>{r.metadata.DISTRITOS}</dd></>)}
+          {r.importVersion && (<><dt className="text-slate-500">Importação</dt><dd>versão {r.importVersion} · {r.sourceFile}</dd></>)}
+          {(r.nameEdited || r.geometryEdited) && (<><dt className="text-slate-500">Edições manuais</dt><dd>{[r.nameEdited && 'nome', r.geometryEdited && 'contorno'].filter(Boolean).join(' e ')} (mantidas ao reimportar)</dd></>)}
+          {r.metadata?.CONTORNO && (<><dt className="text-slate-500">Contorno</dt><dd className="text-slate-600">{r.metadata.CONTORNO}</dd></>)}
+        </dl>
       )}
 
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-[12px] max-lg:text-[13.5px]">

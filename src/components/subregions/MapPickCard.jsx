@@ -4,17 +4,19 @@ import {
 import RegionSummary from './RegionSummary.jsx';
 import { LEVEL_LABEL } from '../../lib/ibgeHierarchy.js';
 import { fmtArea } from '../../lib/customRegions.js';
+import { isCommunity, confidenceReason } from '../../lib/communities.js';
 
 /**
  * Cartão exibido ao clicar no mapa: a região sob o cursor (sub-região ou
  * limite do IBGE), com atalhos para as outras camadas no mesmo ponto.
  */
 export default function MapPickCard({
-  pick, current, summary, canCreate, onSelect, onClose, onCreateHere, onDetails, onZoom, onFilterLayers,
+  pick, current, summary, place = null, canCreate, onSelect, onClose, onCreateHere, onDetails, onZoom, onFilterLayers,
 }) {
   if (!pick || !current) return null;
   const isCustom = current.kind === 'custom';
   const r = current.region;
+  const community = isCustom && isCommunity(r);
   return (
     <section className="pointer-events-auto w-[320px] rounded-md border border-slate-200 bg-white text-[12.5px] text-petrol-900 shadow-xl max-lg:w-full max-lg:text-[14px]" aria-label="Região selecionada">
       <div className="flex items-start gap-2 border-b border-slate-100 px-3 py-2">
@@ -22,7 +24,7 @@ export default function MapPickCard({
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{r.name}</p>
           <p className="truncate text-[11.5px] text-slate-500 max-lg:text-[12.5px]">
-            {isCustom ? `Sub-região · ${fmtArea(r.areaKm2)}` : `${LEVEL_LABEL[r.level]} · IBGE ${r.code}`}
+            {community ? `Comunidade · ${r.externalCode} · ${fmtArea(r.areaKm2)}` : isCustom ? `Sub-região · ${fmtArea(r.areaKm2)}` : `${LEVEL_LABEL[r.level]} · IBGE ${r.code}`}
             {!isCustom && <Lock className="ml-1 inline h-3 w-3" aria-label="Limite oficial, somente leitura" />}
           </p>
         </div>
@@ -47,6 +49,15 @@ export default function MapPickCard({
         </div>
       )}
       <div className="space-y-2 px-3 py-2">
+        {community && (
+          <div className="text-[12px] max-lg:text-[13px]">
+            {place?.rotulo && <p className="text-petrol-800">{place.rotulo}</p>}
+            {r.confidence === 'baixa' ? (
+              <p className="mt-0.5 text-amber-800" title={confidenceReason(r)}>≈ Localização aproximada: {confidenceReason(r)}</p>
+            ) : <p className="mt-0.5 text-slate-500">Confiança: boa</p>}
+            {r.metadata?.CONFIRMADO_EM && <p className="text-slate-500">Fontes: {r.metadata.CONFIRMADO_EM}</p>}
+          </div>
+        )}
         {isCustom && <RegionSummary summary={summary} regionName={r.name} />}
         <div className="flex flex-wrap gap-1.5">
           {canCreate && (

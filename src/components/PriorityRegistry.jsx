@@ -3,6 +3,7 @@ import {
   X, Search, Pencil, Power, Trash2, MapPin, Plus, Save, TriangleAlert, Info, History, ArrowLeft, RotateCcw,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
+import { parseDecimal } from '../lib/csv.js';
 import { CategoryChip } from './PriorityAlertsPanel.jsx';
 import {
   PRIORITY_CATEGORIES, EMPTY_RECORD_FORM, validateRecordForm, recordToForm, nextRecordId, filterRecords, canDeleteRecord, todayIso,
@@ -12,7 +13,9 @@ const fmtDate = (iso) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 };
-const ACTION_TEXT = { criado: 'Criado', editado: 'Editado', desativado: 'Desativado', reativado: 'Reativado' };
+const ACTION_TEXT = {
+  criado: 'Criado', editado: 'Editado', desativado: 'Desativado', reativado: 'Reativado', 'localização reavaliada': 'Localização reavaliada (comunidades alteradas)',
+};
 
 /**
  * Painel lateral único do cadastro de pontos prioritários: consulta
@@ -20,7 +23,7 @@ const ACTION_TEXT = { criado: 'Criado', editado: 'Editado', desativado: 'Desativ
  */
 export default function PriorityRegistry({
   open, view, editingId, mode, records, alerts, operator, operatorLocked = false, duplicateWarningMeters,
-  onClose, onNavigate, onSave, onSetStatus, onDelete, onViewOnMap, onResetDemo,
+  onClose, onNavigate, onSave, onSetStatus, onDelete, onViewOnMap, onResetDemo, placeOf = null,
 }) {
   const panelRef = useRef(null);
   const [by, setBy] = useState(operator ?? '');
@@ -93,6 +96,7 @@ export default function PriorityRegistry({
               record={editingId ? records.find((r) => r.id === editingId) : null}
               records={records}
               duplicateWarningMeters={duplicateWarningMeters}
+              placeOf={placeOf}
               onCancel={() => onNavigate({ view: 'list' })}
               onSave={(value) => onSave(value, editingId, by)}
             />
@@ -190,6 +194,11 @@ function RecordList({
                   {r.fictitious && <StatusBadge tone="neutral" className="!px-1.5 !text-[10.5px]">Fictício</StatusBadge>}
                 </div>
                 {r.label && <p className="mt-0.5 truncate text-[12px] text-slate-700">{r.label}</p>}
+                {r.location?.rotulo && (
+                  <p className="truncate text-[11.5px] text-petrol-700" title={`Gravado em ${fmtDate(r.location.at)}`}>
+                    {r.location.rotulo}{r.location.confianca === 'baixa' ? ' ≈' : ''}
+                  </p>
+                )}
                 <p className="text-[11px] text-slate-500">Atualizado em {fmtDate(r.updatedAt)} por {r.updatedBy}</p>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] font-medium max-lg:gap-x-1 max-lg:gap-y-0 max-lg:text-[14px] max-lg:[&>button]:min-h-11 max-lg:[&>button]:px-1.5">
                   <button type="button" onClick={() => onViewOnMap(r.id)} disabled={!active} className="inline-flex items-center gap-1 text-petrol-700 hover:underline disabled:text-slate-400 disabled:no-underline" title={active ? undefined : 'Registros inativos não aparecem no mapa'}>
@@ -220,7 +229,7 @@ function RecordList({
 }
 
 function RecordForm({
-  record, records, duplicateWarningMeters, onCancel, onSave,
+  record, records, duplicateWarningMeters, onCancel, onSave, placeOf = null,
 }) {
   const [form, setForm] = useState(() => (record ? recordToForm(record) : {
     ...EMPTY_RECORD_FORM, id: nextRecordId(records), registeredOn: todayIso(),
@@ -286,6 +295,18 @@ function RecordForm({
         </label>
       </div>
       <p className="-mt-1 text-[11px] text-slate-500">WGS84 / SIRGAS 2000. Coordenadas não são enviadas a nenhum serviço externo.</p>
+      {placeOf && (() => {
+        // Município, distrito e comunidade preenchidos pela coordenada (gravados ao salvar).
+        const place = placeOf(parseDecimal(form.lat), parseDecimal(form.lng));
+        if (!place) return null;
+        return (
+          <p className="-mt-1 rounded border border-petrol-100 bg-petrol-50 px-2 py-1 text-[11.5px] text-petrol-800 max-lg:text-[13px]" role="status">
+            <b>Localização:</b> {place.rotulo}
+            {place.comunidade?.aproximada && ' (localização aproximada)'}
+            {place.origem_nome === 'comunidade_proxima' && ' (comunidade mais próxima, até 100 m)'}
+          </p>
+        );
+      })()}
 
       <fieldset>
         <legend className="mb-1 text-[11.5px] font-medium text-petrol-800">Categoria de prioridade *</legend>

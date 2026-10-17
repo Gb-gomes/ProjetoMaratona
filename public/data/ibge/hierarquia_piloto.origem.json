@@ -24,6 +24,12 @@
       "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/MG/MG_Municipios_2022.zip",
       "tamanhoBytes": 33017561,
       "sha256": "3d292889fbd2cbe9dcfd8b3fbbccbd565226eda9dceddb82ec9a89e28aee520b"
+    },
+    {
+      "arquivo": "MG_distritos_CD2022.zip",
+      "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/censo_2022/distritos/shp/UF/MG_distritos_CD2022.zip",
+      "tamanhoBytes": 38223099,
+      "sha256": "764060b1c05f118712528f0bbdc6044a615cd0506d9b0d39ee9b6750d92ebd89"
     }
   ],
   "listaMunicipiosImediata": "https://servicodados.ibge.gov.br/api/v1/localidades/regioes-imediatas/310032/municipios",

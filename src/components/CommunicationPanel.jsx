@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import {
   ArrowRight, ArrowDown, Copy, ShieldCheck, WandSparkles, TriangleAlert, CircleCheck, FileText, Info, ChevronDown,
 } from 'lucide-react';
@@ -60,11 +60,19 @@ export default function CommunicationPanel({
   const chars = countCharacters(notice.text);
   // Celular: a comparação com a comunicação tradicional fica recolhida (o resumo continua visível).
   const [compareOpen, setCompareOpen] = useState(false);
+  // A carta cresce com o texto, para aparecer inteira (sem rolagem dentro da caixa).
+  const letterRef = useRef(null);
+  useLayoutEffect(() => {
+    const el = letterRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight + 4}px`;
+  }, [notice.text, done]);
 
   return (
-    <section className="rounded-md 2xl:h-full border border-slate-200 bg-white p-3.5 shadow-panel" aria-labelledby="comm-title">
+    <section className="rounded-md border border-slate-200 bg-white p-3.5 shadow-panel" aria-labelledby="comm-title">
       <h2 id="comm-title" className="sr-only">Comunicação rural</h2>
-      <div className="grid h-full gap-3 lg:grid-cols-[minmax(0,1fr)_212px_minmax(0,1.2fr)] 2xl:grid-rows-[minmax(0,1fr)]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_minmax(0,1.5fr)]">
         {/* Celular: resumo do indicador sempre visível, no topo da tela */}
         <div className="rounded-md border border-petrol-100 bg-petrol-50 text-petrol-800 max-lg:order-first lg:hidden">
           <p className="px-3 py-2.5 text-[14px] leading-snug">
@@ -114,7 +122,7 @@ export default function CommunicationPanel({
                 id="traditional-text"
                 readOnly
                 value={traditionalText}
-                className="min-h-[110px] flex-1 resize-none rounded-md border border-slate-200 bg-slate-50 2xl:min-h-0 px-3 py-2 text-[12px] leading-[1.45] text-slate-700"
+                className="min-h-[320px] flex-1 resize-none rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] leading-[1.45] text-slate-700"
               />
               <div className="mt-1.5 flex items-center justify-between text-[11.5px] text-slate-500">
                 <span>{isReal ? `${result.valid} pontos válidos do CSV` : `${result.total} pontos individuais considerados na demonstração`}</span>
@@ -175,11 +183,12 @@ export default function CommunicationPanel({
               )}
               <label htmlFor="regional-text" className="sr-only">Texto do aviso por região (editável)</label>
               <textarea
+                ref={letterRef}
                 id="regional-text"
                 value={notice.text}
                 onChange={(e) => onNoticeChange(e.target.value)}
                 placeholder="A carta para as rádios aparece aqui."
-                className="min-h-[220px] flex-1 resize-y rounded-md border-2 2xl:min-h-0 max-lg:min-h-[45dvh] border-accent-300 bg-white px-3 py-2 text-[13px] leading-[1.5] text-petrol-900 focus:border-accent-500"
+                className="min-h-[320px] resize-y overflow-hidden rounded-md border-2 max-lg:min-h-[45dvh] border-accent-300 bg-white px-3 py-2 text-[13px] leading-[1.5] text-petrol-900 focus:border-accent-500"
               />
               <div className="mt-2 flex flex-wrap items-center gap-2 max-lg:sticky max-lg:-bottom-3 max-lg:z-10 max-lg:-mx-3.5 max-lg:gap-1.5 max-lg:border-t max-lg:border-slate-200 max-lg:bg-white max-lg:px-3.5 max-lg:py-2">
                 <span className="mr-auto text-[11.5px] text-slate-500 max-lg:w-full max-lg:text-[12.5px]" aria-live="polite">

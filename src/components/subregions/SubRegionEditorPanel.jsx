@@ -23,7 +23,8 @@ export default function SubRegionEditorPanel({
   // Celular: campos secundários recolhidos, para sobrar mapa para desenhar.
   const [more, setMore] = useState(!compact);
   const editingGeometry = editor.mode === 'edit-geometry';
-  const title = editingGeometry ? `Editar área: ${editor.form.name}` : editor.form.duplicatedFrom ? 'Duplicar sub-região' : 'Nova sub-região';
+  const splitting = editor.mode === 'split';
+  const title = editingGeometry ? `Editar área: ${editor.form.name}` : splitting ? `Dividir comunidade: ${editor.form.splitOf}` : editor.form.duplicatedFrom ? 'Duplicar sub-região' : 'Nova sub-região';
   const v = validation;
   const errors = v ? Object.values(v.errors) : [];
   const unitMethod = editor.method === 'municipalities' || editor.method === 'sectors';
@@ -41,6 +42,9 @@ export default function SubRegionEditorPanel({
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2.5 text-[12.5px] text-petrol-900 max-lg:text-[14px]">
+        {splitting && (
+          <p className="text-[11.5px] leading-snug text-slate-600 max-lg:text-[12.5px]">Desenhe a parte que vira uma comunidade nova. A comunidade original fica com o restante; as duas guardam o histórico.</p>
+        )}
         {!editingGeometry && (
           <div role="radiogroup" aria-label="Forma de criação" className="grid grid-cols-3 gap-1.5">
             {METHODS.map((m) => {
@@ -110,7 +114,7 @@ export default function SubRegionEditorPanel({
                 maxLength={80}
                 aria-invalid={!!v?.errors.name}
                 className={`mt-0.5 block w-full rounded border bg-white px-2 py-1 max-lg:min-h-11 ${v?.errors.name ? 'border-red-400' : 'border-slate-300'} disabled:bg-slate-50`}
-                placeholder="Ex.: Zona rural Norte"
+                placeholder={splitting ? 'Nome da nova comunidade' : 'Ex.: Zona rural Norte'}
               />
             </label>
             {!editingGeometry && compact && (
@@ -177,7 +181,7 @@ export default function SubRegionEditorPanel({
           className="ml-auto inline-flex items-center gap-1.5 rounded bg-accent-500 px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-accent-600 disabled:opacity-40 max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:text-[14px]"
         >
           <Save className="h-3.5 w-3.5" aria-hidden="true" />
-          {editingGeometry ? 'Salvar área' : 'Salvar sub-região'}
+          {editingGeometry ? 'Salvar área' : splitting ? 'Dividir' : 'Salvar sub-região'}
         </button>
       </div>
     </section>

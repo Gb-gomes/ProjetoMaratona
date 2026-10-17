@@ -47,11 +47,21 @@ const newId = () => (globalThis.crypto?.randomUUID?.() ?? `cr-${Date.now().toStr
 
 export const isActive = (r) => !r.deletedAt;
 
-/** Sub-regiões "irmãs": mesma organização, mesma região-mãe IBGE e mesma sub-região-mãe. */
-export function siblingsOf(regions, { orgId, ibgeParentCode, parentCustomRegionId = null }, exceptId = null) {
+/**
+ * Conjunto da sub-região: null = sub-regiões da organização; 'communities' =
+ * comunidades (lib/communities.js). Conjuntos diferentes não se bloqueiam
+ * (nome e sobreposição são verificados só dentro do mesmo conjunto).
+ */
+export const regionSetOf = (r) => r?.regionSet ?? null;
+
+/** Sub-regiões "irmãs": mesma organização, conjunto, região-mãe IBGE e sub-região-mãe. */
+export function siblingsOf(regions, {
+  orgId, ibgeParentCode, parentCustomRegionId = null, regionSet = null,
+}, exceptId = null) {
   return regions.filter((r) => isActive(r)
     && r.id !== exceptId
     && r.orgId === orgId
+    && regionSetOf(r) === (regionSet ?? null)
     && r.ibgeParentCode === ibgeParentCode
     && (r.parentCustomRegionId ?? null) === (parentCustomRegionId ?? null));
 }
@@ -140,13 +150,15 @@ export function normalizeFields(draft) {
  * @returns {{ ok, errors: {name?, geometry?, ...}, warnings: string[], prepared, fields }}
  */
 export function validateDraft(draft, {
-  regions, orgId, parentGeometry, editingId = null, rules = DEFAULT_RULES,
+  regions, orgId, parentGeometry, editingId = null, rules = DEFAULT_RULES, ignoreOverlapIds = [],
 }) {
   const { value: fields, errors } = normalizeFields(draft);
   const warnings = [];
   const r = { ...DEFAULT_RULES, ...rules };
 
-  const scope = { orgId, ibgeParentCode: draft.ibgeParentCode, parentCustomRegionId: draft.parentCustomRegionId ?? null };
+  const scope = {
+    orgId, ibgeParentCode: draft.ibgeParentCode, parentCustomRegionId: draft.parentCustomRegionId ?? null, regionSet: draft.regionSet ?? null,
+  };
   const siblings = siblingsOf(regions, scope, editingId);
   if (!errors.name && siblings.some((s) => nameKey(s.name) === nameKey(fields.name))) {
     errors.name = `Já existe uma sub-região chamada "${fields.name}" nesta região-mãe.`;
@@ -166,7 +178,8 @@ export function validateDraft(draft, {
         warnings.push(`${fmtArea(prepared.clippedAreaKm2)} fora da região-mãe serão recortados (até ${Math.round(prepared.maxOutsideMeters).toLocaleString('pt-BR')} m além da borda).`);
       }
       if (!r.allowSiblingOverlap) {
-        const overlaps = findOverlaps(prepared.geometry, siblings, r);
+        // Na divisão de uma comunidade, a parte nova fica dentro da original (que será reduzida).
+        const overlaps = findOverlaps(prepared.geometry, siblings.filter((x) => !ignoreOverlapIds.includes(x.id)), r);
         if (overlaps.length) {
           errors.overlap = `Sobreposição com ${overlaps.map((o) => `"${o.name}" (${fmtArea(o.areaKm2)})`).join(', ')}. A organização não permite sobreposição entre sub-regiões irmãs.`;
         }
@@ -191,7 +204,7 @@ export function fmtArea(km2) {
   return `${Math.round(km2 * 1e6).toLocaleString('pt-BR')} m²`;
 }
 
-const metricsOf = (geometry) => ({
+export const metricsOf = (geometry) => ({
   areaKm2: +areaKm2(geometry).toFixed(4),
   perimeterKm: +perimeterKm(geometry).toFixed(3),
 });
@@ -265,6 +278,7 @@ export function updateRegion(regions, id, draft, ctx, { by, at = nowIso() } = {}
   const metrics = geometryChanged ? metricsOf(v.prepared.geometry) : null;
   if (geometryChanged) {
     changes.geometry = {
+      previousGeometry: current.geometry,
       fromAreaKm2: current.areaKm2,
       toAreaKm2: metrics.areaKm2,
       clippedAreaKm2: v.prepared.clipped ? +v.prepared.clippedAreaKm2.toFixed(6) : 0,
@@ -280,6 +294,11 @@ export function updateRegion(regions, id, draft, ctx, { by, at = nowIso() } = {}
       ...metrics,
       // Uma geometria editada à mão deixa de ser a união exata das unidades selecionadas.
       ...(draft.creationMethod ? { creationMethod: draft.creationMethod } : {}),
+    } : {}),
+    // Comunidades: nome e contorno editados no sistema não são sobrescritos por uma reimportação.
+    ...(regionSetOf(current) === 'communities' ? {
+      nameEdited: current.nameEdited || !!changes.name,
+      geometryEdited: current.geometryEdited || geometryChanged,
     } : {}),
     updatedBy: who,
     updatedAt: at,
@@ -315,7 +334,7 @@ export function restoreRegion(regions, id, ctx, { by, at = nowIso() } = {}) {
   if (target.parentCustomRegionId && !regions.find((r) => r.id === target.parentCustomRegionId && isActive(r))) {
     throw new Error('Restaure primeiro a sub-região-mãe.');
   }
-  const siblings = siblingsOf(regions, target, id);
+  const siblings = siblingsOf(regions, { ...target, regionSet: regionSetOf(target) }, id);
   if (siblings.some((s) => nameKey(s.name) === nameKey(target.name))) {
     throw new Error(`Já existe outra sub-região ativa chamada "${target.name}".`);
   }
@@ -329,7 +348,7 @@ export function restoreRegion(regions, id, ctx, { by, at = nowIso() } = {}) {
 
 /** Nome livre para uma cópia: "Nome (cópia)", "Nome (cópia 2)"… */
 export function copyName(regions, region) {
-  const siblings = siblingsOf(regions, region);
+  const siblings = siblingsOf(regions, { ...region, regionSet: regionSetOf(region) });
   const taken = new Set(siblings.map((s) => nameKey(s.name)));
   for (let n = 1; n < 100; n += 1) {
     const candidate = `${region.name} (cópia${n > 1 ? ` ${n}` : ''})`.slice(0, 80);
@@ -400,4 +419,45 @@ export function polygonFromGeoJSON(gj) {
   const merged = unionGeometries(geoms);
   if (!merged) throw new Error('Não foi possível unir os polígonos do arquivo.');
   return { geometry: merged, polygons: geoms.length };
+}
+
+/**
+ * Une duas sub-regiões irmãs: `keepId` fica com a união; a outra é excluída
+ * (lógica), com registro no histórico das duas.
+ */
+export function mergeRegions(regions, keepId, otherId, { by, at = nowIso() } = {}) {
+  const who = requireBy(by);
+  const keep = regions.find((r) => r.id === keepId && isActive(r));
+  const other = regions.find((r) => r.id === otherId && isActive(r));
+  if (!keep || !other) throw new Error('Sub-região não encontrada.');
+  if (keep.ibgeParentCode !== other.ibgeParentCode || regionSetOf(keep) !== regionSetOf(other)
+    || (keep.parentCustomRegionId ?? null) !== (other.parentCustomRegionId ?? null)) {
+    throw new Error('Só é possível unir sub-regiões da mesma região-mãe e do mesmo conjunto.');
+  }
+  if (childrenOf(regions, otherId).length) throw new Error(`"${other.name}" tem sub-regiões dentro; mova ou exclua-as antes.`);
+  const geometry = unionGeometries([keep.geometry, other.geometry]);
+  if (!geometry) throw new Error('Não foi possível unir as áreas.');
+  const metrics = metricsOf(geometry);
+  return regions.map((r) => {
+    if (r.id === keepId) {
+      return {
+        ...r,
+        geometry,
+        ...metrics,
+        ...(regionSetOf(r) === 'communities' ? { geometryEdited: true } : {}),
+        updatedBy: who,
+        updatedAt: at,
+        history: [...r.history, historyEntry('unida', who, at, {
+          geometry: { previousGeometry: keep.geometry, fromAreaKm2: keep.areaKm2, toAreaKm2: metrics.areaKm2 },
+          motivo: `unida com "${other.name}"`,
+        })],
+      };
+    }
+    if (r.id === otherId) {
+      return {
+        ...r, deletedAt: at, deletedBy: who, history: [...r.history, historyEntry('excluída', who, at, { motivo: `unida a "${keep.name}"` })],
+      };
+    }
+    return r;
+  });
 }

@@ -20,6 +20,8 @@ const ORIGIN_LABEL = {
   correspondence: 'correspondência validada',
   official: 'nome oficial aprovado',
   ibge: 'nome automático da área do IBGE',
+  comunidade: 'comunidades dos pontos afetados (arquivo de comunidades)',
+  microrregiao: 'nome da microrregião (arquivo de comunidades)',
 };
 const ACTION_LABEL = {
   definido: 'Nome definido', alterado: 'Nome alterado', removido: 'Nome removido', importado: 'Nome importado',
@@ -52,10 +54,19 @@ export default function RegionPanel({
   const savedCount = Object.values(regionStore).filter((e) => e.current).length;
 
   // Mantém o item em foco visível na lista (inclusive quando focado pelo mapa).
+  // No computador a lista fica abaixo do mapa: rola só a lista, sem tirar o mapa da tela.
+  const listRef = useRef(null);
   useEffect(() => {
     if (!focusId) return;
-    document.getElementById(`unit-${focusId}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-  }, [focusId]);
+    const item = document.getElementById(`unit-${focusId}`);
+    const box = listRef.current;
+    if (!item) return;
+    if (!mobile && box) {
+      box.scrollTo({ top: item.offsetTop - 8, behavior: 'smooth' });
+      return;
+    }
+    item.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [focusId, mobile]);
 
   useEffect(() => { if (!done) setEditingId(null); }, [done]);
 
@@ -94,7 +105,11 @@ export default function RegionPanel({
       <div className="border-b border-slate-100 px-3.5 py-2.5">
         <h2 id="regions-title" className="text-[13.5px] font-semibold text-petrol-900 max-lg:text-[16px]">Regiões identificadas</h2>
         <p className="text-[12px] text-slate-500 max-lg:text-[13px]">
-          <span className="max-lg:hidden">Unidades territoriais associadas aos pontos importados</span>
+          <span className="max-lg:hidden">
+            {done && result.grouping === 'place'
+              ? 'Microrregiões com pontos afetados; pontos fora delas, pela área do IBGE'
+              : 'Unidades territoriais associadas aos pontos importados'}
+          </span>
           <span className="lg:hidden">Toque numa região para ver os detalhes. A caixa inclui a região no aviso.</span>
         </p>
       </div>
@@ -139,7 +154,7 @@ export default function RegionPanel({
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto scroll-pt-2 px-3.5 py-3">
+      <div ref={listRef} className="relative min-h-0 flex-1 overflow-y-auto scroll-pt-2 px-3.5 py-3 lg:max-h-[560px]">
         {phase === 'processing' && (
           <p className="flex items-center gap-2 py-6 text-[12.5px] text-slate-600" role="status">
             <LoaderCircle className="h-4 w-4 animate-spin text-accent-500" aria-hidden="true" />
@@ -181,7 +196,7 @@ export default function RegionPanel({
                 <button type="button" onClick={onClearSelection} className="font-medium text-petrol-600 hover:underline max-lg:min-h-11 max-lg:px-1">Limpar</button>
               </span>
             </div>
-            <ul className="space-y-2 max-lg:space-y-2.5">
+            <ul className="space-y-2 max-lg:space-y-2.5 lg:grid lg:grid-cols-2 lg:items-start lg:gap-2 lg:space-y-0 2xl:grid-cols-3">
               {result.units.map((u, i) => {
                 const expanded = focusId === u.id;
                 const included = selectedIds.includes(u.id);
@@ -195,7 +210,7 @@ export default function RegionPanel({
                   <li
                     key={u.id}
                     id={`unit-${u.id}`}
-                    className={`rounded-md border transition-colors ${
+                    className={`rounded-md border transition-colors ${expanded ? 'lg:col-span-full' : ''} ${
                       expanded ? 'border-petrol-700 bg-petrol-50/60' : unnamed ? 'border-amber-300' : 'border-slate-200 hover:border-accent-300'
                     }`}
                   >
@@ -228,6 +243,21 @@ export default function RegionPanel({
                             {speak.origin === 'operator' && (
                               <span className="ml-1.5 rounded bg-petrol-50 px-1 py-px align-middle text-[10px] font-medium text-petrol-700 ring-1 ring-inset ring-petrol-100">
                                 nome alterado
+                              </span>
+                            )}
+                            {speak.origin === 'comunidade' && (
+                              <span className="ml-1.5 rounded bg-emerald-50 px-1 py-px align-middle text-[10px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">
+                                comunidades
+                              </span>
+                            )}
+                            {u.kind === 'microrregiao' && speak.origin !== 'operator' && (
+                              <span className="ml-1.5 rounded bg-emerald-50 px-1 py-px align-middle text-[10px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">
+                                microrregião
+                              </span>
+                            )}
+                            {u.kind === 'microrregiao' && u.confianca === 'baixa' && (
+                              <span className="ml-1.5 rounded bg-amber-50 px-1 py-px align-middle text-[10px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200">
+                                localização aproximada
                               </span>
                             )}
                             {speak.origin === 'ibge' && (
@@ -452,6 +482,9 @@ export function RealDetails({
   u, speak, history, result, layerInfo, panelId,
 }) {
   const current = speak.origin === 'operator' ? speak.entry : null;
+  if (u.kind === 'microrregiao' || u.kind === 'area_ibge') {
+    return <PlaceDetails u={u} speak={speak} current={current} history={history} result={result} layerInfo={layerInfo} panelId={panelId} />;
+  }
   return (
     <dl id={panelId} className="grid grid-cols-[104px_1fr] gap-x-2 gap-y-1 border-t border-slate-200 px-2.5 py-2 text-[11.5px] max-lg:grid-cols-[112px_minmax(0,1fr)] max-lg:gap-y-2 max-lg:px-0 max-lg:text-[14px]">
       <Detail label="Nome no aviso">
@@ -472,6 +505,20 @@ export function RealDetails({
           <span className="block text-slate-500">Se a comunidade conhece a área por outro nome, use &quot;Nomear&quot;.</span>
         )}
       </Detail>
+      {speak.origin === 'comunidade' && (
+        <Detail label="Comunidades">
+          {speak.communities.counts.map((c) => (
+            <span key={c.id} className="block">
+              {c.name}
+              {' '}
+              <span className="text-slate-500">({c.count} ponto(s){c.confianca === 'baixa' ? ', localização aproximada' : ''})</span>
+            </span>
+          ))}
+          {speak.communities.uncovered > 0 && (
+            <span className="block text-slate-500">{speak.communities.uncovered} ponto(s) fora das comunidades: citado(s) pelo nome do IBGE.</span>
+          )}
+        </Detail>
+      )}
       <Detail label="Denominação IBGE">{u.name ?? <span className="text-slate-500">Sem denominação na camada oficial</span>}</Detail>
       {u.context?.map((c) => (
         <Detail key={c.label} label={`${c.label} (IBGE)`}>{c.value}</Detail>
@@ -484,6 +531,81 @@ export function RealDetails({
         <span className="inline-flex items-center gap-1 text-emerald-700">
           <CircleCheck className="h-3.5 w-3.5" aria-hidden="true" />
           Ponto no polígono, interior estrito
+        </span>
+      </Detail>
+      {history.length > 0 && (
+        <Detail label="Histórico">
+          <details>
+            <summary className="inline-flex cursor-pointer items-center gap-1 font-medium text-petrol-700 max-lg:min-h-11">
+              <History className="h-3 w-3" aria-hidden="true" />{history.length} alteração(ões)
+            </summary>
+            <ol className="mt-1 space-y-1 border-l border-slate-200 pl-2">
+              {[...history].reverse().map((h, k) => (
+                <li key={`${h.at}-${k}`}>
+                  <span className="font-medium">{ACTION_LABEL[h.action] ?? h.action}</span>
+                  {' — '}
+                  {h.previousName ? `"${h.previousName}" → ` : ''}{h.name ? `"${h.name}"` : '(sem nome)'}
+                  <span className="block text-slate-500">
+                    {h.by}, {fmtDateTime(h.at)}{h.note ? ` — ${h.note}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </details>
+        </Detail>
+      )}
+    </dl>
+  );
+}
+
+/** Detalhes de uma região por microrregião ou por área do IBGE (lib/placeRegions.js). */
+function PlaceDetails({
+  u, speak, current, history, result, layerInfo, panelId,
+}) {
+  const community = u.kind === 'microrregiao';
+  const sectors = u.sectors ?? [];
+  return (
+    <dl id={panelId} className="grid grid-cols-[104px_1fr] gap-x-2 gap-y-1 border-t border-slate-200 px-2.5 py-2 text-[11.5px] max-lg:grid-cols-[112px_minmax(0,1fr)] max-lg:gap-y-2 max-lg:px-0 max-lg:text-[14px]">
+      <Detail label="Nome no aviso">
+        {speak.name} <span className="text-slate-500">({ORIGIN_LABEL[speak.origin]})</span>
+        {current && (
+          <span className="block text-slate-500">
+            Alterado por {current.validatedBy} em {fmtDateTime(current.validatedOn)}. Nome no arquivo: {u.placeName}
+          </span>
+        )}
+        {!community && speak.origin === 'ibge' && (
+          <span className="block text-slate-500">Pontos fora das microrregiões. Se a comunidade conhece a área por outro nome, use &quot;Nomear&quot;.</span>
+        )}
+      </Detail>
+      <Detail label="Tipo">{community ? 'Microrregião (arquivo de comunidades)' : 'Área do IBGE sem microrregião'}</Detail>
+      {community && <Detail label="ID"><span className="font-mono">{u.externalCode}</span></Detail>}
+      {community && (
+        <Detail label="Confiança">
+          {u.confianca === 'baixa'
+            ? <span className="text-amber-700">Baixa: localização aproximada. Confirme com a equipe de campo.</span>
+            : 'Boa'}
+        </Detail>
+      )}
+      {u.context?.map((c) => (
+        <Detail key={c.label} label={`${c.label} (IBGE)`}>{c.value}</Detail>
+      ))}
+      {!community && <Detail label="Código IBGE"><span className="font-mono">{u.code}</span></Detail>}
+      <Detail label="Pontos">{u.count} de {result.matched} associados ({u.pct.toLocaleString('pt-BR')}%)</Detail>
+      {community && u.nearCount > 0 && (
+        <Detail label="Regra dos 100 m">{u.nearCount} ponto(s) numa lacuna entre microrregiões, atribuído(s) à mais próxima (até 100 m)</Detail>
+      )}
+      <Detail label={sectors.length > 1 ? 'Setores censitários' : 'Setor censitário'}>
+        <span className="font-mono">{sectors.slice(0, 6).join(', ')}</span>
+        {sectors.length > 6 && <span className="text-slate-500"> e mais {sectors.length - 6}</span>}
+      </Detail>
+      <Detail label="Fonte">{community ? 'Arquivo de comunidades do projeto (contorno aproximado, não oficial)' : 'IBGE: distritos e setores censitários'}</Detail>
+      <Detail label="Associação">
+        <span className="inline-flex items-center gap-1 text-emerald-700">
+          <CircleCheck className="h-3.5 w-3.5" aria-hidden="true" />
+          Ponto no polígono do {layerInfo.unitType.toLowerCase()}, interior estrito
+        </span>
+        <span className="block text-slate-500">
+          {community ? 'Agrupado na microrregião que contém o ponto (ou na mais próxima, até 100 m).' : 'Fora de qualquer microrregião: agrupado pela área do IBGE.'}
         </span>
       </Detail>
       {history.length > 0 && (

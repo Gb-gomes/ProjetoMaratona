@@ -1,8 +1,12 @@
-import { Layers } from 'lucide-react';
+import {
+  LegendRow, PointSymbol, TerritoryLegend, PriorityLegend, DemoMapNote,
+} from './MapLegend.jsx';
 
 /**
- * Controle de camadas do mapa. A rede elétrica fica desabilitada porque
- * o protótipo não possui dados dessa camada.
+ * Conteúdo do painel "Camadas e legenda" (demonstração e camadas
+ * operacionais): cada camada tem a sua caixa de seleção e, logo abaixo, a
+ * legenda dos símbolos que ela desenha. Assim o controle também é a legenda.
+ * A rede elétrica fica desabilitada porque a demonstração não tem esses dados.
  */
 const POINT_FILTERS = [
   { key: 'matched', label: 'Associados', dot: 'bg-petrol-800' },
@@ -10,81 +14,107 @@ const POINT_FILTERS = [
   { key: 'ambiguous', label: 'Ambíguos', dot: 'bg-amber-600' },
 ];
 
-/** Filtros dos pontos importados por situação (também usados no painel de camadas do modo real). */
+const checkbox = 'h-4 w-4 shrink-0 accent-accent-500 max-lg:h-5 max-lg:w-5';
+
+/** Filtros dos pontos importados por situação: cada um com o símbolo do mapa e a contagem. */
 export function PointFilters({
   pointFilter, onTogglePointFilter, counts, disabled = false,
 }) {
   return (
-    <div className="mb-1 space-y-0.5">
+    <ul className="space-y-0.5">
       {POINT_FILTERS.map((f) => (
-        <label key={f.key} className="flex cursor-pointer items-center gap-1.5 text-[11.5px] text-slate-600 max-lg:min-h-11 max-lg:gap-2 max-lg:text-[13.5px]">
-          <input
-            type="checkbox"
-            checked={pointFilter[f.key]}
-            disabled={disabled}
-            onChange={() => onTogglePointFilter(f.key)}
-            className="h-3 w-3 accent-accent-500 max-lg:h-5 max-lg:w-5"
-          />
-          <span className={`h-2 w-2 rounded-full ${f.dot}`} aria-hidden="true" />
-          {f.label}{counts ? ` (${counts[f.key]})` : ''}
-        </label>
+        <li key={f.key}>
+          <label className={`flex min-h-6 cursor-pointer items-center gap-2 text-[12px] max-lg:min-h-11 max-lg:text-[13px] ${disabled ? 'text-slate-400' : 'text-petrol-900'}`}>
+            <span className="flex w-5 shrink-0 items-center justify-center" aria-hidden="true"><PointSymbol dot={f.dot} /></span>
+            <span className="min-w-0 flex-1">{f.label}</span>
+            {counts && <span className="tabular-nums text-slate-500">{counts[f.key]}</span>}
+            <input
+              type="checkbox"
+              checked={pointFilter[f.key]}
+              disabled={disabled}
+              onChange={() => onTogglePointFilter(f.key)}
+              className={checkbox}
+              aria-label={`Mostrar pontos ${f.label.toLowerCase()}`}
+            />
+          </label>
+        </li>
       ))}
-    </div>
+    </ul>
+  );
+}
+
+/** Seção do painel: título curto e divisor sutil entre seções. */
+export function PanelSection({ title, children }) {
+  return (
+    <section className="border-t border-slate-100 px-3 py-2.5 first:border-t-0">
+      {title && <h4 className="mb-1.5 text-[12px] font-semibold uppercase tracking-wide text-slate-500">{title}</h4>}
+      {children}
+    </section>
+  );
+}
+
+/** Linha de camada: caixa de seleção + nome (+ subtítulo). */
+function LayerToggle({
+  checked, onChange, children, subtitle, disabled = false, describedBy,
+}) {
+  return (
+    <label className={`flex min-h-7 items-start gap-2 py-0.5 text-[13px] max-lg:min-h-11 max-lg:items-center max-lg:text-[14px] ${disabled ? 'cursor-not-allowed text-slate-400' : 'cursor-pointer text-petrol-900'}`}>
+      <span className="flex w-5 shrink-0 justify-center pt-0.5 max-lg:pt-0">
+        <input type="checkbox" checked={checked} disabled={disabled} onChange={onChange} className={checkbox} aria-describedby={describedBy} />
+      </span>
+      <span className="min-w-0 leading-tight">
+        <span className="font-medium">{children}</span>
+        {subtitle && <span id={describedBy} className="block text-[12px] font-normal text-slate-500">{subtitle}</span>}
+      </span>
+    </label>
   );
 }
 
 export default function LayerControl({
-  layers, onToggle, territorialTitle, pointFilter, onTogglePointFilter, counts, priorityCount = 0,
+  layers, onToggle, territorialTitle, pointFilter, onTogglePointFilter, counts, priorityCount = 0, demo = false,
 }) {
   return (
-    <fieldset className="w-[230px] max-lg:w-[min(272px,calc(100vw-1.5rem))] rounded-md border border-slate-200 bg-white/95 px-3 py-2.5 shadow-md backdrop-blur-sm">
-      <legend className="sr-only">Camadas do mapa</legend>
-      <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-petrol-900" aria-hidden="true">
-        <Layers className="h-3.5 w-3.5 text-petrol-500" />
-        Camadas
-      </p>
-      <label className="flex cursor-pointer items-center gap-2 py-1 text-[12.5px] max-lg:min-h-11 max-lg:py-2 max-lg:text-[14px] text-petrol-900">
-        <input
-          type="checkbox"
-          checked={layers.points}
-          onChange={() => onToggle('points')}
-          className="h-3.5 w-3.5 accent-accent-500 max-lg:h-5 max-lg:w-5"
-        />
-        Pontos importados
-      </label>
-      {pointFilter && (
-        <div className="ml-5">
-          <PointFilters pointFilter={pointFilter} onTogglePointFilter={onTogglePointFilter} counts={counts} disabled={!layers.points} />
+    <div>
+      <PanelSection title="Pontos importados">
+        <LayerToggle checked={layers.points} onChange={() => onToggle('points')}>
+          {demo ? 'Registros geográficos' : 'Pontos importados'}
+        </LayerToggle>
+        <div className="ml-7 mt-0.5">
+          {pointFilter ? (
+            <PointFilters pointFilter={pointFilter} onTogglePointFilter={onTogglePointFilter} counts={counts} disabled={!layers.points} />
+          ) : (
+            <ul><LegendRow symbol={<PointSymbol />} muted={!layers.points}>{demo ? 'Registro geográfico importado' : 'Ponto importado'}</LegendRow></ul>
+          )}
         </div>
-      )}
-      <label className="flex cursor-pointer items-center gap-2 py-1 text-[12.5px] max-lg:min-h-11 max-lg:py-2 max-lg:text-[14px] text-petrol-900">
-        <input
-          type="checkbox"
-          checked={layers.priority}
-          onChange={() => onToggle('priority')}
-          className="h-3.5 w-3.5 accent-accent-500 max-lg:h-5 max-lg:w-5"
-        />
-        Pontos prioritários ({priorityCount})
-      </label>
-      <label className="flex cursor-pointer items-start gap-2 py-1 text-[12.5px] max-lg:min-h-11 max-lg:py-2 max-lg:text-[14px] text-petrol-900">
-        <input
-          type="checkbox"
-          checked={layers.territories}
-          onChange={() => onToggle('territories')}
-          className="mt-0.5 h-3.5 w-3.5 accent-accent-500 max-lg:h-5 max-lg:w-5"
-        />
-        <span className="leading-tight">
+      </PanelSection>
+
+      <PanelSection title="Unidades territoriais">
+        <LayerToggle checked={layers.territories} onChange={() => onToggle('territories')} subtitle={territorialTitle} describedBy="legend-territorial-title">
           Camada territorial
-          <span className="block text-[11px] max-lg:text-[12.5px] text-slate-500">{territorialTitle}</span>
+        </LayerToggle>
+        <div className="ml-7 mt-0.5"><TerritoryLegend /></div>
+      </PanelSection>
+
+      <PanelSection title="Pontos prioritários">
+        <LayerToggle checked={layers.priority} onChange={() => onToggle('priority')}>
+          Pontos prioritários ({priorityCount})
+        </LayerToggle>
+        <div className="ml-7 mt-0.5"><PriorityLegend /></div>
+      </PanelSection>
+
+      <PanelSection title="Rede elétrica">
+        <span title="Sem dados da rede elétrica nesta demonstração">
+          <LayerToggle checked={false} disabled onChange={() => {}} subtitle="Indisponível: sem dados" describedBy="rede-sem-dados">
+            Rede elétrica
+          </LayerToggle>
         </span>
-      </label>
-      <label className="flex cursor-not-allowed items-start gap-2 py-1 text-[12.5px] max-lg:min-h-11 max-lg:py-2 max-lg:text-[14px] text-slate-400" title="Sem dados da rede elétrica nesta demonstração">
-        <input type="checkbox" disabled checked={false} readOnly className="mt-0.5 h-3.5 w-3.5 max-lg:h-5 max-lg:w-5" aria-describedby="rede-sem-dados" />
-        <span className="leading-tight">
-          Rede elétrica
-          <span id="rede-sem-dados" className="block text-[11px] max-lg:text-[12.5px]">Indisponível: sem dados</span>
-        </span>
-      </label>
-    </fieldset>
+      </PanelSection>
+
+      {demo && (
+        <PanelSection>
+          <DemoMapNote />
+        </PanelSection>
+      )}
+    </div>
   );
 }

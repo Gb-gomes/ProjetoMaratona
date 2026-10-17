@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Download, CircleCheck, TriangleAlert, ListChecks } from 'lucide-react';
-import { auditRows, toCsv } from '../lib/summary.js';
+import { auditRows, toCsv, pointsByPlace } from '../lib/summary.js';
 
 const STATUS_LABEL = { matched: 'Associado', unmatched: 'Sem correspondência territorial', ambiguous: 'Ambíguo (revisão)' };
 const STATUS_CLASS = {
@@ -27,6 +27,7 @@ function Stat({ label, value, tone }) {
  */
 export default function AuditDialog({ open, onClose, result, summary, layerInfo, onFocusUnit }) {
   const [filter, setFilter] = useState('issues');
+  const [placeFilter, setPlaceFilter] = useState('all'); // chave de pointsByPlace
   const [showCoords, setShowCoords] = useState(false);
   const [page, setPage] = useState(0);
   const closeRef = useRef(null);
@@ -39,15 +40,19 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  useEffect(() => setPage(0), [filter]);
+  useEffect(() => setPage(0), [filter, placeFilter]);
+  const byPlace = useMemo(() => pointsByPlace(result), [result]);
+  const placeKey = (p) => (p.place?.comunidade ? `c:${p.place.comunidade.regionId}` : p.place ? `l:${p.place.local ?? p.place.rotulo}` : null);
 
+  const grouped = result?.grouping === 'place';
   const unitCode = useMemo(() => new Map((result?.units ?? []).map((u) => [u.id, u.code])), [result]);
   const rows = useMemo(() => {
     if (!result) return [];
-    if (filter === 'all') return result.points;
-    if (filter === 'issues') return result.points.filter((p) => p.status !== 'matched' || p.warnings.length);
-    return result.points.filter((p) => p.status === filter);
-  }, [result, filter]);
+    const byStatus = filter === 'all' ? result.points
+      : filter === 'issues' ? result.points.filter((p) => p.status !== 'matched' || p.warnings.length)
+        : result.points.filter((p) => p.status === filter);
+    return placeFilter === 'all' ? byStatus : byStatus.filter((p) => placeKey(p) === placeFilter);
+  }, [result, filter, placeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open || !result) return null;
 
@@ -114,15 +119,15 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
               <p className="mt-1 text-[11px] text-slate-500">Pontos, clientes, equipamentos e propriedades são contados separadamente; um não equivale a outro.</p>
             </div>
             <div className="text-[12px]">
-              <h3 className="mb-1 font-semibold text-petrol-900">Pontos por unidade ({layerInfo.unitType})</h3>
+              <h3 className="mb-1 font-semibold text-petrol-900">{grouped ? 'Pontos por região (microrregião ou área do IBGE)' : `Pontos por unidade (${layerInfo.unitType})`}</h3>
               <div className="max-h-36 overflow-y-auto rounded border border-slate-200">
                 <table className="min-w-full text-left">
-                  <thead className="sticky top-0 bg-slate-50 text-slate-600"><tr><th className="px-2 py-1">Código oficial</th><th className="px-2 py-1">Contexto oficial</th><th className="px-2 py-1 text-right">Pontos</th></tr></thead>
+                  <thead className="sticky top-0 bg-slate-50 text-slate-600"><tr><th className="px-2 py-1">{grouped ? 'Região' : 'Código oficial'}</th><th className="px-2 py-1">{grouped ? 'Contexto (IBGE)' : 'Contexto oficial'}</th><th className="px-2 py-1 text-right">Pontos</th></tr></thead>
                   <tbody>
                     {result.units.map((unit) => (
                       <tr key={unit.id} className="border-t border-slate-100">
-                        <td className="px-2 py-1 font-mono text-[11.5px]">
-                          <button type="button" className="text-petrol-700 underline-offset-2 hover:underline max-lg:min-h-11 max-lg:underline" onClick={() => { onFocusUnit(unit.id); onClose(); }}>{unit.code}</button>
+                        <td className={`px-2 py-1 ${grouped && unit.placeName ? '' : 'font-mono text-[11.5px]'}`}>
+                          <button type="button" className="text-left text-petrol-700 underline-offset-2 hover:underline max-lg:min-h-11 max-lg:underline" onClick={() => { onFocusUnit(unit.id); onClose(); }}>{grouped && unit.placeName ? unit.placeName : unit.code}</button>
                         </td>
                         <td className="px-2 py-1 text-slate-600">{[unit.name, ...(unit.context ?? []).map((c) => c.value)].filter(Boolean).join(' | ') || 'sem denominação na camada'}</td>
                         <td className="px-2 py-1 text-right">{unit.count}</td>
@@ -134,9 +139,41 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
             </div>
           </div>
 
+          {byPlace.length > 0 && (
+            <div className="text-[12px]">
+              <h3 className="mb-1 font-semibold text-petrol-900">Pontos por comunidade ({byPlace.filter((x) => x.comunidade).length} comunidade(s))</h3>
+              <div className="max-h-40 overflow-y-auto rounded border border-slate-200">
+                <table className="min-w-full text-left">
+                  <thead className="sticky top-0 bg-slate-50 text-slate-600"><tr><th className="px-2 py-1">Comunidade / local</th><th className="px-2 py-1">Distrito · município (IBGE)</th><th className="px-2 py-1 text-right">Pontos</th></tr></thead>
+                  <tbody>
+                    {byPlace.map((g) => (
+                      <tr key={g.key} className={`border-t border-slate-100 ${placeFilter === g.key ? 'bg-accent-50' : ''}`}>
+                        <td className="px-2 py-1">
+                          <button type="button" className="text-petrol-700 underline-offset-2 hover:underline max-lg:min-h-11" onClick={() => { setPlaceFilter((f) => (f === g.key ? 'all' : g.key)); setFilter('all'); }}>
+                            {g.nome}
+                          </button>
+                          {g.confianca === 'baixa' && <span className="ml-1 text-amber-700" title="Localização aproximada (confiança baixa)">≈</span>}
+                          {!g.comunidade && <span className="ml-1 text-slate-500">(sem comunidade)</span>}
+                        </td>
+                        <td className="px-2 py-1 text-slate-600">{g.detalhe}</td>
+                        <td className="px-2 py-1 text-right">{g.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500">Clique para filtrar os registros abaixo. A exportação CSV inclui município, distrito e comunidade de cada ponto.</p>
+            </div>
+          )}
+
           <div>
             <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[12px]">
               <h3 className="font-semibold text-petrol-900">Registros processados</h3>
+              {placeFilter !== 'all' && (
+                <button type="button" onClick={() => setPlaceFilter('all')} className="rounded bg-accent-50 px-2 py-0.5 text-accent-800 ring-1 ring-accent-200 max-lg:min-h-11">
+                  {byPlace.find((g) => g.key === placeFilter)?.nome} ✕
+                </button>
+              )}
               <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded border border-slate-300 px-1.5 py-1 text-[12px] max-lg:min-h-11 max-lg:w-full max-lg:min-w-0" aria-label="Filtrar registros">
                 <option value="issues">Requer revisão (sem correspondência, ambíguos, alertas)</option>
                 <option value="unmatched">Sem correspondência</option>
@@ -158,7 +195,7 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
                 <thead className="sticky top-0 bg-slate-50 text-slate-600">
                   <tr>
                     <th className="px-2 py-1">Linha</th><th className="px-2 py-1">Id</th><th className="px-2 py-1">Status</th>
-                    <th className="px-2 py-1">Unidade (código oficial)</th><th className="px-2 py-1">Detalhe</th>
+                    <th className="px-2 py-1">Unidade (código oficial)</th>{byPlace.length > 0 && <th className="px-2 py-1">Localização</th>}<th className="px-2 py-1">Detalhe</th>
                     {showCoords && <><th className="px-2 py-1">Lat</th><th className="px-2 py-1">Lng</th></>}
                   </tr>
                 </thead>
@@ -168,12 +205,13 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
                       <td className="px-2 py-1">{p.line ?? '—'}</td>
                       <td className="px-2 py-1">{p.id ?? '—'}</td>
                       <td className="px-2 py-1"><span className={`rounded px-1.5 py-0.5 ${STATUS_CLASS[p.status]}`}>{STATUS_LABEL[p.status]}</span></td>
-                      <td className="px-2 py-1 font-mono">{p.unitId ? unitCode.get(p.unitId) : p.candidates.length ? `candidatas: ${p.candidates.join(', ')}` : '—'}</td>
+                      <td className="px-2 py-1 font-mono">{p.unitId ? (p.sectorCode ?? unitCode.get(p.unitId)) : p.candidates.length ? `candidatas: ${p.candidates.join(', ')}` : '—'}</td>
+                      {byPlace.length > 0 && <td className="px-2 py-1 text-slate-600">{p.place?.rotulo ?? '—'}</td>}
                       <td className="px-2 py-1 text-slate-600">{[p.reason, ...p.warnings].filter(Boolean).join(' ') || '—'}</td>
                       {showCoords && <><td className="px-2 py-1">{p.lat}</td><td className="px-2 py-1">{p.lng}</td></>}
                     </tr>
                   ))}
-                  {!pageRows.length && <tr><td colSpan={7} className="px-2 py-3 text-center text-slate-500">Nenhum registro neste filtro.</td></tr>}
+                  {!pageRows.length && <tr><td colSpan={8} className="px-2 py-3 text-center text-slate-500">Nenhum registro neste filtro.</td></tr>}
                 </tbody>
               </table>
             </div>

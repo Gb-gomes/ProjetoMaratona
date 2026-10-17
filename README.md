@@ -170,6 +170,28 @@ Detalhes, decisões e situação de cada critério de aceite em [docs/CAMADAS_E_
 - **Camadas grandes:** viram tiles vetoriais num Web Worker. Um Shapefile fictício de 500 mil postes (`node scripts/gerar_rede_teste.mjs`) é importado em ~7 s e navegado sem travamentos.
 - **Resumo:** ao selecionar uma sub-região, o cartão mostra o que as camadas ativas têm dentro dela (ex.: "Postes: 1.678 pontos · Linhas MT/BT: 19 km").
 
+## Comunidades (nomes de lugar abaixo do distrito)
+
+Detalhes e critérios de aceite em [docs/COMUNIDADES.md](docs/COMUNIDADES.md).
+
+- **Hierarquia de nomes:** UF › Município › Distrito (IBGE) › Comunidade (arquivo `microrregioes_<COD_IBGE_MUN>.geojson`). Ex.: "Comunidade Goiabal · Distrito-sede (Cataguases) · Cataguases/MG". Os limites do IBGE não mudam.
+- **Importação** (**Camadas › Comunidades › Configurar**; somente administradores): os arquivos de Cataguases (42 comunidades) e Leopoldina (76) já estão no projeto.
+  - A importação valida o município, corrige geometrias, recorta na borda do município e resolve sobreposições.
+  - Reimportar não duplica e mantém nomes e contornos editados no sistema.
+  - Um relatório é mostrado no fim.
+- **Nomes de exibição:** os nomes vêm sem acento e são corrigidos sem mudar o ID, um a um ou pela planilha `COD_IBGE_MUN;ID;nome_exibicao`.
+- **Um só serviço de localização** (`src/lib/placeNames.js`), com as regras:
+  - comunidade que contém o ponto;
+  - senão, a mais próxima a até 100 m;
+  - senão, "Área urbana de …" (distrito-sede) ou "Sede do distrito de …".
+- **Onde aparece:**
+  - mapa: camada, rótulos, destaque ao passar o mouse e "≈" para localização aproximada;
+  - busca sem acentos;
+  - cadastro de pontos prioritários: preenche e grava a localização, reavaliada quando as comunidades mudam;
+  - pontos do CSV e auditoria: agrupamento e filtro por comunidade.
+- **Carta para as rádios:** cita as comunidades dos pontos afetados, depois do nome definido pelo operador e da correspondência validada.
+- **Edição** (somente administradores): renomear, ajustar contorno, dividir e unir, com histórico.
+
 ## Tema claro e escuro
 
 - O seletor no cabeçalho (sol, lua e monitor) alterna entre **Claro**, **Escuro** e **Seguir o sistema** (padrão). A escolha fica salva neste navegador.
@@ -282,13 +304,16 @@ src/
     ├── useAccessIdentity.js    Hook da identidade para a interface
     ├── geo.js                  Utilitários geométricos
     ├── geoOps.js               Recorte, união, diferença, área/perímetro geodésicos, ponto no polígono rápido
-    ├── ibgeHierarchy.js        Hierarquia oficial do IBGE (região-mãe das sub-regiões)
+    ├── ibgeHierarchy.js        Hierarquia oficial do IBGE (região-mãe das sub-regiões), com distritos
+    ├── communities.js          Comunidades: importação idempotente, relatório, sobreposições, nomes em lote, divisão
+    ├── placeNames.js           Serviço único coordenada → município, distrito e comunidade; busca sem acentos
     ├── customRegions.js        Sub-regiões: contenção, sobreposição, nome, histórico, exclusão lógica, exportação
     ├── customRegionRepository.js, useCustomRegions.js   Persistência (IndexedDB) com contrato trocável por API
     ├── useMapWorkspace.jsx     Orquestra camadas, sub-regiões, editor, filtros e resumos no modo real
     ├── layers/                 Modelo de camadas, CRS, importação, .dbf, motor de tiles (Web Worker), IndexedDB, estado por usuário
     └── __tests__/              Testes automatizados
-public/data/ibge/               Camada oficial do piloto (a ser gerada) e correspondência de nomes
+public/data/ibge/               Camada oficial do piloto, hierarquia e distritos do IBGE, correspondência de nomes
+public/data/comunidades/        Arquivos de comunidades (microrregioes_<COD_IBGE_MUN>.geojson) e índice
 public/_headers                 Cabeçalhos de segurança do Cloudflare Pages
 scripts/
 ├── preparar_camada_ibge.sh     Download, recorte e conversão da malha do IBGE (GDAL)
@@ -300,6 +325,7 @@ scripts/
 docs/
 ├── CAMADA_TERRITORIAL.md       Fonte, campos, unidade escolhida, procedimento, limitações
 ├── CAMADAS_E_SUBREGIOES.md     Sistema de camadas, sub-regiões, desempenho, critérios de aceite e próximos passos
+├── COMUNIDADES.md              Comunidades abaixo do distrito: importação, serviço de nomes, onde aparecem, critérios
 ├── DEPLOY_CLOUDFLARE.md        Build, deploy no Pages, configuração do Cloudflare Access, limitações
 ├── PONTOS_PRIORITARIOS.md      Cadastro manual, regra de comparação, alertas, persistência e limites
 └── RELATORIO_VALIDACAO.md      Relatório do teste técnico e modelo para o primeiro teste real
