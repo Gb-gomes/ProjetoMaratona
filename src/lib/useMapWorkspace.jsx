@@ -11,8 +11,11 @@ import {
 } from 'react';
 import { Shapes } from 'lucide-react';
 import {
-  BASEMAPS, IBGE_HIERARCHY, ORGANIZATION, ROLES, CUSTOM_REGION_RULES, PILOT_CONFIG,
+  BASEMAPS, IBGE_HIERARCHY, ORGANIZATION, ROLES, CUSTOM_REGION_RULES, PILOT_CONFIG, MICROREGIONS,
 } from '../config.js';
+import {
+  microregionDrafts, pendingDrafts, createMicroregion, isMicroregion,
+} from './microregions.js';
 import { loadHierarchy, LEVEL_LABEL } from './ibgeHierarchy.js';
 import { useCustomRegions } from './useCustomRegions.js';
 import { useLayerRegistry } from './layers/useLayerRegistry.js';
@@ -28,7 +31,7 @@ import {
   polygonFromGeoJSON, descendantsOf, REGION_COLORS, isActive,
 } from './customRegions.js';
 import {
-  unionGeometries, areaKm2, perimeterKm, labelPoint, pointInGeometry, preparePointInPolygon, geometryBboxAny,
+  unionGeometries, areaKm2, perimeterKm, labelPoint, pointInGeometry, preparePointInPolygon, geometryBboxAny, mergeBbox,
 } from './geoOps.js';
 import { bboxToBounds, padBounds } from './geo.js';
 import PaneManager, { paneName } from '../components/map/PaneManager.jsx';
@@ -69,6 +72,8 @@ function download(name, data, type = 'application/geo+json') {
 export function useMapWorkspace({
   enabled, identity, operator, operatorLocked, authorFor, rememberOperator, notify,
   opLayers, setOpLayers, pointFilterExtra, result, priorityRecords, sectorLayer, isMobile, onShowMap,
+  // Camada de unidades exibida em op:territories (setores ou microrregiões); padrão: setores.
+  unitLayer = null,
 }) {
   const user = userKey(identity);
   const role = (identity?.email && ROLES.byEmail[identity.email]) || ROLES.default;
@@ -96,6 +101,62 @@ export function useMapWorkspace({
   const activeRegions = regionsHook.active;
 
   const registry = useLayerRegistry({ orgId: ORGANIZATION.id, enabled, onError: (m) => notify('error', m) });
+
+  /* ---------------- Microrregiões: carga inicial como sub-regiões ---------------- */
+  // Uma vez por navegador: o que já foi carregado (mesmo excluído depois) não volta (ver microregions.js).
+  const [microSeed, setMicroSeed] = useState({ status: 'idle', done: 0, total: 0 });
+  const seedStarted = useRef(false);
+  const regionsHookRef = useRef(regionsHook);
+  regionsHookRef.current = regionsHook;
+  const rulesRef = useRef(rules);
+  rulesRef.current = rules;
+  useEffect(() => {
+    if (!enabled || regionsHook.status !== 'ready' || !hierarchy || seedStarted.current) return;
+    seedStarted.current = true;
+    const hook = () => regionsHookRef.current;
+    (async () => {
+      setMicroSeed({ status: 'loading', done: 0, total: 0 });
+      const drafts = [];
+      for (const f of MICROREGIONS.files) {
+        const res = await fetch(f.url, { cache: 'no-cache' });
+        if (!res.ok || (res.headers.get('content-type') ?? '').includes('text/html')) throw new Error(`arquivo não encontrado (${f.url})`);
+        drafts.push(...microregionDrafts(await res.json(), { ...f, sourceFile: f.url.split('/').pop() }));
+      }
+      const start = hook().current();
+      const todo = pendingDrafts(start, drafts);
+      let list = start;
+      const failed = [];
+      for (let i = 0; i < todo.length; i += 1) {
+        const d = todo[i];
+        const parent = hierarchy.byCode.get(d.ibgeParentCode);
+        try {
+          if (!parent) throw new Error('município fora da hierarquia carregada');
+          list = createMicroregion(list, d, { orgId: ORGANIZATION.id, parentGeometry: parent.geometry, rules: rulesRef.current }, { by: MICROREGIONS.by }).regions;
+        } catch (err) {
+          failed.push(`${d.name}: ${err.message}`);
+        }
+        // Devolve a vez à interface a cada poucas áreas (o recorte é síncrono).
+        if (i % 6 === 5) {
+          setMicroSeed({ status: 'loading', done: i + 1, total: todo.length });
+          await new Promise((r) => { setTimeout(r, 0); });
+        }
+      }
+      const created = list.slice(start.length);
+      if (created.length) {
+        // Junta com o estado atual (o usuário pode ter mexido nas sub-regiões durante a carga).
+        await hook().commit([...hook().current(), ...created]);
+        notify('success', `${created.length} microrregiões carregadas como sub-regiões (${MICROREGIONS.files.map((f) => f.municipalityName).join(' e ')}).`);
+      }
+      if (failed.length) notify('warning', `${failed.length} microrregião(ões) não carregada(s): ${failed.slice(0, 3).join('; ')}${failed.length > 3 ? '…' : ''}`);
+      setMicroSeed({ status: 'ready', done: todo.length, total: todo.length });
+    })().catch((err) => {
+      setMicroSeed({ status: 'error', done: 0, total: 0, error: err.message });
+      notify('warning', `Microrregiões não carregadas: ${err.message}`);
+    });
+  }, [enabled, regionsHook.status, hierarchy, notify]);
+  const microregions = useMemo(() => activeRegions.filter(isMicroregion), [activeRegions]);
+  const municipalities = useMemo(() => hierarchy?.byLevel.municipio ?? [], [hierarchy]);
+  const municipalityName = useCallback((code) => hierarchy?.byCode.get(code)?.name ?? code, [hierarchy]);
 
   const [ls, setLs] = useState(() => loadLayerState(user));
   useEffect(() => { setLs(loadLayerState(user)); }, [user]);
@@ -149,7 +210,7 @@ export function useMapWorkspace({
     const out = [
       {
         id: 'op:points', groupId: 'grp:operacao', defaultOrder: 3, kind: 'operational', name: 'Pontos importados (CSV)', geometryType: 'point',
-        subtitle: done ? `${result.total} ponto(s) do processamento` : 'Disponível após processar o CSV',
+        subtitle: done ? `${result.total ?? result.imported} ponto(s) do processamento` : 'Disponível após processar o CSV',
         legend: { items: [{ geometryType: 'point', color: '#112F44' }] },
         bounds: done && result.points.length ? padBounds(bboxToBounds(geometryBboxAny({ type: 'MultiPoint', coordinates: result.points.map((p) => [p.lng, p.lat]) })), 0.1) : null,
       },
@@ -158,10 +219,12 @@ export function useMapWorkspace({
         legend: { items: [{ geometryType: 'point', color: '#DC2626', symbol: 'square' }] },
       },
       {
-        id: 'op:territories', groupId: 'grp:operacao', defaultOrder: 1, kind: 'operational', name: 'Setores censitários (camada piloto)', geometryType: 'polygon',
-        subtitle: `${PILOT_CONFIG.layer.unitType} — IBGE ${PILOT_CONFIG.layer.referenceYear}`, readOnly: true,
+        id: 'op:territories', groupId: 'grp:operacao', defaultOrder: 1, kind: 'operational', name: unitLayer?.name ?? 'Setores censitários (camada piloto)', geometryType: 'polygon',
+        subtitle: unitLayer?.subtitle ?? `${PILOT_CONFIG.layer.unitType} — IBGE ${PILOT_CONFIG.layer.referenceYear}`, readOnly: true,
         legend: { items: [{ geometryType: 'polygon', color: '#94A3B8', dash: '3 3' }] },
-        bounds: sectorLayer?.bounds ?? null,
+        bounds: unitLayer
+          ? (microregions.length ? bboxToBounds(mergeBbox(microregions.map((r) => geometryBboxAny(r.geometry)))) : null)
+          : sectorLayer?.bounds ?? null,
       },
       {
         id: 'custom_regions', groupId: 'grp:subregioes', defaultOrder: 1, kind: 'custom_regions', name: `Sub-regiões da organização (${activeRegions.length})`, geometryType: 'polygon',
@@ -191,7 +254,7 @@ export function useMapWorkspace({
       })),
     ];
     return out;
-  }, [done, result, priorityRecords.length, sectorLayer, activeRegions, hierarchy, hier, dataLayers]);
+  }, [done, result, priorityRecords.length, sectorLayer, unitLayer, microregions, activeRegions, hierarchy, hier, dataLayers]);
 
   const tree = useMemo(() => buildTree(groups, catalog, ls), [groups, catalog, ls]);
   const ordered = useMemo(() => flattenLayers(tree), [tree]);
@@ -986,5 +1049,10 @@ export function useMapWorkspace({
     editing: !!editor,
     modalOpen: !!uploadTarget || !!settingsId || panel.open,
     closeTransient: () => { setPick(null); },
+    // Microrregiões (sub-regiões com a tag) e municípios da hierarquia, para a busca por coordenada e a carta.
+    microregions: enabled ? microregions : [],
+    microSeed,
+    municipalities,
+    municipalityName,
   };
 }

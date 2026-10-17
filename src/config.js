@@ -273,6 +273,19 @@ export const CUSTOM_REGION_RULES = {
   overlapMinM2: 50,
 };
 
+/**
+ * Microrregiões rurais (comunidades) com área aproximada. Na primeira abertura do modo real
+ * entram como sub-regiões da organização (editáveis, com histórico) e passam a ser a unidade
+ * do cruzamento dos pontos e da carta. Origem e método: public/data/microrregioes/README.md.
+ */
+export const MICROREGIONS = {
+  by: 'Carga inicial (IBGE Censo 2022)',
+  files: [
+    { municipalityCode: '3115300', municipalityName: 'Cataguases', url: '/data/microrregioes/microrregioes_3115300.geojson' },
+    { municipalityCode: '3138401', municipalityName: 'Leopoldina', url: '/data/microrregioes/microrregioes_3138401.geojson' },
+  ],
+};
+
 /** Acima deste número de feições, a camada importada é desenhada só por tiles (nunca GeoJSON bruto). */
 export const DATA_LAYER_LIMITS = {
   maxFileBytes: 300 * 1024 * 1024,

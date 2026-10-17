@@ -17,6 +17,7 @@ import AuditDialog from './components/AuditDialog.jsx';
 import Toasts from './components/Toasts.jsx';
 import PriorityAlertsPanel from './components/PriorityAlertsPanel.jsx';
 import PriorityRegistry from './components/PriorityRegistry.jsx';
+import MicroregionPanel, { LookupMarker } from './components/MicroregionPanel.jsx';
 import { buildDemoPriorityRecords } from './data/demoPriority.js';
 import {
   OUTAGE, DEMO_FILE_NAME, DEMO_POINTS, DEMO_TERRITORIES,
@@ -51,6 +52,7 @@ import {
 } from './lib/priorityAlerts.js';
 import { useIsMobile } from './hooks/useIsMobile.js';
 import { useMapWorkspace } from './lib/useMapWorkspace.jsx';
+import { microregionLayer, locateMicroregion } from './lib/microregions.js';
 import { PointFilters } from './components/LayerControl.jsx';
 
 const DEMO_FILE = {
@@ -81,6 +83,30 @@ const REAL_LAYER_INFO = {
     : `${PILOT_STATUS_LABEL[PILOT_CONFIG.status]} — ${[PILOT_CONFIG.territory.name, PILOT_CONFIG.territory.uf].filter(Boolean).join('/')}`,
 };
 
+/** Metadados exibidos quando a unidade do cruzamento são as microrregiões (sub-regiões com a tag). */
+/**
+ * Público padrão da carta ("Pessoal de …"): com microrregiões, os municípios das regiões
+ * afetadas (ex.: "Cataguases e Leopoldina"); com setores, o município piloto.
+ */
+function defaultAudienceFor(joined) {
+  const names = [...new Set((joined?.units ?? [])
+    .map((u) => u.context?.find((c) => c.label === 'Município')?.value).filter(Boolean))];
+  if (!names.length) return PILOT_CONFIG.territory.name;
+  return names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} e ${names.at(-1)}`;
+}
+
+const MICRO_LAYER_INFO = {
+  ...REAL_LAYER_INFO,
+  title: 'Microrregiões rurais (sub-regiões da organização)',
+  unitType: 'Microrregião',
+  source: 'Nome: IBGE Censo 2022 (CNEFE) | área aproximada: setores IBGE 2022 repartidos pelos endereços; ajustável em Sub-regiões',
+  code: 'Código interno (MR-…)',
+  referenceYear: 2022,
+  statusLabel: 'Área aproximada (não é limite oficial)',
+  territory: { name: 'Cataguases e Leopoldina', uf: 'MG' },
+  note: 'Microrregiões rurais de Cataguases e Leopoldina. Pontos em área urbana ficam sem correspondência.',
+};
+
 export default function App() {
   /* ---------------- Estado central ---------------- */
   const [mode, setMode] = useState('demo'); // demo | real
@@ -99,6 +125,10 @@ export default function App() {
   const [auditOpen, setAuditOpen] = useState(false);
   // Forma de citação escolhida pelo operador por região ('region' | 'properties'); vale para este processamento.
   const [announceOverrides, setAnnounceOverrides] = useState({});
+  // Unidade do cruzamento no modo real: microrregiões (padrão) ou setores censitários.
+  const [unitSource, setUnitSource] = useState('microrregioes');
+  // Busca por coordenada: ponto marcado no mapa e microrregião onde ele está.
+  const [lookup, setLookup] = useState(null);
 
   // Somente modo real (mantidos em memória; nunca em localStorage).
   const [imp, setImp] = useState(EMPTY_IMPORT);
@@ -203,16 +233,16 @@ export default function App() {
 
   /* ---------------- Derivados ---------------- */
   const outage = useMemo(
-    () => (isReal ? buildOutageView(outageForm, { defaultAudience: PILOT_CONFIG.territory.name }) : OUTAGE),
-    [isReal, outageForm],
+    () => (isReal ? buildOutageView(outageForm, { defaultAudience: defaultAudienceFor(result) }) : OUTAGE),
+    [isReal, outageForm, result],
   );
-  const layerInfo = isReal ? REAL_LAYER_INFO : TERRITORIAL_LAYER;
+  const layerInfo = isReal ? (unitSource === 'microrregioes' ? MICRO_LAYER_INFO : REAL_LAYER_INFO) : TERRITORIAL_LAYER;
   const nameOptions = useMemo(() => ({
     // Nomes do operador prevalecem sobre a tabela de correspondência do projeto.
     correspondence: { ...layerState.correspondence, ...storeToCorrespondence(regionStore) },
     officialNameApproved: PILOT_CONFIG.layer.officialNameApproved,
-    unitType: PILOT_CONFIG.layer.unitType,
-  }), [layerState.correspondence, regionStore]);
+    unitType: unitSource === 'microrregioes' ? MICRO_LAYER_INFO.unitType : PILOT_CONFIG.layer.unitType,
+  }), [layerState.correspondence, regionStore, unitSource]);
 
   const traditionalText = useMemo(() => {
     if (!isReal) return buildTraditionalNotice(DEMO_POINTS, OUTAGE);
@@ -356,9 +386,30 @@ export default function App() {
     result: done ? result : null,
     priorityRecords: priorityRecordsActive,
     sectorLayer: layerState.layer,
+    unitLayer: isReal && unitSource === 'microrregioes' ? { name: 'Microrregiões (regiões da carta)', subtitle: 'Área aproximada — IBGE Censo 2022' } : null,
     isMobile,
     onShowMap: () => setMobileTab('mapa'),
   });
+
+  /* ---------------- Microrregiões (modo real) ---------------- */
+  const microLayer = useMemo(
+    () => (isReal ? microregionLayer(ws.microregions, { municipalityName: ws.municipalityName }) : null),
+    [isReal, ws.microregions, ws.municipalityName],
+  );
+  const useMicro = isReal && unitSource === 'microrregioes';
+  // Mesmo formato de layerState: o restante da tela não precisa saber qual camada está em uso.
+  const unitState = useMemo(() => {
+    if (!useMicro) return layerState;
+    if (microLayer) return { status: 'loaded', layer: microLayer, errors: [], warnings: [], correspondence: layerState.correspondence };
+    if (ws.microSeed.status === 'error' || ws.microSeed.status === 'ready') {
+      return {
+        status: 'error', layer: null, warnings: [], correspondence: {},
+        errors: [ws.microSeed.error ?? 'Nenhuma microrregião ativa. Restaure em "Sub-regiões" ou use os setores censitários.'],
+      };
+    }
+    return { status: 'loading', layer: null, errors: [], warnings: [], correspondence: {} };
+  }, [useMicro, microLayer, layerState, ws.microSeed]);
+  const handleLocate = (lat, lng) => setLookup(locateMicroregion(lat, lng, ws.microregions, ws.municipalities));
 
   const handleSaveRecord = (value, editingId, typedBy) => {
     const by = authorFor(typedBy);
@@ -638,7 +689,7 @@ export default function App() {
       setStepIndex(1);
       timers.current.push(setTimeout(() => {
         try {
-          const joined = spatialJoin(imp.validation, layerState.layer, { mapping: imp.mapping });
+          const joined = spatialJoin(imp.validation, unitState.layer, { mapping: imp.mapping });
           setStepIndex(2);
           if (!joined.checks.unitSumEqualsMatched || !joined.checks.statusSumEqualsValid) {
             throw new Error('Verificação de consistência falhou: as contagens não fecham. Resultado descartado.');
@@ -667,7 +718,7 @@ export default function App() {
     // O texto inicial é montado a partir do resultado recém-calculado.
     const outageView = joined.source === 'demo'
       ? OUTAGE
-      : buildOutageView(outageForm, { defaultAudience: PILOT_CONFIG.territory.name });
+      : buildOutageView(outageForm, { defaultAudience: defaultAudienceFor(joined) });
     const { text } = letterFor(joined, ids, outageView, {});
     setNotice({ text, status: 'draft', dirty: false, stale: false });
     // Referência do desligamento usada nos alertas de pontos prioritários.
@@ -696,7 +747,10 @@ export default function App() {
       return;
     }
     if (isReal) {
-      if (layerState.status !== 'loaded') { notify('error', 'A camada territorial oficial não está carregada.'); return; }
+      if (unitState.status !== 'loaded') {
+        notify('error', useMicro ? 'As microrregiões ainda não estão carregadas.' : 'A camada territorial oficial não está carregada.');
+        return;
+      }
       if (!isProcessableCrs(imp.crs)) { notify('error', 'Declare o referencial das coordenadas antes de processar.'); return; }
       if (!imp.validation?.ok) { notify('error', 'Valide o arquivo antes de processar.'); return; }
     }
@@ -854,7 +908,7 @@ export default function App() {
   const mapScreen = mobileTab === 'mapa';
 
   /* ---------------- Layout ---------------- */
-  const territories = isReal ? layerState.layer : DEMO_TERRITORIES;
+  const territories = isReal ? unitState.layer : DEMO_TERRITORIES;
 
   return (
     <div className="cr-app flex min-h-screen flex-col bg-slate-100 font-sans text-petrol-900 2xl:h-screen 2xl:min-h-[860px]">
@@ -889,11 +943,27 @@ export default function App() {
               {isReal ? ' Abra a Auditoria para ver os motivos de cada registro.' : ''}
             </p>
           )}
+          {isReal && (
+            <div className={screen('dados')}>
+              <MicroregionPanel
+                unitSource={unitSource}
+                onUnitSource={setUnitSource}
+                unitLocked={phase === 'processing' || phase === 'done'}
+                microregions={ws.microregions}
+                seed={ws.microSeed}
+                municipalityName={ws.municipalityName}
+                result={lookup}
+                onLocate={handleLocate}
+                onClear={() => setLookup(null)}
+                onShowOnMap={() => setMobileTab('mapa')}
+              />
+            </div>
+          )}
           <div className={screen('dados')}>
           {isReal ? (
             <RealImportPanel
               imp={imp}
-              layerState={layerState}
+              layerState={unitState}
               phase={phase}
               stepIndex={stepIndex}
               errorMessage={errorMessage}
@@ -946,7 +1016,7 @@ export default function App() {
               <OutageForm
                 form={outageForm}
                 view={outage}
-                defaultAudience={PILOT_CONFIG.territory.name}
+                defaultAudience={defaultAudienceFor(result)}
                 onChange={(k, v) => setOutageForm((f) => ({ ...f, [k]: v }))}
               />
             )
@@ -972,12 +1042,12 @@ export default function App() {
             visible={!isMobile || mapScreen}
             compact={isMobile}
             onOpenDetails={openRegionDetail}
-            key={`${mode}|${layerState.status}`}
+            key={`${mode}|${unitSource}|${unitState.status}`}
             mode={mode}
             phase={phase}
             result={result}
             territories={territories}
-            layerState={layerState}
+            layerState={unitState}
             layers={layers}
             onToggleLayer={(key) => setLayers((l) => ({ ...l, [key]: !l[key] }))}
             pointFilter={pointFilter}
@@ -995,7 +1065,7 @@ export default function App() {
             basemap={ws.basemap}
             opPanes={ws.opPanes}
             opOpacity={ws.opOpacity}
-            mapChildren={ws.mapChildren}
+            mapChildren={<>{ws.mapChildren}{isReal && <LookupMarker result={lookup} />}</>}
             layerPanel={ws.layerPanel}
             overlay={ws.overlay}
             headerActions={ws.subRegionsButton}
@@ -1028,7 +1098,7 @@ export default function App() {
           onSelectAll={handleSelectAll}
           onClearSelection={handleClearSelection}
           layerInfo={layerInfo}
-          layerState={layerState}
+          layerState={unitState}
           nameOptions={nameOptions}
           regionStore={regionStore}
           announcementByUnit={announcementByUnit}
