@@ -47,6 +47,35 @@ export function toMultiPolygon(g) {
 
 const asFeature = (g) => feature(g);
 
+/* Arredonda a `dec` casas, sem vértices repetidos em sequência. */
+function snapGeometry(g, dec) {
+  const k = 10 ** dec;
+  const coordinates = polygonsOf(g).map((poly) => poly.map((ring) => ring
+    .map(([x, y]) => [Math.round(x * k) / k, Math.round(y * k) / k])
+    .filter((p, i, r) => i === 0 || p[0] !== r[i - 1][0] || p[1] !== r[i - 1][1]))
+    .filter((ring) => ring.length >= 4))
+    .filter((poly) => poly.length);
+  return coordinates.length ? { type: 'MultiPolygon', coordinates } : null;
+}
+
+/**
+ * Executa a operação do polygon-clipping e, se ela falhar ("Unable to complete output ring"),
+ * tenta de novo com as geometrias arredondadas a 6 e depois 5 casas (≈ 10 cm e 1 m).
+ * A falha acontece com bordas quase coincidentes, ex.: comunidade feita dos setores × limite municipal.
+ */
+function robust(op, geoms) {
+  try {
+    return op(geoms);
+  } catch (err) {
+    for (const dec of [6, 5]) {
+      const snapped = geoms.map((g) => snapGeometry(g, dec));
+      if (snapped.some((g) => !g)) break;
+      try { return op(snapped); } catch { /* próxima precisão */ }
+    }
+    throw err;
+  }
+}
+
 /* Recorte de um anel por uma caixa (Sutherland-Hodgman). */
 function clipRingToBox(ring, [minX, minY, maxX, maxY]) {
   const edges = [
@@ -105,7 +134,7 @@ export function intersectGeometries(a, b) {
   if (!bboxIntersects(geometryBboxAny(a), geometryBboxAny(b))) return null;
   const near = nearPart(b, a);
   if (!near) return null;
-  const out = intersect(featureCollection([asFeature(a), asFeature(near)]));
+  const out = robust((gs) => intersect(featureCollection(gs.map(asFeature))), [a, near]);
   return out?.geometry ? toMultiPolygon(out.geometry) : null;
 }
 
@@ -115,10 +144,10 @@ export function unionGeometries(list) {
   if (!geoms.length) return null;
   if (geoms.length === 1) {
     // A união de um único polígono também resolve autointerseções (ST_MakeValid simplificado).
-    const fixed = union(featureCollection([asFeature(geoms[0]), asFeature(geoms[0])]));
+    const fixed = robust((gs) => union(featureCollection([asFeature(gs[0]), asFeature(gs[0])])), geoms);
     return fixed?.geometry ? toMultiPolygon(fixed.geometry) : null;
   }
-  const out = union(featureCollection(geoms.map(asFeature)));
+  const out = robust((gs) => union(featureCollection(gs.map(asFeature))), geoms);
   return out?.geometry ? toMultiPolygon(out.geometry) : null;
 }
 
@@ -128,7 +157,7 @@ export function differenceGeometries(a, b) {
   if (!isPolygonal(b) || !bboxIntersects(geometryBboxAny(a), geometryBboxAny(b))) return toMultiPolygon(a);
   const near = nearPart(b, a);
   if (!near) return toMultiPolygon(a);
-  const out = difference(featureCollection([asFeature(a), asFeature(near)]));
+  const out = robust((gs) => difference(featureCollection(gs.map(asFeature))), [a, near]);
   return out?.geometry ? toMultiPolygon(out.geometry) : null;
 }
 

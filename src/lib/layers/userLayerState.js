@@ -9,10 +9,12 @@
 const PREFIX = 'conecta-rural:camadas:estado:v1:';
 
 export const EMPTY_LAYER_STATE = {
-  basemap: 'basemap:streets',
+  basemap: 'basemap:clean',
   layers: {}, // id → { visible?, opacity?, filterRegionId? }
   order: {}, // id (camada ou grupo) → ordem entre irmãos (maior = mais acima)
   collapsed: {}, // id do grupo → true
+  hiddenCommunities: {}, // id da comunidade → true (desmarcada no painel; só exibição)
+  communityLabels: true, // nomes das comunidades no mapa (o contorno, o destaque e o clique continuam)
 };
 
 const storage = () => {
@@ -32,6 +34,7 @@ export function loadLayerState(user, store = storage()) {
       layers: parsed.layers ?? {},
       order: parsed.order ?? {},
       collapsed: parsed.collapsed ?? {},
+      hiddenCommunities: parsed.hiddenCommunities ?? {},
     };
   } catch {
     return EMPTY_LAYER_STATE;

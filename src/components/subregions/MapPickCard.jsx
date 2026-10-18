@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import {
-  X, Plus, ChevronRight, Filter, Maximize2, Lock,
+  X, Plus, ChevronRight, Filter, Maximize2, Lock, Pencil, Shapes, Scissors, Check,
 } from 'lucide-react';
 import RegionSummary from './RegionSummary.jsx';
 import { LEVEL_LABEL } from '../../lib/ibgeHierarchy.js';
@@ -12,11 +13,21 @@ import { isCommunity, confidenceReason } from '../../lib/communities.js';
  */
 export default function MapPickCard({
   pick, current, summary, place = null, canCreate, onSelect, onClose, onCreateHere, onDetails, onZoom, onFilterLayers,
+  canEditCommunity = false, needsResponsible = false, onRename, onEditGeometry, onSplit, panelLabel = 'Sub-regiões',
 }) {
+  const [renaming, setRenaming] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [by, setBy] = useState('');
+  const rid = current?.region?.id ?? current?.region?.code;
+  useEffect(() => { setRenaming(false); }, [rid]);
   if (!pick || !current) return null;
   const isCustom = current.kind === 'custom';
   const r = current.region;
   const community = isCustom && isCommunity(r);
+  const submitRename = (e) => {
+    e.preventDefault();
+    if (onRename?.(newName, needsResponsible ? by : undefined)) setRenaming(false);
+  };
   return (
     <section className="pointer-events-auto w-[320px] rounded-md border border-slate-200 bg-white text-[12.5px] text-petrol-900 shadow-xl max-lg:w-full max-lg:text-[14px]" aria-label="Região selecionada">
       <div className="flex items-start gap-2 border-b border-slate-100 px-3 py-2">
@@ -56,6 +67,54 @@ export default function MapPickCard({
               <p className="mt-0.5 text-amber-800" title={confidenceReason(r)}>≈ Localização aproximada: {confidenceReason(r)}</p>
             ) : <p className="mt-0.5 text-slate-500">Confiança: boa</p>}
             {r.metadata?.CONFIRMADO_EM && <p className="text-slate-500">Fontes: {r.metadata.CONFIRMADO_EM}</p>}
+            {r.originalName && r.originalName !== r.name && <p className="text-slate-500">Nome no arquivo: {r.originalName}</p>}
+          </div>
+        )}
+        {community && canEditCommunity && (
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Editar comunidade</p>
+            {renaming ? (
+              <form onSubmit={submitRename} className="space-y-1.5">
+                <label className="block text-[12px] text-slate-600">
+                  Nome conhecido na região
+                  <input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    className="mt-0.5 block w-full rounded border border-slate-300 bg-white px-2 py-1 text-[13px] text-petrol-900 max-lg:min-h-11"
+                    autoFocus
+                    autoComplete="off"
+                  />
+                </label>
+                {needsResponsible && (
+                  <label className="block text-[12px] text-slate-600">
+                    Responsável
+                    <input value={by} onChange={(e) => setBy(e.target.value)} placeholder="Nome ou matrícula" className="mt-0.5 block w-full rounded border border-slate-300 bg-white px-2 py-1 text-[13px] max-lg:min-h-11" autoComplete="off" />
+                  </label>
+                )}
+                <div className="flex gap-1.5">
+                  <button type="submit" disabled={!newName.trim() || newName.trim() === r.name} className="inline-flex items-center gap-1 rounded bg-petrol-800 px-2 py-1 font-semibold text-white hover:bg-petrol-700 disabled:opacity-50 max-lg:min-h-11 max-lg:px-3">
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                    Salvar nome
+                  </button>
+                  <button type="button" onClick={() => setRenaming(false)} className="rounded border border-slate-300 bg-white px-2 py-1 font-medium text-petrol-800 hover:bg-slate-100 max-lg:min-h-11 max-lg:px-3">Cancelar</button>
+                </div>
+              </form>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                <button type="button" onClick={() => { setNewName(r.name); setRenaming(true); }} className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 font-medium text-petrol-800 hover:bg-slate-100 max-lg:min-h-11 max-lg:px-3" title="Trocar pelo nome como a comunidade é conhecida">
+                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                  Renomear
+                </button>
+                <button type="button" onClick={onEditGeometry} className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 font-medium text-petrol-800 hover:bg-slate-100 max-lg:min-h-11 max-lg:px-3" title="Aumentar ou diminuir a área; as vizinhas se ajustam junto">
+                  <Shapes className="h-3.5 w-3.5" aria-hidden="true" />
+                  Ajustar contorno
+                </button>
+                <button type="button" onClick={onSplit} className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 font-medium text-petrol-800 hover:bg-slate-100 max-lg:min-h-11 max-lg:px-3" title="Separar uma parte como comunidade nova">
+                  <Scissors className="h-3.5 w-3.5" aria-hidden="true" />
+                  Dividir
+                </button>
+              </div>
+            )}
           </div>
         )}
         {isCustom && <RegionSummary summary={summary} regionName={r.name} />}
@@ -71,13 +130,13 @@ export default function MapPickCard({
             Enquadrar
           </button>
           {isCustom && (
-            <button type="button" onClick={onFilterLayers} className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-3" title="Mostrar só o que está dentro desta sub-região nas camadas de dados ativas">
+            <button type="button" onClick={onFilterLayers} className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-3" title="Mostrar só o que está dentro desta área nas camadas de dados ativas">
               <Filter className="h-3.5 w-3.5" aria-hidden="true" />
               Filtrar camadas
             </button>
           )}
           <button type="button" onClick={onDetails} className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-3">
-            {isCustom ? 'Detalhes' : 'Sub-regiões'}
+            {isCustom ? 'Detalhes' : panelLabel}
             <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>

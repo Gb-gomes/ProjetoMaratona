@@ -214,6 +214,23 @@ export const PRIORITY_MATCH = {
  */
 export const BASEMAPS = [
   {
+    // Padrão: base cinza-clara sem nomes, para as comunidades aparecerem limpas.
+    // Ao aproximar (zoom >= labels.minZoom) entram os nomes de lugares e vias, para o
+    // operador se situar ao editar. Para mais detalhe: Ruas ou Satélite.
+    // (Os mapas da CARTO passaram a exigir chave de API; o Esri Light Gray não exige.)
+    id: 'basemap:clean',
+    name: 'Limpo (nomes ao aproximar)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Base &copy; Esri, HERE, Garmin, &copy; colaboradores do OpenStreetMap',
+    maxZoom: 18,
+    maxNativeZoom: 16, // acima disso, amplia os tiles do nível 16
+    className: 'cr-basemap-clean',
+    labels: {
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+      minZoom: 13,
+    },
+  },
+  {
     id: 'basemap:streets',
     name: 'Ruas (OpenStreetMap)',
     url: TILE_LAYER.url,
@@ -248,6 +265,17 @@ export const IBGE_HIERARCHY = {
     { level: 'municipio', layerId: 'ibge:municipio', name: 'Municípios', short: 'Município', color: '#B45309', weight: 1.4, dash: null },
     { level: 'distrito', layerId: 'ibge:distrito', name: 'Distritos', short: 'Distrito', color: '#A16207', weight: 1, dash: '2 4' },
   ],
+};
+
+/**
+ * Funcionalidades ligáveis.
+ * orgSubregions: sub-regiões desenhadas pela organização (camada "Sub-regiões",
+ *   botão "Sub-regiões", "Criar sub-região aqui"). Desligada em 18/10/2026: as
+ *   comunidades cobrem o uso. O código e os dados no navegador continuam; para
+ *   voltar, troque para true. As comunidades usam a mesma base e não mudam.
+ */
+export const FEATURES = {
+  orgSubregions: false,
 };
 
 /**

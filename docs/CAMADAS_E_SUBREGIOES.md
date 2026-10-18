@@ -2,6 +2,11 @@
 
 Disponível só no modo **Teste com dados reais**. A Demonstração continua com o controle de camadas simples e a área fictícia.
 
+> **Sub-regiões da organização desligadas (18/10/2026).** As comunidades cobrem o uso: `FEATURES.orgSubregions = false` em `src/config.js`.
+> - Somem a camada "Sub-regiões", o botão "Sub-regiões" (virou "Comunidades") e o "Criar sub-região aqui".
+> - O código e os dados já gravados no navegador continuam; para voltar, troque para `true`.
+> - As comunidades usam a mesma base (editor, IndexedDB, histórico) e não mudam.
+
 Esta etapa é um **MVP somente front-end**, no mesmo padrão do cadastro de pontos prioritários: tudo roda e fica salvo **neste navegador**. A especificação original pede PostgreSQL + PostGIS, vector tiles servidos pelo backend e permissões por organização. O modelo de dados abaixo já segue essa especificação, para que a troca do armazenamento por uma API não mude a interface.
 
 ## Visão geral
@@ -18,16 +23,17 @@ Esta etapa é um **MVP somente front-end**, no mesmo padrão do cadastro de pont
 
 - **Fonte:** Malha Municipal 2022 do IBGE (Shapefile por UF, SIRGAS 2000). É a mesma base dos setores censitários do Censo 2022 usados na camada piloto.
 - **Conferência:** a união dos 140 setores de Cataguases coincide com o limite municipal oficial: 493,1 km² nos dois, com 1 m² de diferença. Por isso uma sub-região montada com setores não sofre recortes indevidos na borda.
-- **Recorte gravado:**
-  - MG;
-  - Região Geográfica Intermediária de Juiz de Fora (3106);
-  - Região Geográfica Imediata de Cataguases (310032);
-  - os 10 municípios dessa Imediata.
+- **Recorte gravado:** a área de concessão da Energisa Minas Rio (lista em `scripts/ibge/municipios_energisa_mr.txt`):
+  - MG e RJ;
+  - Intermediárias de Juiz de Fora (3106) e Petrópolis (3303);
+  - as 11 Imediatas desses municípios;
+  - os 67 municípios (65 de MG, mais Nova Friburgo e Sumidouro).
 - **Precisão:** municípios e Imediata estão em geometria integral. UF e Intermediária receberam simplificação Douglas-Peucker de cerca de 5 m, muito abaixo da tolerância de 50 m.
 - **Regerar** (baixa os ZIPs para `scripts/ibge/raw/hierarquia/`, que é ignorada pelo git):
 
   ```bash
-  node scripts/preparar_hierarquia_ibge.mjs MG 3115300
+  node scripts/preparar_hierarquia_ibge.mjs --lista scripts/ibge/municipios_energisa_mr.txt
+  # só a Imediata do piloto: node scripts/preparar_hierarquia_ibge.mjs MG 3115300
   ```
 
   O script grava SHA-256, URLs e a conferência em `hierarquia_piloto.origem.json`.

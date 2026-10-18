@@ -12,17 +12,22 @@ Exemplo: `Comunidade Joaquim Vieira · Distrito de Glória de Cataguases · Cata
 
 ## Arquivos
 
-- **Comunidades:** `public/data/comunidades/microrregioes_<COD_IBGE_MUN>.geojson`, um por município, listados em `public/data/comunidades/index.json`. No projeto:
-
-  | Município | Código | Comunidades | Confiança baixa |
-  |---|---|---|---|
-  | Cataguases/MG | 3115300 | 42 | 8 |
-  | Leopoldina/MG | 3138401 | 76 | 20 |
-
-- **Distritos:** `public/data/ibge/distritos_piloto.geojson`, da Malha de Distritos do Censo 2022 do IBGE, para os 10 municípios da Imediata de Cataguases.
-  - Gerado por `node scripts/preparar_hierarquia_ibge.mjs MG 3115300`.
-  - Simplificação de 2 m.
+- **Área coberta:** os **67 municípios da área de concessão da Energisa Minas Rio** (65 de MG, mais Nova Friburgo e Sumidouro, no RJ).
+  - A lista está em `scripts/ibge/municipios_energisa_mr.txt`. Ela vem da camada ARAT da BDGD da ANEEL (base 2025-12-31) e inclui todo município com pelo menos 1% da área dentro da ARAT. Os 67 estão 100% dentro.
+  - Carmo (3301207) e Bom Jardim (3300506), no RJ, têm menos de 1% dentro e ficam de fora.
+- **Comunidades:** `public/data/comunidades/microrregioes_<COD_IBGE_MUN>.geojson`, um por município, listados em `public/data/comunidades/index.json`.
+  - São **1.982 comunidades**, 384 delas com confiança baixa. A contagem por município está no `index.json`.
+  - Cataguases (42) e Leopoldina (76) são os arquivos originais.
+  - Os outros 65 foram gerados por `scripts/comunidades/exportar_microrregioes.py`, no repositório de dados do time (MARATONA-TIVIT), com o mesmo método.
+- **Hierarquia e distritos:** `public/data/ibge/hierarquia_piloto.geojson` e `distritos_piloto.geojson`, das malhas Municipal 2022 e de Distritos do Censo 2022 do IBGE.
+  - Cobrem os 67 municípios, as 11 Imediatas e as 2 Intermediárias a que eles pertencem, MG e RJ, e 152 distritos.
+  - Gerados por `node scripts/preparar_hierarquia_ibge.mjs --lista scripts/ibge/municipios_energisa_mr.txt`. Sem `--lista`, o script continua gerando só a Imediata do piloto (`MG 3115300`).
+  - Simplificação dos distritos: 2 m.
   - O distrito-sede é o de código terminado em `05`.
+  - O rótulo usa a UF do próprio município: "Nova Friburgo/RJ".
+- **Primeira abertura do modo real:** a importação automática dos 67 arquivos leva cerca de 30 a 45 s.
+  - Um aviso informa o início.
+  - O processamento cede a vez à tela entre um município e outro, então o mapa continua utilizável.
 
 ## Importação (`src/lib/communities.js`)
 
@@ -73,6 +78,50 @@ Abra **Camadas › Comunidades › Configurar** ou **Sub-regiões › Comunidade
 - **Cataguases:** 62 sobreposições resolvidas e nenhuma comunidade além da tolerância de 50 m.
 - **Leopoldina:** 139 sobreposições resolvidas.
 - **Diferença com a especificação:** ela fala em "4 sobreposições" para Cataguases. A conta por interseção exata encontra 62, todas pequenas (de 0,01 a 249 m²). O critério usado aqui considera qualquer interseção acima de 0,01 m².
+
+## Visualização no mapa (`src/components/map/CommunityLayers.jsx`)
+
+Segue o mapa de referência aprovado pela usuária-chave (Cataguases, 42 microrregiões):
+
+- **Cores pastel:** comunidades vizinhas ficam com cores diferentes, inclusive entre municípios vizinhos. As cores só separam vizinhas; não têm significado.
+  - Cálculo em `src/lib/communityColors.js`: duas comunidades são vizinhas quando têm um vértice em comum (arredondado a ~11 m).
+  - O teste `communityColors.test.js` confere as 1.982 comunidades: nenhuma vizinha com a mesma cor.
+- **Área urbana em cinza:** é o que sobra do município fora das comunidades rurais.
+- **Contorno:** fino; tracejado quando a confiança é baixa.
+- **Rótulo:** preto, negrito, com contorno branco nítido (no escuro, claro com contorno escuro), igual ao mapa de referência.
+  - Escolha por zoom em `src/lib/communityLabels.js`: o máximo de nomes que cabe sem um encavalar no outro, das maiores comunidades para as menores.
+  - Abaixo do zoom 8 não aparece nenhum (de muito longe fica só a cor).
+  - Só os nomes que estão na tela viram elementos, para não pesar.
+  - **"Mostrar nomes no mapa"** (Camadas › Comunidades): desligado, o mapa fica mais leve; o contorno continua e o nome aparece ao passar o mouse ou clicar.
+  - Os rótulos de todos os municípios ficam num pane próprio, acima dos polígonos, para o vizinho não cobrir os nomes perto da divisa.
+- **Zoom:** de longe as cores são fortes. Ao aproximar, o preenchimento clareia para o mapa base aparecer.
+  - Ao editar uma sub-região, o preenchimento fica bem leve.
+- **Mapa base padrão "Limpo (nomes ao aproximar)":** Esri World Light Gray, sem ícones nem nomes.
+  - A partir do zoom 13 entram os nomes de lugares e vias (Esri Light Gray Reference), para o operador se situar ao editar.
+  - Para mais detalhe, use "Ruas" ou "Satélite" em Camadas › Mapa base.
+  - Os mapas da CARTO foram testados e descartados: passaram a exigir chave de API.
+  - Quem já tinha escolhido outro mapa base neste navegador continua com ele.
+
+## Painel de camadas: grupo Comunidades
+
+- **Filtro:** "Filtrar comunidade ou município", sem acento e sem diferenciar maiúsculas.
+  - Mostra só os municípios encontrados.
+  - Quando o texto bate com nomes de comunidade, elas aparecem sob o município, cada uma com caixa de marcar.
+- **Marcar todos / Desmarcar todos:** com filtro, viram "Marcar filtrados / Desmarcar filtrados".
+  - Município cujo nome bate (ou sem filtro): liga ou desliga o município inteiro.
+  - Só comunidades batem: marca ou desmarca só elas. Se o município estava desligado, ele liga só com as encontradas.
+- **Contagem:** quantos municípios e comunidades estão no mapa. Desligar o que não precisa deixa o mapa mais leve.
+- **Comunidade desmarcada:**
+  - some do mapa, do destaque ao passar o mouse e do clique;
+  - **continua** no serviço de nomes, na carta e no cruzamento dos pontos (é só exibição);
+  - fica salva por usuário neste navegador (`hiddenCommunities` em `userLayerState.js`);
+  - buscar a comunidade pela busca do mapa volta a marcá-la.
+
+O painel também foi reorganizado:
+- caixas e amostras maiores e mapa base em botões;
+- legendas de Setores e Prioritários dentro das opções da camada (seta), para o painel não crescer;
+- contador de camadas ligadas por grupo;
+- painel com 340 px de largura.
 
 ## Serviço coordenada → nome (`src/lib/placeNames.js`)
 
@@ -149,10 +198,23 @@ Retorno:
 
 ## Edição (somente administradores)
 
-- **Renomear** e **ajustar contorno:** usam o mesmo editor das sub-regiões, com as mesmas regras (contida no município e sem sobreposição com outra comunidade).
+Nada é definitivo: nome e contorno de qualquer comunidade podem ser corrigidos no sistema.
+
+**Onde:** clique na comunidade no mapa. O cartão tem a caixa **Editar comunidade** com Renomear, Ajustar contorno e Dividir. Unir e o histórico ficam em **Detalhes** (Sub-regiões › Comunidades).
+
+- **Renomear:** troca pelo nome como a comunidade é conhecida na região.
+  - O nome do arquivo continua guardado como "nome original" (aparece no cartão como "Nome no arquivo") e no histórico.
+  - Uma reimportação não desfaz o nome corrigido.
+- **Ajustar contorno** (`adjustCommunityBorder` em `src/lib/communities.js`): arraste os vértices. As vizinhas do mesmo município se ajustam junto, sem buraco nem sobreposição.
+  - **Aumentar:** a área ganha sai da vizinha que estava ali.
+  - **Diminuir:** cada pedaço solto vai para a vizinha com o maior trecho de divisa em comum com ele.
+  - Pedaço que não encosta em nenhuma comunidade (por exemplo, junto à área urbana ou à divisa do município) fica sem comunidade.
+  - Antes de salvar, o painel mostra o que vai mudar, por exemplo: "Vai tirar área de: Roda Dagua (−0,8 km²)".
+  - Não deixa engolir uma vizinha inteira: para juntar duas, use **Unir**.
+  - Testado em `communityAdjust.test.js` com Cataguases: a área total do município se conserva.
 - **Dividir:** desenhe a parte que vira uma comunidade nova. A original fica com o restante; o ID novo é gerado a partir do nome.
 - **Unir:** escolha uma vizinha. A primeira fica com a área das duas; a outra é excluída logicamente.
-- **Histórico:** toda edição registra autor, data e a geometria anterior.
+- **Histórico:** toda edição registra autor, data e a geometria anterior, inclusive nas vizinhas ("cedeu 0,796 km² no ajuste de Turiacu").
 
 ## Situação dos critérios de aceite
 

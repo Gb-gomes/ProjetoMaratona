@@ -2,7 +2,7 @@ import {
   useEffect, useLayoutEffect, useMemo, useRef, useState,
 } from 'react';
 import {
-  MapContainer, TileLayer, Polygon, CircleMarker, Marker, Polyline, Tooltip, ZoomControl, useMap,
+  MapContainer, TileLayer, Pane, Polygon, CircleMarker, Marker, Polyline, Tooltip, ZoomControl, useMap,
 } from 'react-leaflet';
 import L from 'leaflet';
 import {
@@ -348,12 +348,26 @@ export default function MapView({
             url={tiles.url}
             attribution={tiles.attribution}
             maxZoom={tiles.maxZoom}
+            maxNativeZoom={tiles.maxNativeZoom}
             className={tiles.className}
             eventHandlers={{
               tileerror: () => setTileErrors((n) => n + 1),
               tileload: () => setTileLoaded(true),
             }}
           />
+          {tiles.labels && (
+            // Nomes do mapa base acima das camadas (só a partir do zoom indicado, para o mapa ficar limpo de longe).
+            <Pane name="cr-basemap-labels" style={{ zIndex: 595, pointerEvents: 'none' }}>
+              <TileLayer
+                key={tiles.labels.url}
+                url={tiles.labels.url}
+                minZoom={tiles.labels.minZoom}
+                maxZoom={tiles.maxZoom}
+                maxNativeZoom={tiles.maxNativeZoom}
+                className={tiles.className}
+              />
+            </Pane>
+          )}
           <ZoomControl position={compact ? 'bottomright' : 'topleft'} />
           <MapController
             viewKey={`${phase}|${focusId ?? ''}|${priorityFocus?.recordId ?? ''}|${priorityFocus?.nonce ?? ''}`}

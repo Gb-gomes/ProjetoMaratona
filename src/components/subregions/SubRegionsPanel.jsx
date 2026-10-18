@@ -32,7 +32,7 @@ const FIELD_TEXT = {
 export default function SubRegionsPanel({
   open, onClose, hierarchy, regions, sectorsLabel, detailId, onOpenDetail, summary, settings, role, canEdit, canManage,
   operator, operatorLocked, onSetAllowOverlap, onCreate, onEditGeometry, onDuplicate, onDelete, onRestore, onUpdate, onExport, onShowOnMap,
-  focusCode = null, locator = null, onOpenCommunities, onSplitCommunity, onMergeCommunity,
+  focusCode = null, locator = null, onOpenCommunities, onSplitCommunity, onMergeCommunity, communitiesOnly = false,
 }) {
   const panelRef = useRef(null);
   const [query, setQuery] = useState('');
@@ -58,7 +58,7 @@ export default function SubRegionsPanel({
 
   return (
     <div className="fixed inset-0 z-[1100] flex justify-end">
-      <button type="button" className="absolute inset-0 cursor-default bg-black/40" aria-label="Fechar sub-regiões" onClick={onClose} />
+      <button type="button" className="absolute inset-0 cursor-default bg-black/40" aria-label={communitiesOnly ? 'Fechar comunidades' : 'Fechar sub-regiões'} onClick={onClose} />
       <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="subregions-title" className="relative flex h-full w-full max-w-[480px] flex-col bg-white shadow-2xl outline-none max-lg:h-[100dvh] max-lg:max-w-none">
         <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3 max-lg:gap-1 max-lg:pl-[max(0.5rem,env(safe-area-inset-left))] max-lg:pt-[max(0.25rem,env(safe-area-inset-top))] max-lg:pb-1">
           {detail && (
@@ -67,7 +67,7 @@ export default function SubRegionsPanel({
             </button>
           )}
           <Shapes className="h-4 w-4 text-petrol-500 max-lg:hidden" aria-hidden="true" />
-          <h2 id="subregions-title" className="min-w-0 flex-1 truncate text-[14px] font-semibold text-petrol-900 max-lg:text-[15px]">{detail ? detail.name : `Sub-regiões (${active.filter((r) => !isCommunity(r)).length})`}</h2>
+          <h2 id="subregions-title" className="min-w-0 flex-1 truncate text-[14px] font-semibold text-petrol-900 max-lg:text-[15px]">{detail ? detail.name : communitiesOnly ? `Comunidades (${active.length.toLocaleString('pt-BR')})` : `Sub-regiões (${active.filter((r) => !isCommunity(r)).length})`}</h2>
           <button type="button" onClick={onClose} className="ml-auto rounded p-1 text-slate-500 hover:bg-slate-100 max-lg:inline-flex max-lg:min-h-11 max-lg:items-center max-lg:gap-1 max-lg:px-3 max-lg:text-[15px] max-lg:font-medium max-lg:text-petrol-700" aria-label="Fechar">
             <X className="h-4 w-4 max-lg:h-5 max-lg:w-5" />
             <span className="lg:hidden" aria-hidden="true">Fechar</span>
@@ -129,6 +129,7 @@ export default function SubRegionsPanel({
               onRestore={(id) => onRestore(id, who)}
               focusCode={focusCode}
               onOpenCommunities={onOpenCommunities}
+              communitiesOnly={communitiesOnly}
             />
           )}
         </div>
@@ -140,10 +141,12 @@ export default function SubRegionsPanel({
                 <input type="checkbox" checked={showDeleted} onChange={() => setShowDeleted((v) => !v)} className="accent-accent-500 max-lg:h-5 max-lg:w-5" />
                 Mostrar excluídas
               </label>
+              {!communitiesOnly && (
               <label className={`flex items-center gap-1.5 max-lg:min-h-11 ${canManage ? '' : 'opacity-60'}`} title={canManage ? undefined : 'Somente administradores da organização'}>
                 <input type="checkbox" checked={!!settings.allowSiblingOverlap} disabled={!canManage} onChange={() => onSetAllowOverlap(!settings.allowSiblingOverlap)} className="accent-accent-500 max-lg:h-5 max-lg:w-5" />
                 Permitir sobreposição entre sub-regiões irmãs
               </label>
+              )}
               {onOpenCommunities && (
                 <button type="button" onClick={onOpenCommunities} className="inline-flex items-center gap-1 font-medium text-petrol-700 hover:underline max-lg:min-h-11">
                   <Users className="h-3 w-3" aria-hidden="true" />
@@ -159,7 +162,7 @@ export default function SubRegionsPanel({
           <p className="flex gap-1.5">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>
-              Papel: {ROLE_LABEL[role]} (interface, sem verificação em servidor). As sub-regiões ficam no IndexedDB deste navegador; exporte em GeoJSON para guardar uma cópia.
+              Papel: {ROLE_LABEL[role]} (interface, sem verificação em servidor). {communitiesOnly ? 'As comunidades e suas edições' : 'As sub-regiões'} ficam no IndexedDB deste navegador; exporte em GeoJSON para guardar uma cópia.
             </span>
           </p>
         </div>
@@ -169,7 +172,7 @@ export default function SubRegionsPanel({
 }
 
 function RegionTree({
-  hierarchy, regions, query, setQuery, canEdit, onCreate, onOpenDetail, onShowOnMap, onRestore, focusCode, onOpenCommunities,
+  hierarchy, regions, query, setQuery, canEdit, onCreate, onOpenDetail, onShowOnMap, onRestore, focusCode, onOpenCommunities, communitiesOnly = false,
 }) {
   const q = nameKey(query);
   const byParent = useMemo(() => {
@@ -184,7 +187,9 @@ function RegionTree({
   }, [regions]);
 
   const matches = (r) => !q || nameKey(r.name).includes(q) || nameKey(r.originalName ?? '').includes(q) || nameKey(r.internalCode ?? '').includes(q) || (r.tags ?? []).some((t) => nameKey(t).includes(q));
-  const ibgeRegions = [...(hierarchy?.regions ?? [])].sort((a, b) => LEVEL_RANK[a.level] - LEVEL_RANK[b.level] || a.name.localeCompare(b.name, 'pt-BR'));
+  const ibgeRegions = [...(hierarchy?.regions ?? [])]
+    // Só comunidades: só os municípios que têm comunidade.
+    .filter((ib) => !communitiesOnly || (byParent.get(`ibge:${ib.code}`) ?? []).length > 0).sort((a, b) => LEVEL_RANK[a.level] - LEVEL_RANK[b.level] || a.name.localeCompare(b.name, 'pt-BR'));
 
   const renderRegion = (r, depth) => {
     const children = byParent.get(r.id) ?? [];
@@ -217,12 +222,12 @@ function RegionTree({
     <div className="space-y-3">
       <label className="flex items-center gap-2 rounded border border-slate-300 bg-white px-2 py-1 max-lg:min-h-11">
         <Search className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por nome, código interno ou tag" className="min-w-0 flex-1 bg-transparent outline-none" aria-label="Buscar sub-regiões" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={communitiesOnly ? 'Buscar comunidade por nome ou código' : 'Buscar por nome, código interno ou tag'} className="min-w-0 flex-1 bg-transparent outline-none" aria-label="Buscar sub-regiões" />
       </label>
       {q ? (
         <ul>
           {regions.filter(matches).map((r) => renderRegion(r, 0))}
-          {!regions.some(matches) && <li className="text-slate-500">Nenhuma sub-região encontrada.</li>}
+          {!regions.some(matches) && <li className="text-slate-500">{communitiesOnly ? 'Nenhuma comunidade encontrada.' : 'Nenhuma sub-região encontrada.'}</li>}
         </ul>
       ) : ibgeRegions.map((ib) => {
         const all = byParent.get(`ibge:${ib.code}`)?.filter((r) => !r.parentCustomRegionId) ?? [];
@@ -235,15 +240,15 @@ function RegionTree({
                 <p className="truncate font-semibold">{ib.name}</p>
                 <p className="text-[11px] text-slate-500 max-lg:text-[12px]">{LEVEL_LABEL[ib.level]} · IBGE {ib.code}</p>
               </div>
-              <StatusBadge tone="neutral">{descendantCount(byParent, ib.code) - comms.length}</StatusBadge>
-              {canEdit && (
+              {communitiesOnly ? <StatusBadge tone="neutral">{comms.length}</StatusBadge> : <StatusBadge tone="neutral">{descendantCount(byParent, ib.code) - comms.length}</StatusBadge>}
+              {canEdit && !communitiesOnly && (
                 <button type="button" onClick={() => onCreate({ kind: 'ibge', code: ib.code })} className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11.5px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-2.5" aria-label={`Nova sub-região em ${ib.name}`}>
                   <Plus className="h-3 w-3" aria-hidden="true" />
                   Nova
                 </button>
               )}
             </div>
-            {top.length ? <ul className="py-1">{top.map((r) => renderRegion(r, 0))}</ul> : <p className="px-2.5 py-1.5 text-[11.5px] text-slate-500">Nenhuma sub-região.</p>}
+            {!communitiesOnly && (top.length ? <ul className="py-1">{top.map((r) => renderRegion(r, 0))}</ul> : <p className="px-2.5 py-1.5 text-[11.5px] text-slate-500">Nenhuma sub-região.</p>)}
             {comms.length > 0 && (
               <details className="border-t border-slate-100" open={focusCode === ib.code}>
                 <summary className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 font-medium text-petrol-800 max-lg:min-h-11">

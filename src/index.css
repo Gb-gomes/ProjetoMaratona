@@ -17,6 +17,8 @@
 /* Modo escuro: inverte só a aparência dos tiles no navegador (nenhuma requisição muda). */
 .dark .cr-basemap-muted { filter: grayscale(0.9) invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.88); }
 .dark .cr-basemap-imagery { filter: brightness(0.85); }
+/* Mapa base limpo (CARTO Positron): no escuro, mesma inversão do mapa de ruas. */
+.dark .cr-basemap-clean { filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(0.9); }
 
 /* Tiles das camadas de dados não recebem eventos (o clique é tratado pelo mapa). Os panes
    que nunca têm feições interativas recebem pointer-events: none em PaneManager.jsx. */
@@ -61,12 +63,22 @@
 .cr-community-icon { background: transparent; border: 0; }
 .cr-community-label {
   display: inline-block; transform: translate(-50%, -50%); white-space: nowrap; pointer-events: none;
-  font-size: 11px; font-weight: 600; color: #0F766E; letter-spacing: .01em;
-  text-shadow: 0 0 2px rgb(var(--c-white)), 0 0 2px rgb(var(--c-white)), 0 0 3px rgb(var(--c-white));
+  font-size: 12px; font-weight: 700; color: #000; letter-spacing: .01em; line-height: 1.1;
+  /* Contorno branco nítido em volta das letras, como no mapa de referência. */
+  text-shadow:
+    -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff,
+    0 -1px 0 #fff, 0 1px 0 #fff, -1px 0 0 #fff, 1px 0 0 #fff,
+    0 0 3px #fff;
 }
-.dark .cr-community-label { color: #5EEAD4; text-shadow: 0 0 2px #0C1821, 0 0 2px #0C1821, 0 0 3px #0C1821; }
-.cr-community-label.is-low { font-style: italic; font-weight: 500; opacity: .9; }
-.cr-community-label.is-selected { color: rgb(var(--c-petrol-900)); }
+.dark .cr-community-label {
+  color: #F8FAFC;
+  text-shadow:
+    -1px -1px 0 #0C1821, 1px -1px 0 #0C1821, -1px 1px 0 #0C1821, 1px 1px 0 #0C1821,
+    0 -1px 0 #0C1821, 0 1px 0 #0C1821, -1px 0 0 #0C1821, 1px 0 0 #0C1821,
+    0 0 3px #0C1821;
+}
+.cr-community-label.is-selected { color: rgb(var(--c-petrol-900)); text-decoration: underline; }
+.dark .cr-community-label.is-selected { color: #fff; }
 .leaflet-tooltip.cr-community-tip strong { display: block; font-size: 12.5px; }
 .cr-tip-low { color: rgb(var(--c-amber-800)); margin-top: 2px; max-width: 240px; white-space: normal; }
 .cr-tip-ok { color: rgb(var(--c-slate-500)); margin-top: 2px; }

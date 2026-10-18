@@ -44,8 +44,9 @@ const inBox = (b, [x, y], pad = 0) => x >= b[0] - pad && x <= b[2] + pad && y >=
  *   hierarchy: parseHierarchy() (inclui byLevel.distrito quando carregado)
  */
 export function createPlaceLocator({ hierarchy, communities = [] }) {
-  const uf = hierarchy?.ufSigla ?? '';
-  const municipalities = prepared(hierarchy?.byLevel?.municipio ?? [], (m) => ({ cod: m.code, nome: m.name }));
+  // A UF de cada município vem dos 2 primeiros dígitos do código (a hierarquia pode ter mais de uma UF, ex.: MG e RJ).
+  const ufOf = (cod) => hierarchy?.byCode?.get(String(cod).slice(0, 2))?.sigla ?? hierarchy?.ufSigla ?? '';
+  const municipalities = prepared(hierarchy?.byLevel?.municipio ?? [], (m) => ({ cod: m.code, nome: m.name, uf: ufOf(m.code) }));
   const districts = prepared(hierarchy?.byLevel?.distrito ?? [], (d) => ({
     cod: d.code, nome: d.name, sede: !!d.sede, mun: d.parentCode,
   }));
@@ -84,6 +85,7 @@ export function createPlaceLocator({ hierarchy, communities = [] }) {
       };
     }
     const dist = districts.find((d) => d.mun === mun.cod && inBox(d.bbox, p) && d.test(p)) ?? null;
+    const { uf } = mun;
     const municipio = { cod: mun.cod, nome: mun.nome, uf };
     const distrito = dist ? { cod: dist.cod, nome: dist.nome, sede: dist.sede } : null;
     const munLabel = `${mun.nome}${uf ? `/${uf}` : ''}`;
