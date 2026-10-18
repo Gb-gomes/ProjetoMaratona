@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react';
+import {
+  useEffect, useMemo, useRef, useState,
+} from 'react';
 import {
   Polygon, Marker, useMap, useMapEvents,
 } from 'react-leaflet';
@@ -8,6 +10,7 @@ import { useZoom } from './OrgLayers.jsx';
 import { geometryToLatLngs } from '../../lib/geo.js';
 import { COMMUNITY_COLOR, confidenceReason } from '../../lib/communities.js';
 import { URBAN_FILL } from '../../lib/communityColors.js';
+import { placeCommunityLabels } from '../../lib/communityLabels.js';
 
 const labelCache = new Map();
 function labelIcon(name, low, selected) {
@@ -22,14 +25,6 @@ function labelIcon(name, low, selected) {
 }
 
 const ringsOf = (g) => (!g ? [] : g.type === 'Polygon' ? g.coordinates : g.type === 'MultiPolygon' ? g.coordinates.flat() : []);
-// Rótulo só quando a comunidade ocupa área suficiente na tela (evita nomes amontoados de longe).
-const KM_PER_PX_Z0 = 156.543;
-function labelFits(r, zoom) {
-  if (!r.areaKm2) return zoom >= 13;
-  const kmPx = (KM_PER_PX_Z0 * Math.cos((r.labelPoint[1] * Math.PI) / 180)) / 2 ** zoom;
-  const widthPx = Math.max(40, String(r.name).length * 6.5);
-  return r.areaKm2 / (kmPx * kmPx) >= Math.max(3500, widthPx * widthPx * 0.55);
-}
 const LABEL_PANE = 'cr-community-labels';
 const isDark = () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 
@@ -38,7 +33,7 @@ const isDark = () => typeof document !== 'undefined' && document.documentElement
  * - preenchimento pastel, vizinhas com cores diferentes (lib/communityColors.js);
  * - área urbana (o que sobra do município fora das comunidades) em cinza;
  * - contorno fino; tracejado quando a confiança é baixa;
- * - rótulo escuro no label_point quando a comunidade cabe na tela (labelFits).
+ * Os nomes ficam em CommunityLabels (um componente só para todos os municípios).
  * Ao aproximar e ao editar, o preenchimento fica mais leve para o mapa base aparecer.
  * Os polígonos não são interativos: clique e destaque são feitos pelo mapa
  * (MapClickRouter e CommunityHover), para não bloquear as camadas de baixo.
@@ -47,16 +42,8 @@ export function CommunitiesLayer({
   layer, regions, colors = null, municipality = null, editing = false, hoveredId = null, selectedId = null,
 }) {
   const zoom = useZoom();
-  const map = useMap();
   const pane = paneName(layer.id);
   const dark = isDark();
-  // Rótulos de todas as comunidades num pane só, acima dos polígonos de todos os municípios
-  // (senão o preenchimento de um município vizinho cobre os nomes perto da divisa).
-  if (!map.getPane(LABEL_PANE)) {
-    const el = map.createPane(LABEL_PANE);
-    el.style.zIndex = '592';
-    el.style.pointerEvents = 'none';
-  }
   // De longe, cores fortes como no mapa de referência; ao aproximar, o preenchimento clareia
   // para o mapa base (vias, nomes) aparecer e o operador se situar.
   const fade = zoom <= 11 ? 1 : zoom >= 14 ? 0.3 : 1 - ((zoom - 11) / 3) * 0.7;
@@ -103,19 +90,45 @@ export function CommunitiesLayer({
           />
         );
       })}
-      {zoom >= 10 && regions.filter((r) => r.labelPoint && (r.id === selectedId || labelFits(r, zoom))).map((r) => (
-        <Marker
-          key={`lb-${r.id}:${r.updatedAt}`}
-          position={[r.labelPoint[1], r.labelPoint[0]]}
-          icon={labelIcon(r.name, r.confidence === 'baixa', r.id === selectedId)}
-          pane={LABEL_PANE}
-          interactive={false}
-          keyboard={false}
-          pmIgnore
-        />
-      ))}
     </>
   );
+}
+
+/**
+ * Nomes das comunidades de todos os municípios visíveis, num pane próprio acima dos
+ * polígonos (senão o município vizinho cobre os nomes perto da divisa).
+ * - Escolha dos nomes por zoom (placeCommunityLabels): o máximo que cabe sem encavalar,
+ *   maiores primeiro; de muito longe (zoom < 8) nenhum.
+ * - Só os que estão na tela (com folga) viram elementos, para não pesar.
+ */
+export function CommunityLabels({ regions, selectedId = null }) {
+  const map = useMap();
+  if (!map.getPane(LABEL_PANE)) {
+    const el = map.createPane(LABEL_PANE);
+    el.style.zIndex = '592';
+    el.style.pointerEvents = 'none';
+  }
+  const zoom = useZoom();
+  const [view, setView] = useState(() => map.getBounds().pad(0.25));
+  useMapEvents({ moveend: () => setView(map.getBounds().pad(0.25)) });
+  const zInt = Math.round(zoom * 4) / 4;
+  const placed = useMemo(
+    () => placeCommunityLabels(regions, zInt, (lat, lng) => map.project([lat, lng], zInt), { selectedId }),
+    [regions, zInt, selectedId, map],
+  );
+  return regions
+    .filter((r) => placed.has(r.id) && view.contains([r.labelPoint[1], r.labelPoint[0]]))
+    .map((r) => (
+      <Marker
+        key={`lb-${r.id}:${r.updatedAt}`}
+        position={[r.labelPoint[1], r.labelPoint[0]]}
+        icon={labelIcon(r.name, r.confidence === 'baixa', r.id === selectedId)}
+        pane={LABEL_PANE}
+        interactive={false}
+        keyboard={false}
+        pmIgnore
+      />
+    ));
 }
 
 /**

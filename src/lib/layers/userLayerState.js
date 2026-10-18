@@ -14,6 +14,7 @@ export const EMPTY_LAYER_STATE = {
   order: {}, // id (camada ou grupo) → ordem entre irmãos (maior = mais acima)
   collapsed: {}, // id do grupo → true
   hiddenCommunities: {}, // id da comunidade → true (desmarcada no painel; só exibição)
+  communityLabels: true, // nomes das comunidades no mapa (o contorno, o destaque e o clique continuam)
 };
 
 const storage = () => {

@@ -89,7 +89,10 @@ Segue o mapa de referência aprovado pela usuária-chave (Cataguases, 42 microrr
 - **Área urbana em cinza:** é o que sobra do município fora das comunidades rurais.
 - **Contorno:** fino; tracejado quando a confiança é baixa.
 - **Rótulo:** preto, negrito, com contorno branco nítido (no escuro, claro com contorno escuro), igual ao mapa de referência.
-  - Aparece só quando a comunidade cabe na tela, para os nomes não se amontoarem de longe.
+  - Escolha por zoom em `src/lib/communityLabels.js`: o máximo de nomes que cabe sem um encavalar no outro, das maiores comunidades para as menores.
+  - Abaixo do zoom 8 não aparece nenhum (de muito longe fica só a cor).
+  - Só os nomes que estão na tela viram elementos, para não pesar.
+  - **"Mostrar nomes no mapa"** (Camadas › Comunidades): desligado, o mapa fica mais leve; o contorno continua e o nome aparece ao passar o mouse ou clicar.
   - Os rótulos de todos os municípios ficam num pane próprio, acima dos polígonos, para o vizinho não cobrir os nomes perto da divisa.
 - **Zoom:** de longe as cores são fortes. Ao aproximar, o preenchimento clareia para o mapa base aparecer.
   - Ao editar uma sub-região, o preenchimento fica bem leve.

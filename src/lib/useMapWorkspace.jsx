@@ -45,7 +45,7 @@ import SubRegionEditorPanel from '../components/subregions/SubRegionEditorPanel.
 import SubRegionsPanel from '../components/subregions/SubRegionsPanel.jsx';
 import MapPickCard from '../components/subregions/MapPickCard.jsx';
 import PlaceSearch from '../components/subregions/PlaceSearch.jsx';
-import { CommunitiesLayer, CommunityHover } from '../components/map/CommunityLayers.jsx';
+import { CommunitiesLayer, CommunityHover, CommunityLabels } from '../components/map/CommunityLayers.jsx';
 import { assignCommunityColors, COMMUNITY_PALETTE, URBAN_FILL } from './communityColors.js';
 import CommunityLayerTools, { CommunityMatches, matchCommunities } from '../components/layers/CommunityLayerTools.jsx';
 import { TerritoryLegend, PriorityLegend } from '../components/MapLegend.jsx';
@@ -1050,6 +1050,12 @@ export function useMapWorkspace({
     [communitiesByMun, effective],
   );
 
+  // Nomes no mapa: comunidades marcadas dos municípios ligados.
+  const labelRegions = useMemo(
+    () => visibleCommunityMuns.flatMap((cod) => shownCommunitiesByMun.get(cod) ?? []),
+    [visibleCommunityMuns, shownCommunitiesByMun],
+  );
+
   /* ---------------- Busca de lugares ---------------- */
   const [mobileSearch, setMobileSearch] = useState(false);
   const onSearchSelect = (r) => {
@@ -1106,6 +1112,9 @@ export function useMapWorkspace({
           onToolDone={editorApi.onToolDone}
         />
         </Suspense>
+      )}
+      {ls.communityLabels !== false && visibleCommunityMuns.length > 0 && (
+        <CommunityLabels regions={labelRegions} selectedId={selectedRegionId} />
       )}
       <CommunityHover
         enabled={!editor && visibleCommunityMuns.length > 0}
@@ -1190,6 +1199,8 @@ export function useMapWorkspace({
       totals={communityTotals}
       onMarkAll={() => setCommunities(true)}
       onUnmarkAll={() => setCommunities(false)}
+      showLabels={ls.communityLabels !== false}
+      onShowLabels={(v) => updateLs((cur) => ({ ...cur, communityLabels: v }))}
     />
   ) : null;
   const communityRows = filtering ? Object.fromEntries(communityFound.filter((m) => m.matches.length).map((m) => [m.layerId, (

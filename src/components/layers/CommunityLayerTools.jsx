@@ -27,7 +27,7 @@ export function matchCommunities(municipalities, query) {
  * contagem do que está no mapa. Desligar o que não interessa deixa o mapa mais leve.
  */
 export default function CommunityLayerTools({
-  query, onQuery, found, totals, onMarkAll, onUnmarkAll,
+  query, onQuery, found, totals, onMarkAll, onUnmarkAll, showLabels = true, onShowLabels,
 }) {
   const filtered = !!query.trim();
   return (
@@ -69,6 +69,15 @@ export default function CommunityLayerTools({
           {filtered ? 'Desmarcar filtrados' : 'Desmarcar todos'}
         </button>
       </div>
+      {onShowLabels && (
+        <label className="flex cursor-pointer items-start gap-2 rounded-md px-0.5 py-0.5 text-[12.5px] text-petrol-900 max-lg:min-h-11 max-lg:text-[14px]">
+          <input type="checkbox" checked={showLabels} onChange={(e) => onShowLabels(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-accent-500 max-lg:h-5 max-lg:w-5" />
+          <span className="leading-snug">
+            Mostrar nomes no mapa
+            <span className="block text-[11px] text-slate-500">Sem nomes, o mapa fica mais leve; o contorno continua e o nome aparece ao passar o mouse ou clicar.</span>
+          </span>
+        </label>
+      )}
       <p className="text-[11px] leading-snug text-slate-500">
         No mapa: <strong className="font-semibold text-petrol-800">{totals.munsOn}</strong> de {totals.muns} municípios,{' '}
         <strong className="font-semibold text-petrol-800">{totals.commsOn.toLocaleString('pt-BR')}</strong> de {totals.comms.toLocaleString('pt-BR')} comunidades.
