@@ -195,10 +195,23 @@ Retorno:
 
 ## Edição (somente administradores)
 
-- **Renomear** e **ajustar contorno:** usam o mesmo editor das sub-regiões, com as mesmas regras (contida no município e sem sobreposição com outra comunidade).
+Nada é definitivo: nome e contorno de qualquer comunidade podem ser corrigidos no sistema.
+
+**Onde:** clique na comunidade no mapa. O cartão tem a caixa **Editar comunidade** com Renomear, Ajustar contorno e Dividir. Unir e o histórico ficam em **Detalhes** (Sub-regiões › Comunidades).
+
+- **Renomear:** troca pelo nome como a comunidade é conhecida na região.
+  - O nome do arquivo continua guardado como "nome original" (aparece no cartão como "Nome no arquivo") e no histórico.
+  - Uma reimportação não desfaz o nome corrigido.
+- **Ajustar contorno** (`adjustCommunityBorder` em `src/lib/communities.js`): arraste os vértices. As vizinhas do mesmo município se ajustam junto, sem buraco nem sobreposição.
+  - **Aumentar:** a área ganha sai da vizinha que estava ali.
+  - **Diminuir:** cada pedaço solto vai para a vizinha com o maior trecho de divisa em comum com ele.
+  - Pedaço que não encosta em nenhuma comunidade (por exemplo, junto à área urbana ou à divisa do município) fica sem comunidade.
+  - Antes de salvar, o painel mostra o que vai mudar, por exemplo: "Vai tirar área de: Roda Dagua (−0,8 km²)".
+  - Não deixa engolir uma vizinha inteira: para juntar duas, use **Unir**.
+  - Testado em `communityAdjust.test.js` com Cataguases: a área total do município se conserva.
 - **Dividir:** desenhe a parte que vira uma comunidade nova. A original fica com o restante; o ID novo é gerado a partir do nome.
 - **Unir:** escolha uma vizinha. A primeira fica com a área das duas; a outra é excluída logicamente.
-- **Histórico:** toda edição registra autor, data e a geometria anterior.
+- **Histórico:** toda edição registra autor, data e a geometria anterior, inclusive nas vizinhas ("cedeu 0,796 km² no ajuste de Turiacu").
 
 ## Situação dos critérios de aceite
 

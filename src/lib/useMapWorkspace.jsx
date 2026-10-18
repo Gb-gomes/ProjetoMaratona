@@ -29,7 +29,7 @@ import {
 } from './customRegions.js';
 import {
   isCommunity, COMMUNITY_SET, COMMUNITY_COLOR, parseCommunityFile, importCommunities, parseNameCorrections, applyNameCorrections,
-  namesSpreadsheet, splitCommunity,
+  namesSpreadsheet, splitCommunity, planCommunityAdjust, adjustCommunityBorder, describeAdjustPlan,
 } from './communities.js';
 import { createPlaceLocator } from './placeNames.js';
 import {
@@ -532,6 +532,9 @@ export function useMapWorkspace({
   }, [editor, editorUnits]);
   const draftGeometry = editor && (editor.method === 'municipalities' || editor.method === 'sectors') ? unitGeometry : editor?.geometry ?? null;
 
+  // Ajuste do contorno de uma comunidade: as vizinhas cedem ou recebem a diferença.
+  const adjustingCommunity = editor?.mode === 'edit-geometry' && isCommunity(regionById.get(editor.editingId));
+
   // Validação em tempo real (com pequena espera para não pesar durante o desenho).
   useEffect(() => {
     if (!editor || !editor.method) { setValidation(null); return undefined; }
@@ -547,8 +550,18 @@ export function useMapWorkspace({
           editingId: editor.editingId ?? null,
           rules,
           // Divisão: a parte nova fica dentro da comunidade original (que será reduzida).
-          ignoreOverlapIds: editor.mode === 'split' ? [editor.splitSourceId] : [],
+          // Contorno de comunidade: invadir a vizinha é permitido (ela cede a área; ver planCommunityAdjust).
+          ignoreOverlapIds: editor.mode === 'split' ? [editor.splitSourceId] : adjustingCommunity ? regions.filter(isCommunity).map((r) => r.id) : [],
         });
+        if (adjustingCommunity && v.prepared?.geometry && !v.prepared.empty) {
+          const plan = planCommunityAdjust(regions, editor.editingId, v.prepared.geometry);
+          v.neighborPlan = plan;
+          v.warnings = [...v.warnings, ...describeAdjustPlan(plan)];
+          if (plan.emptied.length) {
+            v.errors = { ...v.errors, overlap: `A nova área cobriria toda a comunidade ${plan.emptied.map((r) => `"${r.name}"`).join(', ')}. Para juntar as duas, use Unir.` };
+            v.ok = false;
+          }
+        }
         const g = v.prepared?.geometry;
         setValidation({ ...v, metrics: g ? { areaKm2: areaKm2(g), perimeterKm: perimeterKm(g) } : { areaKm2: 0, perimeterKm: 0 } });
       } catch (err) {
@@ -559,7 +572,7 @@ export function useMapWorkspace({
       setValidating(false);
     }, 250);
     return () => clearTimeout(t);
-  }, [editor, draftGeometry, regions, rules]);
+  }, [editor, draftGeometry, regions, rules, adjustingCommunity]);
 
   const editorApi = {
     onMethod: (m) => {
@@ -628,7 +641,10 @@ export function useMapWorkspace({
       try {
         let saved;
         let next;
-        if (editor.mode === 'edit-geometry') {
+        let plan = null;
+        if (adjustingCommunity) {
+          ({ regions: next, region: saved, plan } = adjustCommunityBorder(ctx.regions, editor.editingId, validation.prepared.geometry, { by }));
+        } else if (editor.mode === 'edit-geometry') {
           ({ regions: next, region: saved } = updateRegion(ctx.regions, editor.editingId, { geometry: draftGeometry, creationMethod: 'drawn' }, ctx, { by }));
         } else if (editor.mode === 'split') {
           ({ regions: next, created: saved } = splitCommunity(ctx.regions, editor.splitSourceId, { part: validation.prepared.geometry, name: editor.form.name, by }));
@@ -648,10 +664,14 @@ export function useMapWorkspace({
         rememberOperator(by);
         const clip = validation?.prepared?.clipped && validation.prepared.beyondTolerance;
         if (editor.mode === 'split') notify('success', `Comunidade dividida: "${saved.name}" (${saved.externalCode}) criada.`);
+        else if (plan) {
+          const touched = [...plan.neighbors.values()].map((n) => n.region.name);
+          notify('success', `Contorno de "${saved.name}" ajustado.${touched.length ? ` Vizinhas ajustadas junto: ${touched.join(', ')}.` : ''} Tudo ficou no histórico.`);
+        }
         else notify(clip ? 'warning' : 'success', `Sub-região "${saved.name}" ${editor.mode === 'edit-geometry' ? 'atualizada' : 'criada'}.${clip ? ' A parte fora da região-mãe foi recortada.' : ''}`);
         setEditor(null);
         setValidation(null);
-        updateLs((cur) => patchLayer(cur, 'custom_regions', { visible: true }));
+        updateLs((cur) => (isCommunity(saved) ? patchLayer(cur, `communities:${saved.ibgeParentCode}`, { visible: true }) : patchLayer(cur, 'custom_regions', { visible: true })));
         setPick({ latlng: null, items: [{ kind: 'custom', id: saved.id, key: `c:${saved.id}`, short: saved.name }], index: 0 });
         flyTo(bboxToBounds(geometryBboxAny(saved.geometry)), 16);
       } catch (err) {
@@ -757,7 +777,7 @@ export function useMapWorkspace({
         if (!changed) { notify('info', 'Nenhuma alteração para salvar.'); return true; }
         commitRegions(next);
         rememberOperator(by);
-        notify('success', 'Sub-região atualizada. A alteração ficou no histórico.');
+        notify('success', isCommunity(r) ? `Comunidade "${r.name}" atualizada. O nome do arquivo fica guardado como nome original e no histórico.` : 'Sub-região atualizada. A alteração ficou no histórico.');
         return true;
       } catch (err) {
         notify('error', err.message);
@@ -1227,7 +1247,12 @@ export function useMapWorkspace({
             current={pickCurrent}
             summary={pickCurrent.kind === 'custom' ? summary : null}
             place={pickCurrent.kind === 'custom' && isCommunity(pickCurrent.region) && locator ? locator.locate(pickCurrent.region.labelPoint) : null}
-            canCreate={canEditRegions}
+            canCreate={canEditRegions && !(pickCurrent.kind === 'custom' && isCommunity(pickCurrent.region))}
+            canEditCommunity={canManage}
+            needsResponsible={!operatorLocked && !String(operator ?? '').trim()}
+            onRename={(newName, typedBy) => regionActions.onUpdate(pickCurrent.region.id, { name: newName }, typedBy ?? operator)}
+            onEditGeometry={() => startEditGeometry(pickCurrent.region.id)}
+            onSplit={() => startSplit(pickCurrent.region.id)}
             onSelect={(i) => setPick((p) => ({ ...p, index: i }))}
             onClose={() => setPick(null)}
             onCreateHere={() => startCreate(pickCurrent.kind === 'custom' ? { kind: 'custom', id: pickCurrent.region.id } : { kind: 'ibge', code: pickCurrent.region.code })}
