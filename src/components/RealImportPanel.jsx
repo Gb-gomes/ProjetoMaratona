@@ -63,7 +63,7 @@ export default function RealImportPanel({
   return (
     <section className="rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="upload-title">
       <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3.5 py-2.5">
-        <h2 id="upload-title" className="flex items-center gap-2 text-[13.5px] font-semibold text-petrol-900">
+        <h2 id="upload-title" className="flex items-center gap-2 text-[14px] font-semibold text-petrol-900">
           <FileSpreadsheet className="h-4 w-4 text-petrol-500" aria-hidden="true" />
           Importação de pontos
         </h2>
@@ -85,13 +85,13 @@ export default function RealImportPanel({
             } ${processing ? 'opacity-60' : ''}`}
           >
             <Upload className="mx-auto h-5 w-5 text-petrol-400" aria-hidden="true" />
-            <p className="mt-1 text-[12.5px] text-slate-600 max-lg:hidden">Arraste o CSV da engenharia ou clique para procurar</p>
+            <p className="mt-1 text-[13px] text-slate-600 max-lg:hidden">Arraste o CSV da engenharia ou clique para procurar</p>
             <p className="mt-1 text-[14px] text-slate-600 lg:hidden">Escolha o arquivo CSV da engenharia</p>
             <button
               type="button"
               disabled={processing}
               onClick={() => inputRef.current?.click()}
-              className="mt-2 rounded border border-petrol-200 bg-white px-3 py-1 text-[12.5px] font-medium text-petrol-700 hover:border-petrol-400 disabled:cursor-not-allowed max-lg:min-h-12 max-lg:w-full max-lg:text-[15px]"
+              className="mt-2 rounded border border-petrol-200 bg-white px-3 py-1 text-[13px] font-medium text-petrol-700 hover:border-petrol-400 disabled:cursor-not-allowed max-lg:min-h-12 max-lg:w-full max-lg:text-[15px]"
             >
               <span className="max-lg:hidden">Selecionar arquivo</span>
               <span className="lg:hidden">Escolher arquivo CSV</span>
@@ -115,10 +115,10 @@ export default function RealImportPanel({
           <div className="flex items-start gap-2.5 rounded-md border border-slate-200 px-3 py-2.5">
             <FileSpreadsheet className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[12.5px] font-medium text-petrol-900" title={imp.fileName}>{imp.fileName}</p>
+              <p className="truncate text-[13px] font-medium text-petrol-900" title={imp.fileName}>{imp.fileName}</p>
               {parsed && (
-                <p className="text-[11.5px] text-slate-500">
-                  {parsed.rowCount} registro(s) | {parsed.headers.length} coluna(s) | {DELIMITER_LABEL[parsed.delimiter]} | {imp.encoding}
+                <p className="text-[12px] text-slate-500">
+                  {parsed.rowCount} registro(s) · {parsed.headers.length} coluna(s) · {DELIMITER_LABEL[parsed.delimiter]} · {imp.encoding}
                 </p>
               )}
               <StatusBadge tone={status.tone} className="mt-1">{status.label}</StatusBadge>
@@ -135,7 +135,7 @@ export default function RealImportPanel({
 
         {/* Prévia */}
         {hasFile && parsed?.headers.length > 0 && !done && (
-          <details className="rounded-md border border-slate-200 text-[11.5px]" open={imp.status === 'parsed'}>
+          <details className="rounded-md border border-slate-200 text-[12px]" open={imp.status === 'parsed'}>
             <summary className="cursor-pointer px-3 py-1.5 font-medium text-petrol-800 max-lg:flex max-lg:min-h-11 max-lg:items-center max-lg:text-[14px]">Prévia (primeiras {parsed.preview.length} linhas)</summary>
             <div className="max-h-40 overflow-auto border-t border-slate-100">
               <table className="min-w-full text-left">
@@ -159,7 +159,7 @@ export default function RealImportPanel({
           <fieldset className="space-y-1.5 rounded-md border border-slate-200 px-3 py-2.5" disabled={processing}>
             <legend className="px-1 text-[12px] font-semibold text-petrol-900">Mapeamento das colunas</legend>
             {MAPPABLE_FIELDS.map((f) => (
-              <label key={f.key} className="grid grid-cols-[118px_1fr] items-center gap-2 text-[11.5px] text-slate-600 max-lg:grid-cols-[104px_minmax(0,1fr)] max-lg:text-[13px]">
+              <label key={f.key} className="grid grid-cols-[118px_1fr] items-center gap-2 text-[12px] text-slate-600 max-lg:grid-cols-[104px_minmax(0,1fr)] max-lg:text-[13px]">
                 <span>{f.label}{f.required && <span className="text-red-600"> *</span>}</span>
                 <select
                   value={imp.mapping[f.key] ?? ''}
@@ -171,7 +171,7 @@ export default function RealImportPanel({
                 </select>
               </label>
             ))}
-            <label className="grid grid-cols-[118px_1fr] items-center gap-2 pt-1 text-[11.5px] text-slate-600 max-lg:grid-cols-[104px_minmax(0,1fr)] max-lg:text-[13px]">
+            <label className="grid grid-cols-[118px_1fr] items-center gap-2 pt-1 text-[12px] text-slate-600 max-lg:grid-cols-[104px_minmax(0,1fr)] max-lg:text-[13px]">
               <span>Referencial<span className="text-red-600"> *</span></span>
               <select
                 value={imp.crs}
@@ -194,7 +194,7 @@ export default function RealImportPanel({
             <button
               type="button"
               onClick={onValidate}
-              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border border-petrol-300 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-petrol-800 hover:border-petrol-500 max-lg:min-h-12 max-lg:text-[15px]"
+              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border border-petrol-300 bg-white px-3 py-1.5 text-[13px] font-semibold text-petrol-800 hover:border-petrol-500 max-lg:min-h-12 max-lg:text-[15px]"
             >
               <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />
               Validar registros
@@ -213,7 +213,7 @@ export default function RealImportPanel({
           >
             <p className="flex items-center gap-1.5 font-medium">
               {statusKey === 'invalid' ? <CircleAlert className="h-3.5 w-3.5" aria-hidden="true" /> : <CircleCheck className="h-3.5 w-3.5" aria-hidden="true" />}
-              {v.total} importado(s) | {v.valid} válido(s) | {v.invalid} inválido(s)
+              {v.total} importado(s) · {v.valid} válido(s) · {v.invalid} inválido(s)
             </p>
             {v.warnings > 0 && <p className="mt-0.5">{v.warnings} registro(s) válido(s) com alerta para revisão.</p>}
             {v.fileProblems.length > 0 && (
@@ -259,7 +259,7 @@ export default function RealImportPanel({
         )}
 
         {!done && !processing && hasFile && blockers.length > 0 && (
-          <div className="flex gap-2 rounded-md bg-petrol-50 px-3 py-2 text-[11.5px] leading-snug text-petrol-800">
+          <div className="flex gap-2 rounded-md bg-petrol-50 px-3 py-2 text-[12px] leading-snug text-petrol-800">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <p>Para processar, é necessário: {blockers.join('; ')}.</p>
           </div>
@@ -271,14 +271,14 @@ export default function RealImportPanel({
               type="button"
               onClick={onProcess}
               disabled={!canProcess}
-              className="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent-500 px-3 py-2 text-[13.5px] font-semibold text-white shadow-sm max-lg:min-h-12 max-lg:text-[15px] hover:bg-accent-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent-500 px-3 py-2 text-[14px] font-semibold text-white shadow-sm max-lg:min-h-12 max-lg:text-[15px] hover:bg-accent-600 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               <Play className="h-4 w-4" aria-hidden="true" />
               Processar Coordenadas
             </button>
           )}
           {processing && (
-            <button type="button" disabled className="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent-400 px-3 py-2 text-[13.5px] font-semibold text-white max-lg:min-h-12 max-lg:text-[15px]">
+            <button type="button" disabled className="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent-400 px-3 py-2 text-[14px] font-semibold text-white max-lg:min-h-12 max-lg:text-[15px]">
               <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
               Processando…
             </button>

@@ -16,7 +16,7 @@ function Card({ icon: Icon, label, value, description, loading, highlight, extra
             {extra}
           </p>
         )}
-        <p className="text-[11.5px] leading-tight text-slate-500">{description}</p>
+        <p className="text-[12px] leading-tight text-slate-500">{description}</p>
       </div>
     </div>
   );
@@ -25,7 +25,7 @@ function Card({ icon: Icon, label, value, description, loading, highlight, extra
 function Chip({ tone, title, children, icon }) {
   const cls = tone === 'ok' ? 'bg-emerald-50 text-emerald-800' : tone === 'danger' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800';
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-medium ${cls}`} title={title}>
+    <span className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ${cls}`} title={title}>
       {icon && <TriangleAlert className="h-3 w-3" aria-hidden="true" />}
       {children}
     </span>
@@ -51,7 +51,7 @@ export default function KpiCards({
         icon={MapPin}
         label="Pontos importados"
         value={done ? summary.imported : '—'}
-        description={!done ? waiting : isReal ? `${summary.valid} válidos | ${summary.invalid} inválidos` : 'Registros geográficos da demonstração'}
+        description={!done ? waiting : isReal ? `${summary.valid} válidos · ${summary.invalid} inválidos` : 'Registros geográficos da demonstração'}
         loading={loading}
         extra={done && isReal && summary.warnings > 0 && (
           <Chip title="Registros válidos com alerta para revisão" icon>{summary.warnings} p/ revisão</Chip>
@@ -110,10 +110,10 @@ export function KpiStrip({
       <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-md bg-slate-200 sm:grid-cols-4">
         {cells.map((c) => (
           <div key={c.label} className="flex min-w-0 flex-col bg-white px-2 py-2 text-center">
-            <dt className="truncate text-[12.5px] text-slate-500">{c.label}</dt>
+            <dt className="truncate text-[13px] text-slate-500">{c.label}</dt>
             <dd className={`order-first truncate font-semibold leading-tight ${c.highlight ? 'text-accent-700' : 'text-petrol-900'} ${c.small ? 'text-[16px]' : 'text-[20px]'}`}>
               {c.value}
-              {c.sub && <span className="block truncate text-[12.5px] font-normal text-slate-600">{c.sub}</span>}
+              {c.sub && <span className="block truncate text-[13px] font-normal text-slate-600">{c.sub}</span>}
             </dd>
           </div>
         ))}

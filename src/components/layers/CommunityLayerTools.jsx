@@ -40,7 +40,7 @@ export default function CommunityLayerTools({
           value={query}
           onChange={(e) => onQuery(e.target.value)}
           placeholder="Filtrar comunidade ou município"
-          className="block w-full rounded-md border border-slate-300 bg-white py-1.5 pl-7 pr-7 text-[12.5px] text-petrol-900 placeholder:text-slate-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200 max-lg:min-h-11 max-lg:text-[14px]"
+          className="block w-full rounded-md border border-slate-300 bg-white py-1.5 pl-7 pr-7 text-[13px] text-petrol-900 placeholder:text-slate-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200 max-lg:min-h-11 max-lg:text-[14px]"
           autoComplete="off"
         />
         {filtered && (
@@ -70,7 +70,7 @@ export default function CommunityLayerTools({
         </button>
       </div>
       {onShowLabels && (
-        <label className="flex cursor-pointer items-start gap-2 rounded-md px-0.5 py-0.5 text-[12.5px] text-petrol-900 max-lg:min-h-11 max-lg:text-[14px]">
+        <label className="flex cursor-pointer items-start gap-2 rounded-md px-0.5 py-0.5 text-[13px] text-petrol-900 max-lg:min-h-11 max-lg:text-[14px]">
           <input type="checkbox" checked={showLabels} onChange={(e) => onShowLabels(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-accent-500 max-lg:h-5 max-lg:w-5" />
           <span className="leading-snug">
             Mostrar nomes no mapa
@@ -97,10 +97,10 @@ export function CommunityMatches({
     <ul className="space-y-px border-l-2 border-slate-200 pl-2">
       {matches.slice(0, limit).map((c) => (
         <li key={c.id}>
-          <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-[12.5px] text-petrol-900 hover:bg-slate-50 max-lg:min-h-11 max-lg:text-[14px]">
+          <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-[13px] text-petrol-900 hover:bg-slate-50 max-lg:min-h-11 max-lg:text-[14px]">
             <input type="checkbox" checked={isOn(c)} onChange={() => onToggle(c)} className="h-4 w-4 shrink-0 cursor-pointer accent-accent-500 max-lg:h-5 max-lg:w-5" />
             <span className="min-w-0 flex-1 truncate">{c.name}</span>
-            {c.low && <span className="shrink-0 text-[10.5px] text-amber-700" title="Localização aproximada (confiança baixa)">aprox.</span>}
+            {c.low && <span className="shrink-0 text-[11px] text-amber-700" title="Localização aproximada (confiança baixa)">aprox.</span>}
           </label>
         </li>
       ))}

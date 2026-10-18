@@ -12,7 +12,7 @@ export default function OutageInfo({ outage }) {
   ];
   return (
     <section className="rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="outage-title">
-      <h2 id="outage-title" className="flex items-center gap-2 border-b border-slate-100 px-3.5 py-2.5 text-[13.5px] font-semibold text-petrol-900">
+      <h2 id="outage-title" className="flex items-center gap-2 border-b border-slate-100 px-3.5 py-2.5 text-[14px] font-semibold text-petrol-900">
         <Zap className="h-4 w-4 text-petrol-500" aria-hidden="true" />
         Desligamento programado
       </h2>

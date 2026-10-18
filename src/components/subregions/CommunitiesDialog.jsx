@@ -121,7 +121,7 @@ export default function CommunitiesDialog({
             <span className="lg:hidden" aria-hidden="true">Fechar</span>
           </button>
         </div>
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 text-[12.5px] text-petrol-900 max-lg:text-[14px]">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 text-[13px] text-petrol-900 max-lg:text-[14px]">
           <p className="flex gap-2 rounded border border-petrol-100 bg-petrol-50 px-3 py-2 text-petrol-800">
             <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>
@@ -150,7 +150,7 @@ export default function CommunitiesDialog({
                   <li key={f.arquivo} className="flex items-center gap-2 py-1.5">
                     <div className="min-w-0 flex-1">
                       <p className="font-medium">{f.municipio}/{f.uf} <span className="font-mono text-[11px] text-slate-500">{f.codIbgeMun}</span></p>
-                      <p className="text-[11.5px] text-slate-500">{f.arquivo} · {fmt(f.comunidades)} comunidades · no sistema: {fmt(countsByMun[f.codIbgeMun] ?? 0)}</p>
+                      <p className="text-[12px] text-slate-500">{f.arquivo} · {fmt(f.comunidades)} comunidades · no sistema: {fmt(countsByMun[f.codIbgeMun] ?? 0)}</p>
                     </div>
                     <button
                       type="button"
@@ -188,7 +188,7 @@ export default function CommunitiesDialog({
             <Section title="Nomes de exibição">
               <p className="text-slate-600">
                 O arquivo traz os nomes sem acento (&quot;Sao Diniz&quot;). Corrija um a um em <b>Sub-regiões › Comunidades › Renomear</b>, ou em lote
-                com uma planilha <span className="font-mono text-[11.5px]">COD_IBGE_MUN;ID;nome_exibicao</span>. O ID não muda.
+                com uma planilha <span className="font-mono text-[12px]">COD_IBGE_MUN;ID;nome_exibicao</span>. O ID não muda.
               </p>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => onExportNames(null)} className="inline-flex items-center gap-1.5 rounded border border-slate-300 px-2.5 py-1 font-medium hover:bg-slate-50 max-lg:min-h-11">

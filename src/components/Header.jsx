@@ -112,7 +112,7 @@ function MobileHeader({
             <div>
               <p className="mb-1.5 text-[13px] font-semibold text-petrol-900">Modo de operação</p>
               <ModeSwitch mode={mode} onModeChange={(m) => { onModeChange?.(m); setOpen(false); }} modeLocked={modeLocked} />
-              {modeLocked && <p className="mt-1 text-[12.5px] text-slate-500">Aguarde o fim do processamento para trocar de modo.</p>}
+              {modeLocked && <p className="mt-1 text-[13px] text-slate-500">Aguarde o fim do processamento para trocar de modo.</p>}
             </div>
             {onThemeChange && (
               <div>
@@ -125,7 +125,7 @@ function MobileHeader({
                       role="radio"
                       aria-checked={themePreference === value}
                       onClick={() => onThemeChange(value)}
-                      className={`flex min-h-11 flex-col items-center justify-center gap-0.5 rounded px-1 text-[12.5px] font-medium leading-tight ${
+                      className={`flex min-h-11 flex-col items-center justify-center gap-0.5 rounded px-1 text-[13px] font-medium leading-tight ${
                         themePreference === value ? 'bg-white text-petrol-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500'
                       }`}
                     >
@@ -140,7 +140,7 @@ function MobileHeader({
               {mode === 'demo'
                 ? <StatusBadge tone="neutral" icon={FlaskConical}>Ambiente de Demonstração</StatusBadge>
                 : <StatusBadge tone="info" icon={Database}>Teste local — sem envio externo</StatusBadge>}
-              <span className="inline-flex items-center gap-1.5 text-[12.5px] text-slate-600">
+              <span className="inline-flex items-center gap-1.5 text-[13px] text-slate-600">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
                 Sistema disponível
               </span>
@@ -187,8 +187,10 @@ function DesktopHeader({
       <div className="flex items-center gap-3">
         <BrandMark />
         <div className="leading-tight">
-          <p className="text-[15px] font-semibold text-petrol-900">
-            Conecta Rural <span className="font-normal text-petrol-500">| Inteligência Geográfica</span>
+          <p className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-petrol-900">
+            Conecta Rural
+            <span className="h-3.5 w-px bg-slate-300" aria-hidden="true" />
+            <span className="text-[13px] font-medium tracking-normal text-slate-500">Inteligência Geográfica</span>
           </p>
           <p className="text-[12px] text-slate-500">Comunicação de desligamentos programados</p>
         </div>
@@ -228,12 +230,12 @@ function DesktopHeader({
             </span>
             <div className="min-w-0 leading-tight">
               <p className="sr-only">Conectado como</p>
-              <p className="hidden max-w-[220px] truncate text-[12.5px] font-medium text-petrol-800 sm:block" title={identity.email}>
+              <p className="hidden max-w-[220px] truncate text-[13px] font-medium text-petrol-800 sm:block" title={identity.email}>
                 {identity.email}
               </p>
               <a
                 href={ACCESS_LOGOUT_URL}
-                className="inline-flex items-center gap-1 text-[11.5px] font-medium text-petrol-600 underline-offset-2 hover:underline"
+                className="inline-flex items-center gap-1 text-[12px] font-medium text-petrol-600 underline-offset-2 hover:underline"
               >
                 <LogOut className="h-3 w-3" aria-hidden="true" />
                 Sair
@@ -245,7 +247,7 @@ function DesktopHeader({
             <span className="grid h-8 w-8 place-items-center rounded-full bg-petrol-700 text-[12px] font-semibold text-white" aria-hidden="true">
               OP
             </span>
-            <span className="hidden text-[12.5px] font-medium text-petrol-800 sm:inline">Operador COP</span>
+            <span className="hidden text-[13px] font-medium text-petrol-800 sm:inline">Operador COP</span>
           </div>
         )}
       </div>

@@ -15,7 +15,7 @@ const TONES = {
 export default function StatusBadge({ tone = 'neutral', icon: Icon, children, className = '' }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded px-2 py-0.5 text-[11.5px] font-medium ring-1 ring-inset ${TONES[tone]} ${className}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded px-2 py-0.5 text-[12px] font-medium ring-1 ring-inset ${TONES[tone]} ${className}`}
     >
       {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
       {children}

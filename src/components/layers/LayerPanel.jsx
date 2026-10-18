@@ -135,7 +135,7 @@ export default function LayerPanel({
                 <select
                   value={st.filterRegionId ?? ''}
                   onChange={(e) => onFilter(l.id, e.target.value || null)}
-                  className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-1 py-0.5 text-[11.5px] text-petrol-900 max-lg:min-h-11"
+                  className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-1 py-0.5 text-[12px] text-petrol-900 max-lg:min-h-11"
                   aria-label={`Filtrar ${l.name} por sub-região`}
                 >
                   <option value="">Sem filtro (camada inteira)</option>
@@ -175,11 +175,11 @@ export default function LayerPanel({
             type="button"
             onClick={() => onToggleCollapse(g.id)}
             aria-expanded={!isCollapsed}
-            className="flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded text-left text-[11.5px] font-semibold uppercase tracking-wide text-slate-600 hover:text-petrol-900 max-lg:min-h-11 max-lg:text-[12.5px]"
+            className="flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded text-left text-[12px] font-semibold uppercase tracking-wide text-slate-600 hover:text-petrol-900 max-lg:min-h-11 max-lg:text-[13px]"
           >
             {isCollapsed ? <ChevronRight className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
             <span className="truncate">{g.name}</span>
-            {layers.length > 1 && <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-px text-[10.5px] font-medium normal-case tracking-normal text-slate-500">{on}/{layers.length}</span>}
+            {layers.length > 1 && <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-px text-[11px] font-medium normal-case tracking-normal text-slate-500">{on}/{layers.length}</span>}
           </button>
           <span className="flex shrink-0 opacity-0 transition-opacity group-hover/grp:opacity-100 max-lg:hidden">
             <button type="button" onClick={() => move(g.id, -1)} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={`Subir grupo ${g.name}`} title="Subir grupo"><ArrowUp className="h-3.5 w-3.5" /></button>
@@ -189,8 +189,8 @@ export default function LayerPanel({
         {/* Ferramentas do grupo fixas no topo enquanto a lista rola. */}
         {!isCollapsed && groupTools[g.id] && <div className="sticky top-0 z-10 -mx-1 mb-1 mt-0.5 bg-white/95 px-1 pb-1 pt-0.5 backdrop-blur-sm" style={{ paddingLeft: depth * 10 + 4 }}>{groupTools[g.id]}</div>}
         {!isCollapsed && <ul className="space-y-px">{shown}</ul>}
-        {!isCollapsed && !node.children.length && <p className="py-1 text-[11.5px] text-slate-400" style={{ paddingLeft: depth * 10 + 22 }}>Grupo vazio</p>}
-        {!isCollapsed && node.children.length > 0 && !shown.length && <p className="py-1 text-[11.5px] text-slate-500" style={{ paddingLeft: depth * 10 + 22 }}>Nada encontrado com esse filtro.</p>}
+        {!isCollapsed && !node.children.length && <p className="py-1 text-[12px] text-slate-400" style={{ paddingLeft: depth * 10 + 22 }}>Grupo vazio</p>}
+        {!isCollapsed && node.children.length > 0 && !shown.length && <p className="py-1 text-[12px] text-slate-500" style={{ paddingLeft: depth * 10 + 22 }}>Nada encontrado com esse filtro.</p>}
       </li>
     );
   };
@@ -207,7 +207,7 @@ export default function LayerPanel({
   );
   const basemapField = (
     <fieldset className="pt-2">
-      <legend className="flex items-center gap-1.5 text-[11.5px] font-semibold uppercase tracking-wide text-slate-600 max-lg:text-[12.5px]">
+      <legend className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-slate-600 max-lg:text-[13px]">
         <MapIcon className="h-3.5 w-3.5" aria-hidden="true" />
         Mapa base
       </legend>
@@ -216,7 +216,7 @@ export default function LayerPanel({
           <label
             key={b.id}
             title={b.name}
-            className={`flex cursor-pointer items-center justify-center rounded px-1 py-1 text-center text-[12.5px] font-medium transition-colors focus-within:ring-2 focus-within:ring-accent-400 max-lg:min-h-11 max-lg:text-[14px] ${
+            className={`flex cursor-pointer items-center justify-center rounded px-1 py-1 text-center text-[13px] font-medium transition-colors focus-within:ring-2 focus-within:ring-accent-400 max-lg:min-h-11 max-lg:text-[14px] ${
               basemap === b.id ? 'bg-white text-petrol-900 shadow-sm' : 'text-slate-600 hover:text-petrol-900'
             }`}
           >
@@ -243,12 +243,12 @@ export default function LayerPanel({
     <section className={`flex w-[290px] flex-col rounded-md border border-slate-200 bg-white/95 shadow-md backdrop-blur-sm max-lg:w-[min(340px,calc(100vw-1.5rem))] ${className}`} aria-label="Camadas do mapa">
       <div className="flex items-center gap-1.5 border-b border-slate-100 px-3 py-2">
         <Layers className="h-3.5 w-3.5 text-petrol-500" aria-hidden="true" />
-        <h3 className="text-[12.5px] font-semibold text-petrol-900 max-lg:text-[14px]">Camadas</h3>
+        <h3 className="text-[13px] font-semibold text-petrol-900 max-lg:text-[14px]">Camadas</h3>
         {canUpload && (
           <button
             type="button"
             onClick={onAddLayer}
-            className="ml-auto inline-flex items-center gap-1 rounded bg-petrol-800 px-2 py-1 text-[11.5px] font-medium text-white hover:bg-petrol-700 max-lg:min-h-11 max-lg:px-3 max-lg:text-[13.5px]"
+            className="ml-auto inline-flex items-center gap-1 rounded bg-petrol-800 px-2 py-1 text-[12px] font-medium text-white hover:bg-petrol-700 max-lg:min-h-11 max-lg:px-3 max-lg:text-[14px]"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             Adicionar camada
@@ -271,7 +271,7 @@ function SmallButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-1 text-[11.5px] font-medium text-petrol-700 hover:bg-slate-100 max-lg:min-h-11 max-lg:px-2.5 max-lg:text-[13px]"
+      className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-1 text-[12px] font-medium text-petrol-700 hover:bg-slate-100 max-lg:min-h-11 max-lg:px-2.5 max-lg:text-[13px]"
     >
       <Icon className="h-3 w-3" aria-hidden="true" />
       {children}

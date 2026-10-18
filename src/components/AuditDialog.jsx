@@ -76,8 +76,8 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
         <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2.5 max-lg:flex-wrap max-lg:gap-x-2 max-lg:gap-y-0 max-lg:pl-[max(1rem,env(safe-area-inset-left))] max-lg:pr-[max(0.25rem,env(safe-area-inset-right))] max-lg:pt-[max(0.25rem,env(safe-area-inset-top))] max-lg:pb-1">
           <ListChecks className="h-4 w-4 text-petrol-500" aria-hidden="true" />
           <h2 id="audit-title" className="text-[14px] font-semibold text-petrol-900">Auditoria do processamento</h2>
-          <span className="text-[11.5px] text-slate-500 max-lg:order-last max-lg:w-full max-lg:pb-1.5 max-lg:text-[12.5px]">
-            {new Date(result.processedAt).toLocaleString('pt-BR')} | {layerInfo.title}
+          <span className="text-[12px] text-slate-500 max-lg:order-last max-lg:w-full max-lg:pb-1.5 max-lg:text-[13px]">
+            {new Date(result.processedAt).toLocaleString('pt-BR')} · {layerInfo.title}
           </span>
           <button ref={closeRef} type="button" onClick={onClose} className="ml-auto rounded p-1 text-slate-500 hover:bg-slate-100 max-lg:inline-flex max-lg:min-h-11 max-lg:items-center max-lg:gap-1 max-lg:px-3 max-lg:text-[15px] max-lg:font-medium max-lg:text-petrol-700" aria-label="Fechar auditoria">
             <X className="h-4 w-4 max-lg:h-5 max-lg:w-5" />
@@ -126,10 +126,10 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
                   <tbody>
                     {result.units.map((unit) => (
                       <tr key={unit.id} className="border-t border-slate-100">
-                        <td className={`px-2 py-1 ${grouped && unit.placeName ? '' : 'font-mono text-[11.5px]'}`}>
+                        <td className={`px-2 py-1 ${grouped && unit.placeName ? '' : 'font-mono text-[12px]'}`}>
                           <button type="button" className="text-left text-petrol-700 underline-offset-2 hover:underline max-lg:min-h-11 max-lg:underline" onClick={() => { onFocusUnit(unit.id); onClose(); }}>{grouped && unit.placeName ? unit.placeName : unit.code}</button>
                         </td>
-                        <td className="px-2 py-1 text-slate-600">{[unit.name, ...(unit.context ?? []).map((c) => c.value)].filter(Boolean).join(' | ') || 'sem denominação na camada'}</td>
+                        <td className="px-2 py-1 text-slate-600">{[unit.name, ...(unit.context ?? []).map((c) => c.value)].filter(Boolean).join(' · ') || 'sem denominação na camada'}</td>
                         <td className="px-2 py-1 text-right">{unit.count}</td>
                       </tr>
                     ))}
@@ -190,7 +190,7 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
                 Exportar CSV{showCoords ? ' (com coordenadas)' : ''}
               </button>
             </div>
-            <div className="max-h-[38vh] overflow-auto rounded border border-slate-200 text-[11.5px]">
+            <div className="max-h-[38vh] overflow-auto rounded border border-slate-200 text-[12px]">
               <table className="min-w-full text-left">
                 <thead className="sticky top-0 bg-slate-50 text-slate-600">
                   <tr>
@@ -216,7 +216,7 @@ export default function AuditDialog({ open, onClose, result, summary, layerInfo,
               </table>
             </div>
             {pages > 1 && (
-              <div className="mt-1.5 flex items-center justify-end gap-2 text-[11.5px] text-slate-600">
+              <div className="mt-1.5 flex items-center justify-end gap-2 text-[12px] text-slate-600">
                 <button type="button" disabled={page === 0} onClick={() => setPage((n) => n - 1)} className="rounded border px-2 py-0.5 disabled:opacity-40 max-lg:min-h-11 max-lg:px-4 max-lg:text-[14px]">Anterior</button>
                 <span>{page + 1} / {pages}</span>
                 <button type="button" disabled={page >= pages - 1} onClick={() => setPage((n) => n + 1)} className="rounded border px-2 py-0.5 disabled:opacity-40 max-lg:min-h-11 max-lg:px-4 max-lg:text-[14px]">Próxima</button>
