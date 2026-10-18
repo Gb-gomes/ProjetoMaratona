@@ -598,3 +598,32 @@ export function adjustCommunityBorder(regions, id, newGeometry, { by, at = nowIs
   });
   return { regions: regions.map((r) => updated.get(r.id) ?? r), region, plan };
 }
+
+/* ------------------------------------------------------------------ */
+/* Limpeza: microrregiões da versão de teste gravadas como sub-regiões */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A versão de teste de 17/10/2026 (commit 985965e) gravou as microrregiões de
+ * Cataguases e Leopoldina como sub-regiões da organização (etiqueta
+ * "microrregião", código interno "MR-..."). Hoje elas são comunidades, então
+ * essas sub-regiões ficam duplicadas no mapa.
+ */
+export const isLegacyMicroregion = (r) => isActive(r) && !isCommunity(r)
+  && (r.tags ?? []).includes('microrregião') && String(r.internalCode ?? '').startsWith('MR-');
+
+/** Exclusão lógica (restaurável) das sub-regiões antigas; registra o motivo no histórico. */
+export function archiveLegacyMicroregions(regions, { by = 'sistema (limpeza da versão de teste)', at = nowIso() } = {}) {
+  let count = 0;
+  const next = regions.map((r) => {
+    if (!isLegacyMicroregion(r)) return r;
+    count += 1;
+    return {
+      ...r,
+      deletedAt: at,
+      deletedBy: by,
+      history: [...(r.history ?? []), { action: 'excluída', by, at, changes: { motivo: 'microrregião da versão de teste, hoje duplicada pela camada de comunidades' } }],
+    };
+  });
+  return { regions: next, count };
+}

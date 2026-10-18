@@ -70,3 +70,20 @@ describe('ajuste de contorno com as vizinhas', () => {
 
   it('bbox da comunidade editada continua válido', () => expect(geometryBboxAny(A.geometry)).toHaveLength(4));
 });
+
+describe('limpeza das microrregiões da versão de teste', () => {
+  it('arquiva só as sub-regiões antigas (etiqueta microrregião + código MR-), não as comunidades', async () => {
+    const { archiveLegacyMicroregions } = await import('../communities.js');
+    const legacy = {
+      id: 'x', name: 'Goiabal', tags: ['microrregião', 'Cataguases'], internalCode: 'MR-GOIABAL', deletedAt: null, history: [],
+    };
+    const other = {
+      id: 'y', name: 'Rota 1', tags: [], internalCode: 'R1', deletedAt: null, history: [],
+    };
+    const { regions: next, count } = archiveLegacyMicroregions([...regions, legacy, other], { at: '2026-10-18T00:00:00Z' });
+    expect(count).toBe(1);
+    expect(next.find((r) => r.id === 'x').deletedAt).toBe('2026-10-18T00:00:00Z');
+    expect(next.find((r) => r.id === 'y').deletedAt).toBeNull();
+    expect(next.filter((r) => r.deletedAt).length).toBe(1);
+  });
+});

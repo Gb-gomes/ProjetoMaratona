@@ -29,7 +29,7 @@ import {
 } from './customRegions.js';
 import {
   isCommunity, COMMUNITY_SET, COMMUNITY_COLOR, parseCommunityFile, importCommunities, parseNameCorrections, applyNameCorrections,
-  namesSpreadsheet, splitCommunity, planCommunityAdjust, adjustCommunityBorder, describeAdjustPlan,
+  namesSpreadsheet, splitCommunity, archiveLegacyMicroregions, planCommunityAdjust, adjustCommunityBorder, describeAdjustPlan,
 } from './communities.js';
 import { createPlaceLocator } from './placeNames.js';
 import {
@@ -129,6 +129,21 @@ export function useMapWorkspace({
   const [lastCommunityReport, setLastCommunityReport] = useState(null);
   const [hoveredCommunity, setHoveredCommunity] = useState(null);
 
+  // Uma vez por navegador: as microrregiões da versão de teste (gravadas como sub-regiões)
+  // vão para a lixeira, porque hoje são comunidades e apareciam duplicadas. Dá para restaurar.
+  const legacyCleanupRan = useRef(false);
+  useEffect(() => {
+    if (!enabled || legacyCleanupRan.current || regionsHook.status !== 'ready') return;
+    legacyCleanupRan.current = true;
+    if (regionsHook.settings?.legacyMicroregionsArchived) return;
+    const { regions: next, count } = archiveLegacyMicroregions(regionsHook.current());
+    if (count) {
+      regionsHook.commit(next);
+      notify('info', `${count} sub-região(ões) antigas da versão de teste (microrregiões de Cataguases e Leopoldina) foram para a lixeira: hoje elas são comunidades. Dá para restaurar em Sub-regiões.`);
+    }
+    regionsHook.saveSettings({ ...regionsHook.settings, legacyMicroregionsArchived: true });
+  }, [enabled, regionsHook, notify]);
+
   // Primeiro uso do modo real: sem microrregiões no navegador, as do projeto (index.json)
   // são importadas automaticamente, com relatório e histórico (responsável: o sistema).
   // Cada município só uma vez (settings.communitiesAutoImported): o que o operador excluir
@@ -177,7 +192,10 @@ export function useMapWorkspace({
       if (!done.length) return;
       if (!(await regionsHook.commit(next))) return;
       await regionsHook.saveSettings({
-        ...regionsHook.settings, communitiesAutoImported: { ...stamped, ...Object.fromEntries(done.map((d) => [d.cod, at])) },
+        ...regionsHook.settings,
+        // A limpeza acima pode ter gravado a marca depois que estas configurações foram lidas.
+        ...(legacyCleanupRan.current ? { legacyMicroregionsArchived: true } : {}),
+        communitiesAutoImported: { ...stamped, ...Object.fromEntries(done.map((d) => [d.cod, at])) },
       });
       setLastCommunityReport(lastReport);
       const which = done.length > 4
