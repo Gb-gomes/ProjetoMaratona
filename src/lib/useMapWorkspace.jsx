@@ -139,6 +139,8 @@ export function useMapWorkspace({
       && hierarchy.byCode.get(f.codIbgeMun)?.level === 'municipio');
     if (!pending.length) return;
     (async () => {
+      // A área da Energisa tem dezenas de municípios (~30 s de processamento): avisa e cede a vez à tela entre eles.
+      if (pending.length > 3) notify('info', `Carregando as microrregiões de ${pending.length} municípios. O mapa continua utilizável.`);
       const files = await Promise.all(pending.map(async (f) => {
         try {
           const res = await fetch(`${manifest.baseUrl}${f.arquivo}`, { cache: 'no-cache' });
@@ -154,26 +156,30 @@ export function useMapWorkspace({
       let next = regionsHook.current();
       const done = [];
       let lastReport = null;
-      files.filter(Boolean).forEach(({ f, gj }) => {
+      for (const { f, gj } of files.filter(Boolean)) {
+        await new Promise((r) => { setTimeout(r, 0); });
         const parsed = parseCommunityFile(gj, { fileName: f.arquivo, municipalityExists: (cod) => hierarchy.byCode.get(cod)?.level === 'municipio' });
-        if (parsed.errors.length) { notify('warning', `${f.arquivo}: ${parsed.errors.join(' ')}`); return; }
+        if (parsed.errors.length) { notify('warning', `${f.arquivo}: ${parsed.errors.join(' ')}`); continue; }
         // Outra aba ou importação manual já trouxe este município: não reimporta.
-        if (next.some((r) => isCommunity(r) && r.ibgeParentCode === parsed.codMun)) return;
+        if (next.some((r) => isCommunity(r) && r.ibgeParentCode === parsed.codMun)) continue;
         const mun = hierarchy.byCode.get(parsed.codMun);
         const out = importCommunities(next, parsed, {
           orgId: ORGANIZATION.id, municipalityGeometry: mun.geometry, municipalityName: mun.name, fileName: f.arquivo, overwriteEdits: false, by, rules,
         });
         next = out.regions;
         lastReport = out.report;
-        done.push({ cod: parsed.codMun, label: `${mun.name} (${out.report.created.length})` });
-      });
+        done.push({ cod: parsed.codMun, label: `${mun.name} (${out.report.created.length})`, created: out.report.created.length });
+      }
       if (!done.length) return;
       if (!(await regionsHook.commit(next))) return;
       await regionsHook.saveSettings({
         ...regionsHook.settings, communitiesAutoImported: { ...stamped, ...Object.fromEntries(done.map((d) => [d.cod, at])) },
       });
       setLastCommunityReport(lastReport);
-      notify('info', `Microrregiões do projeto carregadas: ${done.map((d) => d.label).join(', ')}. Relatório em Sub-regiões › Comunidades.`);
+      const which = done.length > 4
+        ? `${done.reduce((s, d) => s + d.created, 0)} comunidades em ${done.length} municípios`
+        : done.map((d) => d.label).join(', ');
+      notify('info', `Microrregiões do projeto carregadas: ${which}. Relatório em Sub-regiões › Comunidades.`);
     })();
   }, [enabled, regionsHook, hierarchy, manifest, rules, notify]);
 

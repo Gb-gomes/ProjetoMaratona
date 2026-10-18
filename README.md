@@ -154,7 +154,7 @@ Detalhes, decisões e situação de cada critério de aceite em [docs/CAMADAS_E_
   - grupos: Operação, Sub-regiões, Limites IBGE (somente leitura) e os grupos da organização (ex.: `Energisa > Rede Elétrica`);
   - por camada: ligar/desligar, arrastar ou setas para reordenar, opacidade, zoom para a camada, legenda automática e filtro "só dentro da sub-região";
   - o estado volta igual ao recarregar (por usuário).
-- **Limites oficiais do IBGE:** MG, Intermediária de Juiz de Fora, Imediata de Cataguases e seus 10 municípios (Malha Municipal 2022, `scripts/preparar_hierarquia_ibge.mjs`).
+- **Limites oficiais do IBGE:** os 67 municípios da área da Energisa Minas Rio (MG e RJ), com suas Imediatas, Intermediárias e distritos (Malha Municipal 2022, `scripts/preparar_hierarquia_ibge.mjs --lista scripts/ibge/municipios_energisa_mr.txt`).
 - **Sub-regiões:** clique numa região do mapa, depois em **Criar sub-região aqui**, e escolha:
   - desenhar (polígono ou retângulo, com encaixe nas bordas);
   - selecionar municípios ou setores censitários;

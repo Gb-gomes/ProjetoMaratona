@@ -12,17 +12,22 @@ Exemplo: `Comunidade Joaquim Vieira · Distrito de Glória de Cataguases · Cata
 
 ## Arquivos
 
-- **Comunidades:** `public/data/comunidades/microrregioes_<COD_IBGE_MUN>.geojson`, um por município, listados em `public/data/comunidades/index.json`. No projeto:
-
-  | Município | Código | Comunidades | Confiança baixa |
-  |---|---|---|---|
-  | Cataguases/MG | 3115300 | 42 | 8 |
-  | Leopoldina/MG | 3138401 | 76 | 20 |
-
-- **Distritos:** `public/data/ibge/distritos_piloto.geojson`, da Malha de Distritos do Censo 2022 do IBGE, para os 10 municípios da Imediata de Cataguases.
-  - Gerado por `node scripts/preparar_hierarquia_ibge.mjs MG 3115300`.
-  - Simplificação de 2 m.
+- **Área coberta:** os **67 municípios da área de concessão da Energisa Minas Rio** (65 de MG, mais Nova Friburgo e Sumidouro, no RJ).
+  - A lista está em `scripts/ibge/municipios_energisa_mr.txt`. Ela vem da camada ARAT da BDGD da ANEEL (base 2025-12-31) e inclui todo município com pelo menos 1% da área dentro da ARAT. Os 67 estão 100% dentro.
+  - Carmo (3301207) e Bom Jardim (3300506), no RJ, têm menos de 1% dentro e ficam de fora.
+- **Comunidades:** `public/data/comunidades/microrregioes_<COD_IBGE_MUN>.geojson`, um por município, listados em `public/data/comunidades/index.json`.
+  - São **1.982 comunidades**, 384 delas com confiança baixa. A contagem por município está no `index.json`.
+  - Cataguases (42) e Leopoldina (76) são os arquivos originais.
+  - Os outros 65 foram gerados por `scripts/comunidades/exportar_microrregioes.py`, no repositório de dados do time (MARATONA-TIVIT), com o mesmo método.
+- **Hierarquia e distritos:** `public/data/ibge/hierarquia_piloto.geojson` e `distritos_piloto.geojson`, das malhas Municipal 2022 e de Distritos do Censo 2022 do IBGE.
+  - Cobrem os 67 municípios, as 11 Imediatas e as 2 Intermediárias a que eles pertencem, MG e RJ, e 152 distritos.
+  - Gerados por `node scripts/preparar_hierarquia_ibge.mjs --lista scripts/ibge/municipios_energisa_mr.txt`. Sem `--lista`, o script continua gerando só a Imediata do piloto (`MG 3115300`).
+  - Simplificação dos distritos: 2 m.
   - O distrito-sede é o de código terminado em `05`.
+  - O rótulo usa a UF do próprio município: "Nova Friburgo/RJ".
+- **Primeira abertura do modo real:** a importação automática dos 67 arquivos leva cerca de 30 a 45 s.
+  - Um aviso informa o início.
+  - O processamento cede a vez à tela entre um município e outro, então o mapa continua utilizável.
 
 ## Importação (`src/lib/communities.js`)
 

@@ -23,6 +23,8 @@ export function parseHierarchy(gj) {
       level: f.properties.level,
       parentCode: f.properties.parentCode ? String(f.properties.parentCode) : null,
       areaKm2Oficial: f.properties.areaKm2Oficial ?? null,
+      // UF: sigla ("MG", "RJ"), usada no rótulo "Município/UF".
+      sigla: f.properties.sigla ?? null,
       // Distritos: o distrito-sede do município (código terminado em 05).
       sede: !!f.properties.sede,
       geometry: f.geometry,

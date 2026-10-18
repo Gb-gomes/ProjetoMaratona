@@ -11,6 +11,10 @@
  *
  * Uso (a partir da raiz do projeto):
  *   node scripts/preparar_hierarquia_ibge.mjs [UF=MG] [CD_MUN=3115300]
+ *   node scripts/preparar_hierarquia_ibge.mjs --lista scripts/ibge/municipios_energisa_mr.txt
+ *
+ * Com --lista, os municípios vêm de um arquivo (um código IBGE por linha; '#' é comentário),
+ * podendo ser de mais de uma UF; entram as UFs, Intermediárias e Imediatas desses municípios.
  *
  * O que faz:
  *   1. Baixa os ZIPs oficiais para scripts/ibge/raw/hierarquia/ (ignorado pelo git), se ainda não existirem.
@@ -34,13 +38,14 @@ import union from '@turf/union';
 import difference from '@turf/difference';
 import { featureCollection, feature } from '@turf/helpers';
 
-const UF = (process.argv[2] ?? 'MG').toUpperCase();
-const CD_MUN = process.argv[3] ?? '3115300';
+const LISTA = process.argv[2] === '--lista' ? process.argv[3] : null;
+const UF = LISTA ? null : (process.argv[2] ?? 'MG').toUpperCase();
+const CD_MUN = (LISTA ? null : process.argv[3]) ?? '3115300';
 const RAW = 'scripts/ibge/raw/hierarquia';
 const OUT = 'public/data/ibge/hierarquia_piloto.geojson';
 const ORIGEM = 'public/data/ibge/hierarquia_piloto.origem.json';
 const SECTORS = 'public/data/ibge/camada_piloto.geojson';
-const BASE = `https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/${UF}`;
+const baseFor = (uf) => `https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/${uf}`;
 const API = 'https://servicodados.ibge.gov.br/api/v1/localidades';
 const SIMPLIFY_M = 5;
 const DIST_SIMPLIFY_M = 2;
@@ -50,7 +55,7 @@ const DECIMALS = 7;
 
 mkdirSync(RAW, { recursive: true });
 
-const download = (name) => downloadFrom(BASE, name);
+const download = (uf, name) => downloadFrom(baseFor(uf), name);
 
 async function downloadFrom(base, name) {
   const path = `${RAW}/${name}`;
@@ -129,23 +134,52 @@ function normalizeGeometry(g, simplify, tolM = SIMPLIFY_M) {
   return coordinates.length === 1 ? { type: 'Polygon', coordinates: coordinates[0] } : { type: 'MultiPolygon', coordinates };
 }
 
-async function main() {
+const asList = (x) => (Array.isArray(x) ? x : [x]);
+
+/** Municípios a incluir: os da Imediata do piloto ou os do arquivo --lista (objetos da API de localidades). */
+async function municipalityList() {
+  if (LISTA) {
+    const codes = readFileSync(LISTA, 'utf8').split(/\r?\n/).map((l) => l.replace(/#.*/, '').trim()).filter(Boolean).map((l) => l.split(/\s+/)[0]);
+    const list = asList(await (await fetch(`${API}/municipios/${codes.join('|')}`)).json());
+    const found = new Set(list.map((m) => String(m.id)));
+    const missing = codes.filter((c) => !found.has(c));
+    if (missing.length) throw new Error(`Códigos não encontrados na API do IBGE: ${missing.join(', ')}`);
+    console.log(`Lista ${LISTA}: ${list.length} municípios`);
+    return { list, origemLista: { listaMunicipios: LISTA, api: `${API}/municipios/<códigos da lista>` } };
+  }
   const mun = await (await fetch(`${API}/municipios/${CD_MUN}`)).json();
   const rgi = mun['regiao-imediata'];
   const rgint = rgi['regiao-intermediaria'];
-  const uf = rgint.UF;
-  const munList = await (await fetch(`${API}/regioes-imediatas/${rgi.id}/municipios`)).json();
-  const munCodes = new Set(munList.map((m) => String(m.id)));
-  console.log(`Piloto ${mun.nome} (${CD_MUN}) → Imediata ${rgi.nome} (${rgi.id}) → Intermediária ${rgint.nome} (${rgint.id}) → ${uf.sigla}`);
-
-  const files = {
-    uf: await download(`${UF}_UF_2022.zip`),
-    intermediaria: await download(`${UF}_RG_Intermediarias_2022.zip`),
-    imediata: await download(`${UF}_RG_Imediatas_2022.zip`),
-    municipio: await download(`${UF}_Municipios_2022.zip`),
+  console.log(`Piloto ${mun.nome} (${CD_MUN}) → Imediata ${rgi.nome} (${rgi.id}) → Intermediária ${rgint.nome} (${rgint.id}) → ${rgint.UF.sigla}`);
+  if (rgint.UF.sigla !== UF) throw new Error(`O município ${CD_MUN} é de ${rgint.UF.sigla}, não de ${UF}.`);
+  const list = await (await fetch(`${API}/regioes-imediatas/${rgi.id}/municipios`)).json();
+  return {
+    list,
+    origemLista: { listaMunicipiosImediata: `${API}/regioes-imediatas/${rgi.id}/municipios` },
+    piloto: { municipio: mun.nome, CD_MUN, imediata: { code: String(rgi.id), name: rgi.nome }, intermediaria: { code: String(rgint.id), name: rgint.nome }, uf: rgint.UF.sigla },
   };
+}
+
+async function main() {
+  const { list: munList, origemLista, piloto } = await municipalityList();
+  const rgiOf = new Map(munList.map((m) => [String(m.id), m['regiao-imediata']]));
+  // agrupa por UF: cada UF tem seus próprios arquivos de malha no IBGE
+  const byUf = new Map();
+  munList.forEach((m) => {
+    const rgi = m['regiao-imediata'];
+    const rgint = rgi['regiao-intermediaria'];
+    const sigla = rgint.UF.sigla;
+    if (!byUf.has(sigla)) byUf.set(sigla, { uf: rgint.UF, rgints: new Map(), rgis: new Map(), muns: new Set() });
+    const u = byUf.get(sigla);
+    u.rgints.set(String(rgint.id), String(rgint.UF.id));
+    u.rgis.set(String(rgi.id), String(rgint.id));
+    u.muns.add(String(m.id));
+  });
+  const munCodes = new Set(rgiOf.keys());
 
   const features = [];
+  const districts = [];
+  const metas = [];
   const add = (level, rows, codeField, nameField, filter, parentOf, simplify) => {
     rows.filter((r) => filter(String(r.properties[codeField]))).forEach((r) => {
       const geometry = normalizeGeometry(r.geometry, simplify);
@@ -164,44 +198,54 @@ async function main() {
       });
     });
   };
-  add('uf', readShapefile(files.uf.buf), 'CD_UF', 'NM_UF', (c) => c === String(uf.id), () => null, true);
-  add('intermediaria', readShapefile(files.intermediaria.buf), 'CD_RGINT', 'NM_RGINT', (c) => c === String(rgint.id), () => String(uf.id), true);
-  add('imediata', readShapefile(files.imediata.buf), 'CD_RGI', 'NM_RGI', (c) => c === String(rgi.id), () => String(rgint.id), false);
-  add('municipio', readShapefile(files.municipio.buf), 'CD_MUN', 'NM_MUN', (c) => munCodes.has(c), () => String(rgi.id), false);
+
+  for (const [sigla, u] of byUf) {
+    const files = {
+      uf: await download(sigla, `${sigla}_UF_2022.zip`),
+      intermediaria: await download(sigla, `${sigla}_RG_Intermediarias_2022.zip`),
+      imediata: await download(sigla, `${sigla}_RG_Imediatas_2022.zip`),
+      municipio: await download(sigla, `${sigla}_Municipios_2022.zip`),
+    };
+    add('uf', readShapefile(files.uf.buf), 'CD_UF', 'NM_UF', (c) => c === String(u.uf.id), () => null, true);
+    add('intermediaria', readShapefile(files.intermediaria.buf), 'CD_RGINT', 'NM_RGINT', (c) => u.rgints.has(c), (p) => u.rgints.get(String(p.CD_RGINT)), true);
+    add('imediata', readShapefile(files.imediata.buf), 'CD_RGI', 'NM_RGI', (c) => u.rgis.has(c), (p) => u.rgis.get(String(p.CD_RGI)), false);
+    add('municipio', readShapefile(files.municipio.buf), 'CD_MUN', 'NM_MUN', (c) => u.muns.has(c), (p) => String(rgiOf.get(String(p.CD_MUN)).id), false);
+
+    // Distritos (Malha de Distritos do Censo 2022) dos municípios, em arquivo próprio.
+    // Simplificação de DIST_SIMPLIFY_M: bem abaixo da tolerância de 100 m do serviço de nomes.
+    const distFile = await downloadFrom(DIST_BASE, `${sigla}_distritos_CD2022.zip`);
+    readShapefile(distFile.buf)
+      .filter((r) => u.muns.has(String(r.properties.CD_MUN)))
+      .forEach((r) => districts.push({
+        type: 'Feature',
+        properties: {
+          code: String(r.properties.CD_DIST),
+          name: r.properties.NM_DIST,
+          level: 'distrito',
+          parentCode: String(r.properties.CD_MUN),
+          // No IBGE, o distrito-sede do município tem o código terminado em 05.
+          sede: String(r.properties.CD_DIST).endsWith('05'),
+        },
+        geometry: normalizeGeometry(r.geometry, true, DIST_SIMPLIFY_M),
+      }));
+    metas.push(...Object.values(files).map((f) => f.meta), distFile.meta);
+  }
 
   if (features.filter((f) => f.properties.level === 'municipio').length !== munCodes.size) {
-    throw new Error('Nem todos os municípios da Imediata foram encontrados na malha.');
+    throw new Error('Nem todos os municípios foram encontrados na malha.');
   }
 
   writeFileSync(OUT, `${JSON.stringify({ type: 'FeatureCollection', features })}\n`);
-
-  // Distritos (Malha de Distritos do Censo 2022) dos municípios da Imediata, em arquivo próprio.
-  // Simplificação de DIST_SIMPLIFY_M: bem abaixo da tolerância de 100 m do serviço de nomes.
-  const distFile = await downloadFrom(DIST_BASE, `${UF}_distritos_CD2022.zip`);
-  const districts = readShapefile(distFile.buf)
-    .filter((r) => munCodes.has(String(r.properties.CD_MUN)))
-    .map((r) => ({
-      type: 'Feature',
-      properties: {
-        code: String(r.properties.CD_DIST),
-        name: r.properties.NM_DIST,
-        level: 'distrito',
-        parentCode: String(r.properties.CD_MUN),
-        // No IBGE, o distrito-sede do município tem o código terminado em 05.
-        sede: String(r.properties.CD_DIST).endsWith('05'),
-      },
-      geometry: normalizeGeometry(r.geometry, true, DIST_SIMPLIFY_M),
-    }));
   writeFileSync(DIST_OUT, `${JSON.stringify({ type: 'FeatureCollection', features: districts })}\n`);
   console.log(`Gravado ${DIST_OUT} (${districts.length} distritos).`);
-  files.distritos = distFile;
 
   // Conferência: limite municipal do piloto × união dos setores censitários.
   let conferencia = null;
-  if (existsSync(SECTORS)) {
+  const munFeature = features.find((f) => f.properties.code === CD_MUN);
+  if (existsSync(SECTORS) && munFeature) {
     const sectors = JSON.parse(readFileSync(SECTORS, 'utf8'));
     const sectorUnion = union(featureCollection(sectors.features.map((f) => feature(f.geometry))));
-    const munGeom = features.find((f) => f.properties.code === CD_MUN).geometry;
+    const munGeom = munFeature.geometry;
     const outside = difference(featureCollection([sectorUnion, feature(munGeom)]));
     const missing = difference(featureCollection([feature(munGeom), sectorUnion]));
     conferencia = {
@@ -215,11 +259,13 @@ async function main() {
 
   writeFileSync(ORIGEM, `${JSON.stringify({
     fonte: 'IBGE — Malha Municipal 2022 (Shapefile por UF)',
-    arquivos: Object.values(files).map((f) => f.meta),
-    listaMunicipiosImediata: `${API}/regioes-imediatas/${rgi.id}/municipios`,
+    arquivos: metas,
+    ...origemLista,
     dataObtencao: new Date().toISOString().slice(0, 10),
     crsOrigem: 'GCS_SIRGAS_2000 (geográfico) — gravado como EPSG:4326 sem transformação',
-    piloto: { municipio: mun.nome, CD_MUN, imediata: { code: String(rgi.id), name: rgi.nome }, intermediaria: { code: String(rgint.id), name: rgint.nome }, uf: uf.sigla },
+    ...(piloto ? { piloto } : {}),
+    ufs: [...byUf.keys()],
+    municipios: munCodes.size,
     simplificacao: `UF e Intermediária: Douglas-Peucker ${SIMPLIFY_M} m. Imediata e municípios: sem simplificação.`,
     conferenciaSetores: conferencia,
     feicoes: features.length,

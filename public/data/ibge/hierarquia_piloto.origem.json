@@ -30,24 +30,47 @@
       "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/censo_2022/distritos/shp/UF/MG_distritos_CD2022.zip",
       "tamanhoBytes": 38223099,
       "sha256": "764060b1c05f118712528f0bbdc6044a615cd0506d9b0d39ee9b6750d92ebd89"
+    },
+    {
+      "arquivo": "RJ_UF_2022.zip",
+      "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/RJ/RJ_UF_2022.zip",
+      "tamanhoBytes": 1467765,
+      "sha256": "bd44bab0f16ca4a296673fb6bf065711b750349d62b82d8c7fe2cfaf5e037f36"
+    },
+    {
+      "arquivo": "RJ_RG_Intermediarias_2022.zip",
+      "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/RJ/RJ_RG_Intermediarias_2022.zip",
+      "tamanhoBytes": 2227420,
+      "sha256": "b916838caacb92bf9ec886847d12f36e44c1d14f67e7cfcd6d9edaa262123a96"
+    },
+    {
+      "arquivo": "RJ_RG_Imediatas_2022.zip",
+      "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/RJ/RJ_RG_Imediatas_2022.zip",
+      "tamanhoBytes": 2952106,
+      "sha256": "4d55372611937bcc7e7187df40149dff9ad300f4f976f5dd5cac3abc6f2a2476"
+    },
+    {
+      "arquivo": "RJ_Municipios_2022.zip",
+      "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/UFs/RJ/RJ_Municipios_2022.zip",
+      "tamanhoBytes": 5290738,
+      "sha256": "2158c211288424e6b907f2c7fce95cea5e6decf0038cff748508d4a83fdb364f"
+    },
+    {
+      "arquivo": "RJ_distritos_CD2022.zip",
+      "url": "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/censo_2022/distritos/shp/UF/RJ_distritos_CD2022.zip",
+      "tamanhoBytes": 6277781,
+      "sha256": "5cfdbafdd5ca389da203098e484509f4fed88aa5c4e94098fa67ffd44d56cc42"
     }
   ],
-  "listaMunicipiosImediata": "https://servicodados.ibge.gov.br/api/v1/localidades/regioes-imediatas/310032/municipios",
+  "listaMunicipios": "scripts/ibge/municipios_energisa_mr.txt",
+  "api": "https://servicodados.ibge.gov.br/api/v1/localidades/municipios/<códigos da lista>",
   "dataObtencao": "2026-10-17",
   "crsOrigem": "GCS_SIRGAS_2000 (geográfico) — gravado como EPSG:4326 sem transformação",
-  "piloto": {
-    "municipio": "Cataguases",
-    "CD_MUN": "3115300",
-    "imediata": {
-      "code": "310032",
-      "name": "Cataguases"
-    },
-    "intermediaria": {
-      "code": "3106",
-      "name": "Juíz de Fora"
-    },
-    "uf": "MG"
-  },
+  "ufs": [
+    "MG",
+    "RJ"
+  ],
+  "municipios": 67,
   "simplificacao": "UF e Intermediária: Douglas-Peucker 5 m. Imediata e municípios: sem simplificação.",
   "conferenciaSetores": {
     "areaMunicipioKm2": 493.1,
@@ -55,5 +78,5 @@
     "setoresForaDoMunicipioM2": 1,
     "municipioSemSetorM2": 0
   },
-  "feicoes": 13
+  "feicoes": 82
 }

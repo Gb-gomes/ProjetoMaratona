@@ -1,0 +1,71 @@
+# Municípios da área de concessão da Energisa Minas Rio (camada ARAT da BDGD/ANEEL, base 2025-12-31).
+# Critério: pelo menos 1% da área do município dentro da ARAT (todos os 67 estão 100% dentro).
+# Fora: Carmo (3301207) e Bom Jardim (3300506), RJ, com menos de 1%.
+# Uso: node scripts/preparar_hierarquia_ibge.mjs --lista scripts/ibge/municipios_energisa_mr.txt
+3101508 Além Paraíba/MG
+3103108 Antônio Prado de Minas/MG
+3103702 Araponga/MG
+3104403 Argirita/MG
+3104601 Astolfo Dutra/MG
+3105509 Barão do Monte Alto/MG
+3110202 Cajuri/MG
+3111705 Canaã/MG
+3112901 Caputira/MG
+3115300 Cataguases/MG
+3116704 Coimbra/MG
+3121308 Descoberto/MG
+3121902 Divinésia/MG
+3122900 Dona Euzébia/MG
+3123528 Durandé/MG
+3124005 Ervália/MG
+3124906 Eugenópolis/MG
+3128402 Guarani/MG
+3128808 Guidoval/MG
+3129004 Guiricema/MG
+3132602 Itamarati de Minas/MG
+3138005 Laranjal/MG
+3138401 Leopoldina/MG
+3138674 Luisburgo/MG
+3139409 Manhuaçu/MG
+3139508 Manhumirim/MG
+3140530 Martins Soares/MG
+3140902 Matipó/MG
+3141603 Mercês/MG
+3142106 Miradouro/MG
+3142205 Miraí/MG
+3143906 Muriaé/MG
+3146701 Palma/MG
+3148202 Patrocínio do Muriaé/MG
+3148301 Paula Cândido/MG
+3148806 Pedra do Anta/MG
+3149002 Pedra Dourada/MG
+3151107 Pirapetinga/MG
+3151305 Piraúba/MG
+3153509 Alto Jequitibá/MG
+3154101 Recreio/MG
+3154150 Reduto/MG
+3155405 Rio Novo/MG
+3155801 Rio Pomba/MG
+3156205 Rochedo de Minas/MG
+3156304 Rodeiro/MG
+3156452 Rosário da Limeira/MG
+3157906 Santa Margarida/MG
+3158409 Santana de Cataguases/MG
+3158904 Santana do Manhuaçu/MG
+3160009 Santo Antônio do Aventureiro/MG
+3161502 São Geraldo/MG
+3162559 São João do Manhuaçu/MG
+3162906 São João Nepomuceno/MG
+3163805 São Miguel do Anta/MG
+3164431 São Sebastião da Vargem Alegre/MG
+3165701 Senador Firmino/MG
+3166303 Sericita/MG
+3167301 Silveirânia/MG
+3167608 Simonésia/MG
+3167905 Tabuleiro/MG
+3169000 Tocantins/MG
+3169901 Ubá/MG
+3171402 Vieiras/MG
+3172004 Visconde do Rio Branco/MG
+3303401 Nova Friburgo/RJ
+3305703 Sumidouro/RJ
