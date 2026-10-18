@@ -79,6 +79,24 @@ Abra **Camadas › Comunidades › Configurar** ou **Sub-regiões › Comunidade
 - **Leopoldina:** 139 sobreposições resolvidas.
 - **Diferença com a especificação:** ela fala em "4 sobreposições" para Cataguases. A conta por interseção exata encontra 62, todas pequenas (de 0,01 a 249 m²). O critério usado aqui considera qualquer interseção acima de 0,01 m².
 
+## Visualização no mapa (`src/components/map/CommunityLayers.jsx`)
+
+Segue o mapa de referência aprovado pela usuária-chave (Cataguases, 42 microrregiões):
+
+- **Cores pastel:** comunidades vizinhas ficam com cores diferentes, inclusive entre municípios vizinhos. As cores só separam vizinhas; não têm significado.
+  - Cálculo em `src/lib/communityColors.js`: duas comunidades são vizinhas quando têm um vértice em comum (arredondado a ~11 m).
+  - O teste `communityColors.test.js` confere as 1.982 comunidades: nenhuma vizinha com a mesma cor.
+- **Área urbana em cinza:** é o que sobra do município fora das comunidades rurais.
+- **Contorno:** fino; tracejado quando a confiança é baixa.
+- **Rótulo:** escuro, só quando a comunidade cabe na tela, para os nomes não se amontoarem de longe.
+- **Zoom:** de longe as cores são fortes. Ao aproximar, o preenchimento clareia para o mapa base aparecer.
+  - Ao editar uma sub-região, o preenchimento fica bem leve.
+- **Mapa base padrão "Limpo (nomes ao aproximar)":** Esri World Light Gray, sem ícones nem nomes.
+  - A partir do zoom 13 entram os nomes de lugares e vias (Esri Light Gray Reference), para o operador se situar ao editar.
+  - Para mais detalhe, use "Ruas" ou "Satélite" em Camadas › Mapa base.
+  - Os mapas da CARTO foram testados e descartados: passaram a exigir chave de API.
+  - Quem já tinha escolhido outro mapa base neste navegador continua com ele.
+
 ## Serviço coordenada → nome (`src/lib/placeNames.js`)
 
 Um só serviço para todo o sistema: mapa, busca, cadastro de pontos prioritários, pontos do CSV, auditoria e carta para as rádios.

@@ -7,6 +7,7 @@ import { paneName } from './PaneManager.jsx';
 import { useZoom } from './OrgLayers.jsx';
 import { geometryToLatLngs } from '../../lib/geo.js';
 import { COMMUNITY_COLOR, confidenceReason } from '../../lib/communities.js';
+import { URBAN_FILL } from '../../lib/communityColors.js';
 
 const labelCache = new Map();
 function labelIcon(name, low, selected) {
@@ -20,19 +21,58 @@ function labelIcon(name, low, selected) {
   return labelCache.get(key);
 }
 
+const ringsOf = (g) => (!g ? [] : g.type === 'Polygon' ? g.coordinates : g.type === 'MultiPolygon' ? g.coordinates.flat() : []);
+// Rótulo só quando a comunidade ocupa área suficiente na tela (evita nomes amontoados de longe).
+const KM_PER_PX_Z0 = 156.543;
+function labelFits(r, zoom) {
+  if (!r.areaKm2) return zoom >= 13;
+  const kmPx = (KM_PER_PX_Z0 * Math.cos((r.labelPoint[1] * Math.PI) / 180)) / 2 ** zoom;
+  const widthPx = Math.max(40, String(r.name).length * 6.5);
+  return r.areaKm2 / (kmPx * kmPx) >= Math.max(3500, widthPx * widthPx * 0.55);
+}
+const isDark = () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+
 /**
- * Comunidades de um município: contorno fino; tracejado quando a confiança é
- * baixa (localização aproximada); rótulo no label_point a partir do zoom 11.
+ * Comunidades de um município, no estilo do mapa de referência aprovado:
+ * - preenchimento pastel, vizinhas com cores diferentes (lib/communityColors.js);
+ * - área urbana (o que sobra do município fora das comunidades) em cinza;
+ * - contorno fino; tracejado quando a confiança é baixa;
+ * - rótulo escuro no label_point quando a comunidade cabe na tela (labelFits).
+ * Ao aproximar e ao editar, o preenchimento fica mais leve para o mapa base aparecer.
  * Os polígonos não são interativos: clique e destaque são feitos pelo mapa
  * (MapClickRouter e CommunityHover), para não bloquear as camadas de baixo.
  */
 export function CommunitiesLayer({
-  layer, regions, hoveredId = null, selectedId = null,
+  layer, regions, colors = null, municipality = null, editing = false, hoveredId = null, selectedId = null,
 }) {
   const zoom = useZoom();
   const pane = paneName(layer.id);
+  const dark = isDark();
+  // De longe, cores fortes como no mapa de referência; ao aproximar, o preenchimento clareia
+  // para o mapa base (vias, nomes) aparecer e o operador se situar.
+  const fade = zoom <= 11 ? 1 : zoom >= 14 ? 0.3 : 1 - ((zoom - 11) / 3) * 0.7;
+  const fill = editing ? 0.15 : (dark ? 0.32 : 0.62) * fade;
+  // Município com todos os anéis das comunidades como furos (regra par-ímpar do Leaflet):
+  // o que sobra é a área fora das comunidades rurais, ou seja, a área urbana.
+  const urban = useMemo(() => {
+    if (!municipality) return null;
+    return [...ringsOf(municipality), ...regions.flatMap((r) => ringsOf(r.geometry))]
+      .map((ring) => ring.map(([x, y]) => [y, x]));
+  }, [municipality, regions]);
   return (
     <>
+      {urban && (
+        <Polygon
+          key={`urb-${layer.id}`}
+          positions={urban}
+          pane={pane}
+          interactive={false}
+          pmIgnore
+          pathOptions={{
+            stroke: false, fillRule: 'evenodd', fillColor: URBAN_FILL, fillOpacity: editing ? 0.12 : (dark ? 0.3 : 0.55) * fade,
+          }}
+        />
+      )}
       {regions.map((r) => {
         const low = r.confidence === 'baixa';
         const on = r.id === hoveredId || r.id === selectedId;
@@ -44,17 +84,17 @@ export function CommunitiesLayer({
             interactive={false}
             pmIgnore={false}
             pathOptions={{
-              color: COMMUNITY_COLOR,
-              weight: on ? 2.6 : 1,
+              color: on ? '#0B2233' : dark ? '#94A3B8' : '#4B5563',
+              weight: on ? 2.6 : 0.8,
               dashArray: low ? '5 4' : null,
-              opacity: on ? 1 : 0.85,
-              fillColor: COMMUNITY_COLOR,
-              fillOpacity: on ? 0.2 : 0.04,
+              opacity: on ? 1 : 0.75,
+              fillColor: colors?.get(r.id) ?? COMMUNITY_COLOR,
+              fillOpacity: on ? Math.min(0.85, fill + 0.2) : fill,
             }}
           />
         );
       })}
-      {zoom >= 11 && regions.filter((r) => r.labelPoint).map((r) => (
+      {zoom >= 10 && regions.filter((r) => r.labelPoint && (r.id === selectedId || labelFits(r, zoom))).map((r) => (
         <Marker
           key={`lb-${r.id}:${r.updatedAt}`}
           position={[r.labelPoint[1], r.labelPoint[0]]}

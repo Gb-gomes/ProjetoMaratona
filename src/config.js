@@ -214,6 +214,23 @@ export const PRIORITY_MATCH = {
  */
 export const BASEMAPS = [
   {
+    // Padrão: base cinza-clara sem nomes, para as comunidades aparecerem limpas.
+    // Ao aproximar (zoom >= labels.minZoom) entram os nomes de lugares e vias, para o
+    // operador se situar ao editar. Para mais detalhe: Ruas ou Satélite.
+    // (Os mapas da CARTO passaram a exigir chave de API; o Esri Light Gray não exige.)
+    id: 'basemap:clean',
+    name: 'Limpo (nomes ao aproximar)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Base &copy; Esri, HERE, Garmin, &copy; colaboradores do OpenStreetMap',
+    maxZoom: 18,
+    maxNativeZoom: 16, // acima disso, amplia os tiles do nível 16
+    className: 'cr-basemap-clean',
+    labels: {
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+      minZoom: 13,
+    },
+  },
+  {
     id: 'basemap:streets',
     name: 'Ruas (OpenStreetMap)',
     url: TILE_LAYER.url,

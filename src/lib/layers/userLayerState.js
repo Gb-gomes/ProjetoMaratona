@@ -9,7 +9,7 @@
 const PREFIX = 'conecta-rural:camadas:estado:v1:';
 
 export const EMPTY_LAYER_STATE = {
-  basemap: 'basemap:streets',
+  basemap: 'basemap:clean',
   layers: {}, // id → { visible?, opacity?, filterRegionId? }
   order: {}, // id (camada ou grupo) → ordem entre irmãos (maior = mais acima)
   collapsed: {}, // id do grupo → true

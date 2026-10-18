@@ -46,6 +46,7 @@ import SubRegionsPanel from '../components/subregions/SubRegionsPanel.jsx';
 import MapPickCard from '../components/subregions/MapPickCard.jsx';
 import PlaceSearch from '../components/subregions/PlaceSearch.jsx';
 import { CommunitiesLayer, CommunityHover } from '../components/map/CommunityLayers.jsx';
+import { assignCommunityColors, COMMUNITY_PALETTE, URBAN_FILL } from './communityColors.js';
 import { TerritoryLegend, PriorityLegend } from '../components/MapLegend.jsx';
 
 // Carregados sob demanda: editor (Leaflet-Geoman) e diálogos de importação/configuração
@@ -111,6 +112,8 @@ export function useMapWorkspace({
     activeCommunities.forEach((c) => { if (!m.has(c.ibgeParentCode)) m.set(c.ibgeParentCode, []); m.get(c.ibgeParentCode).push(c); });
     return m;
   }, [activeCommunities]);
+  // Cores pastel do mapa: comunidades vizinhas (inclusive de municípios vizinhos) com cores diferentes.
+  const communityColors = useMemo(() => assignCommunityColors(activeCommunities), [activeCommunities]);
   // Serviço único coordenada → nome (lib/placeNames.js), usado em todo o sistema.
   const locator = useMemo(() => (hierarchy ? createPlaceLocator({ hierarchy, communities: activeCommunities }) : null), [hierarchy, activeCommunities]);
   const [manifest, setManifest] = useState(null);
@@ -262,8 +265,9 @@ export function useMapWorkspace({
         subtitle: `${list.filter((c) => c.confidence === 'baixa').length} de localização aproximada`,
         legend: {
           items: [
-            { geometryType: 'polygon', color: COMMUNITY_COLOR, fillOpacity: 0.05, label: 'Comunidade' },
-            { geometryType: 'polygon', color: COMMUNITY_COLOR, fillOpacity: 0.05, dash: '4 3', label: 'Localização aproximada (confiança baixa)' },
+            { geometryType: 'polygon', color: '#4B5563', fill: COMMUNITY_PALETTE[0], fillOpacity: 0.8, weight: 1, label: 'Comunidade rural (cores só separam vizinhas)' },
+            { geometryType: 'polygon', color: '#4B5563', fill: COMMUNITY_PALETTE[4], fillOpacity: 0.8, weight: 1, dash: '4 3', label: 'Localização aproximada (confiança baixa)' },
+            { geometryType: 'polygon', color: URBAN_FILL, fill: URBAN_FILL, fillOpacity: 0.7, weight: 1, label: 'Área urbana (fora das comunidades)' },
           ],
         },
         defaultVisible: true, canConfigure: true, configureLabel: 'Gerenciar comunidades',
@@ -1025,7 +1029,7 @@ export function useMapWorkspace({
       {visibleOrdered.map((l) => {
         if (l.kind === 'ibge') return <IbgeLevelLayer key={l.id} layer={l} regions={hierarchy?.byLevel[l.levelStyle.level] ?? []} highlightCode={highlightCode} />;
         if (l.kind === 'communities') {
-          return l.codMun ? <CommunitiesLayer key={l.id} layer={l} regions={communitiesByMun.get(l.codMun) ?? []} hoveredId={hoveredCommunity} selectedId={selectedRegionId} /> : null;
+          return l.codMun ? <CommunitiesLayer key={l.id} layer={l} regions={communitiesByMun.get(l.codMun) ?? []} colors={communityColors} municipality={hierarchy?.byCode.get(l.codMun)?.geometry ?? null} editing={!!editor} hoveredId={hoveredCommunity} selectedId={selectedRegionId} /> : null;
         }
         if (l.kind === 'custom_regions') {
           return <CustomRegionsLayer key={l.id} layer={l} regions={activeRegions} selectedId={selectedRegionId} editingId={editor?.editingId ?? null} />;
