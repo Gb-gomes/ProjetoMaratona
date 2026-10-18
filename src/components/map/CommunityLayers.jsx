@@ -15,7 +15,7 @@ function labelIcon(name, low, selected) {
   if (!labelCache.has(key)) {
     const span = document.createElement('span');
     span.className = `cr-community-label${low ? ' is-low' : ''}${selected ? ' is-selected' : ''}`;
-    span.textContent = low ? `${name} ≈` : name;
+    span.textContent = name;
     labelCache.set(key, L.divIcon({ className: 'cr-community-icon', html: span.outerHTML, iconSize: null }));
   }
   return labelCache.get(key);
@@ -30,6 +30,7 @@ function labelFits(r, zoom) {
   const widthPx = Math.max(40, String(r.name).length * 6.5);
   return r.areaKm2 / (kmPx * kmPx) >= Math.max(3500, widthPx * widthPx * 0.55);
 }
+const LABEL_PANE = 'cr-community-labels';
 const isDark = () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 
 /**
@@ -46,8 +47,16 @@ export function CommunitiesLayer({
   layer, regions, colors = null, municipality = null, editing = false, hoveredId = null, selectedId = null,
 }) {
   const zoom = useZoom();
+  const map = useMap();
   const pane = paneName(layer.id);
   const dark = isDark();
+  // Rótulos de todas as comunidades num pane só, acima dos polígonos de todos os municípios
+  // (senão o preenchimento de um município vizinho cobre os nomes perto da divisa).
+  if (!map.getPane(LABEL_PANE)) {
+    const el = map.createPane(LABEL_PANE);
+    el.style.zIndex = '592';
+    el.style.pointerEvents = 'none';
+  }
   // De longe, cores fortes como no mapa de referência; ao aproximar, o preenchimento clareia
   // para o mapa base (vias, nomes) aparecer e o operador se situar.
   const fade = zoom <= 11 ? 1 : zoom >= 14 ? 0.3 : 1 - ((zoom - 11) / 3) * 0.7;
@@ -99,7 +108,7 @@ export function CommunitiesLayer({
           key={`lb-${r.id}:${r.updatedAt}`}
           position={[r.labelPoint[1], r.labelPoint[0]]}
           icon={labelIcon(r.name, r.confidence === 'baixa', r.id === selectedId)}
-          pane={pane}
+          pane={LABEL_PANE}
           interactive={false}
           keyboard={false}
           pmIgnore
@@ -114,7 +123,7 @@ export function CommunitiesLayer({
  * sistema) e mostra comunidade, distrito, município e confiança.
  */
 export function CommunityHover({
-  enabled, locator, visibleMunicipalities, regionsById, onHover,
+  enabled, locator, visibleMunicipalities, regionsById, onHover, hiddenIds = {},
 }) {
   const map = useMap();
   const tipRef = useRef(null);
@@ -137,7 +146,7 @@ export function CommunityHover({
       frame.current = requestAnimationFrame(() => {
         const place = locator.locate([e.latlng.lng, e.latlng.lat]);
         const c = place?.comunidade;
-        if (!c || !visible.has(place.municipio?.cod) || place.origem_nome !== 'comunidade') { hide(); return; }
+        if (!c || !visible.has(place.municipio?.cod) || place.origem_nome !== 'comunidade' || hiddenIds[c.regionId]) { hide(); return; }
         if (last.current !== c.regionId) { last.current = c.regionId; onHover(c.regionId); }
         const box = document.createElement('div');
         const title = document.createElement('strong');

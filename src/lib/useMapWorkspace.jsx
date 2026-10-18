@@ -47,6 +47,7 @@ import MapPickCard from '../components/subregions/MapPickCard.jsx';
 import PlaceSearch from '../components/subregions/PlaceSearch.jsx';
 import { CommunitiesLayer, CommunityHover } from '../components/map/CommunityLayers.jsx';
 import { assignCommunityColors, COMMUNITY_PALETTE, URBAN_FILL } from './communityColors.js';
+import CommunityLayerTools, { CommunityMatches, matchCommunities } from '../components/layers/CommunityLayerTools.jsx';
 import { TerritoryLegend, PriorityLegend } from '../components/MapLegend.jsx';
 
 // Carregados sob demanda: editor (Leaflet-Geoman) e diálogos de importação/configuração
@@ -198,6 +199,14 @@ export function useMapWorkspace({
     });
   }, [user, notify]);
 
+  // Comunidades desmarcadas uma a uma no painel (só exibição: o serviço de nomes continua usando todas).
+  const hiddenCommunities = ls.hiddenCommunities ?? {};
+  const shownCommunitiesByMun = useMemo(() => {
+    const m = new Map();
+    communitiesByMun.forEach((list, cod) => m.set(cod, list.filter((c) => !hiddenCommunities[c.id])));
+    return m;
+  }, [communitiesByMun, hiddenCommunities]);
+
   // Ao entrar no modo real, aplica a visibilidade salva das camadas operacionais.
   const appliedOp = useRef(false);
   useEffect(() => {
@@ -262,7 +271,10 @@ export function useMapWorkspace({
       ...(communitiesByMun.size ? [...communitiesByMun.entries()].map(([cod, list], i) => ({
         id: `communities:${cod}`, groupId: 'grp:comunidades', defaultOrder: 100 - i, kind: 'communities', codMun: cod,
         name: `${hierarchy?.byCode.get(cod)?.name ?? cod} (${list.length})`, geometryType: 'polygon',
-        subtitle: `${list.filter((c) => c.confidence === 'baixa').length} de localização aproximada`,
+        subtitle: [
+          `${list.filter((c) => c.confidence === 'baixa').length} aproximada(s)`,
+          list.some((c) => hiddenCommunities[c.id]) && `${list.filter((c) => hiddenCommunities[c.id]).length} desmarcada(s)`,
+        ].filter(Boolean).join(' · '),
         legend: {
           items: [
             { geometryType: 'polygon', color: '#4B5563', fill: COMMUNITY_PALETTE[0], fillOpacity: 0.8, weight: 1, label: 'Comunidade rural (cores só separam vizinhas)' },
@@ -299,7 +311,7 @@ export function useMapWorkspace({
       })),
     ];
     return out;
-  }, [done, result, priorityRecords.length, sectorLayer, activeRegions, communitiesByMun, hierarchy, hier, dataLayers]);
+  }, [done, result, priorityRecords.length, sectorLayer, activeRegions, communitiesByMun, hiddenCommunities, hierarchy, hier, dataLayers]);
 
   const tree = useMemo(() => buildTree(groups, catalog, ls), [groups, catalog, ls]);
   const ordered = useMemo(() => flattenLayers(tree), [tree]);
@@ -963,7 +975,7 @@ export function useMapWorkspace({
         kind: 'custom', id: r.id, key: `c:${r.id}`, short: r.name, geometry: r.geometry, bbox: geometryBboxAny(r.geometry),
       }));
     }
-    communitiesByMun.forEach((list, cod) => {
+    shownCommunitiesByMun.forEach((list, cod) => {
       if (!effective[`communities:${cod}`]?.visible) return;
       list.forEach((r) => out.push({
         kind: 'custom', id: r.id, key: `c:${r.id}`, short: `Comunidade ${r.name}`, geometry: r.geometry, bbox: geometryBboxAny(r.geometry),
@@ -976,7 +988,7 @@ export function useMapWorkspace({
       }));
     });
     return out;
-  }, [effective, activeRegions, communitiesByMun, hierarchy, regionById]);
+  }, [effective, activeRegions, shownCommunitiesByMun, hierarchy, regionById]);
 
   const pickCurrent = useMemo(() => {
     const it = pick?.items[pick.index];
@@ -1004,7 +1016,10 @@ export function useMapWorkspace({
   const onSearchSelect = (r) => {
     if (r.kind === 'comunidade') {
       const reg = regionById.get(r.id);
-      updateLs((cur) => patchLayer(cur, `communities:${reg.ibgeParentCode}`, { visible: true }));
+      updateLs((cur) => {
+        const { [r.id]: _drop, ...hidden } = cur.hiddenCommunities ?? {};
+        return { ...patchLayer(cur, `communities:${reg.ibgeParentCode}`, { visible: true }), hiddenCommunities: hidden };
+      });
       setPick({ latlng: null, items: [{ kind: 'custom', id: r.id, key: `c:${r.id}`, short: `Comunidade ${r.nome}` }], index: 0 });
     } else {
       const lv = IBGE_HIERARCHY.levels.find((x) => x.level === r.kind);
@@ -1029,7 +1044,7 @@ export function useMapWorkspace({
       {visibleOrdered.map((l) => {
         if (l.kind === 'ibge') return <IbgeLevelLayer key={l.id} layer={l} regions={hierarchy?.byLevel[l.levelStyle.level] ?? []} highlightCode={highlightCode} />;
         if (l.kind === 'communities') {
-          return l.codMun ? <CommunitiesLayer key={l.id} layer={l} regions={communitiesByMun.get(l.codMun) ?? []} colors={communityColors} municipality={hierarchy?.byCode.get(l.codMun)?.geometry ?? null} editing={!!editor} hoveredId={hoveredCommunity} selectedId={selectedRegionId} /> : null;
+          return l.codMun ? <CommunitiesLayer key={l.id} layer={l} regions={shownCommunitiesByMun.get(l.codMun) ?? []} colors={communityColors} municipality={hierarchy?.byCode.get(l.codMun)?.geometry ?? null} editing={!!editor} hoveredId={hoveredCommunity} selectedId={selectedRegionId} /> : null;
         }
         if (l.kind === 'custom_regions') {
           return <CustomRegionsLayer key={l.id} layer={l} regions={activeRegions} selectedId={selectedRegionId} editingId={editor?.editingId ?? null} />;
@@ -1057,6 +1072,7 @@ export function useMapWorkspace({
         enabled={!editor && visibleCommunityMuns.length > 0}
         locator={locator}
         visibleMunicipalities={visibleCommunityMuns}
+        hiddenIds={hiddenCommunities}
         regionsById={regionById}
         onHover={setHoveredCommunity}
       />
@@ -1068,6 +1084,83 @@ export function useMapWorkspace({
       />
     </>
   ) : null;
+
+  /* ---------------- Comunidades no painel: filtro e marcar/desmarcar ---------------- */
+  const [communityQuery, setCommunityQuery] = useState('');
+  const communityMuns = useMemo(() => [...communitiesByMun.entries()].map(([cod, list]) => ({
+    cod,
+    layerId: `communities:${cod}`,
+    name: hierarchy?.byCode.get(cod)?.name ?? cod,
+    communities: list.map((c) => ({ id: c.id, name: c.name, low: c.confidence === 'baixa' })),
+  })), [communitiesByMun, hierarchy]);
+  const communityFound = useMemo(() => matchCommunities(communityMuns, communityQuery), [communityMuns, communityQuery]);
+  const communityTotals = useMemo(() => {
+    const on = communityMuns.filter((m) => effective[m.layerId]?.visible);
+    return {
+      muns: communityMuns.length,
+      munsOn: on.length,
+      comms: communityMuns.reduce((a, m) => a + m.communities.length, 0),
+      commsOn: on.reduce((a, m) => a + m.communities.filter((c) => !hiddenCommunities[c.id]).length, 0),
+    };
+  }, [communityMuns, effective, hiddenCommunities]);
+  const filtering = !!communityQuery.trim();
+  // Marcar/desmarcar: o município inteiro quando o nome dele bate (ou sem filtro); senão, só as comunidades encontradas.
+  const setCommunities = (on) => updateLs((cur) => {
+    let next = cur;
+    const hidden = { ...(cur.hiddenCommunities ?? {}) };
+    communityFound.forEach((m) => {
+      if (!filtering || m.munMatch) {
+        next = patchLayer(next, m.layerId, { visible: on });
+        if (on) m.communities.forEach((c) => { delete hidden[c.id]; });
+        return;
+      }
+      if (on) {
+        // Município desligado: liga só as encontradas (as outras ficam desmarcadas).
+        if (!effective[m.layerId]?.visible) {
+          m.communities.forEach((c) => { hidden[c.id] = true; });
+          next = patchLayer(next, m.layerId, { visible: true });
+        }
+        m.matches.forEach((c) => { delete hidden[c.id]; });
+      } else {
+        m.matches.forEach((c) => { hidden[c.id] = true; });
+      }
+    });
+    return { ...next, hiddenCommunities: hidden };
+  });
+  const toggleCommunity = (m, c) => updateLs((cur) => {
+    const hidden = { ...(cur.hiddenCommunities ?? {}) };
+    const munOn = !!effective[m.layerId]?.visible;
+    if (munOn && !hidden[c.id]) {
+      hidden[c.id] = true;
+      return { ...cur, hiddenCommunities: hidden };
+    }
+    let next = cur;
+    if (!munOn) {
+      m.communities.forEach((x) => { hidden[x.id] = true; });
+      next = patchLayer(next, m.layerId, { visible: true });
+    }
+    delete hidden[c.id];
+    return { ...next, hiddenCommunities: hidden };
+  });
+  const foundByLayer = useMemo(() => new Map(communityFound.map((m) => [m.layerId, m])), [communityFound]);
+  const communityTools = communityMuns.length ? (
+    <CommunityLayerTools
+      query={communityQuery}
+      onQuery={setCommunityQuery}
+      found={communityFound}
+      totals={communityTotals}
+      onMarkAll={() => setCommunities(true)}
+      onUnmarkAll={() => setCommunities(false)}
+    />
+  ) : null;
+  const communityRows = filtering ? Object.fromEntries(communityFound.filter((m) => m.matches.length).map((m) => [m.layerId, (
+    <CommunityMatches
+      matches={m.matches}
+      isOn={(c) => !!effective[m.layerId]?.visible && !hiddenCommunities[c.id]}
+      onToggle={(c) => toggleCommunity(m, c)}
+    />
+  )])) : {};
+  const communityRowFilter = filtering ? (l) => l.kind !== 'communities' || !l.codMun || foundByLayer.has(l.id) : null;
 
   // Durante a edição de sub-região o painel de camadas sai da frente (o mapa precisa de espaço).
   const layerPanel = enabled && !editor ? (
@@ -1089,7 +1182,11 @@ export function useMapWorkspace({
       regionsForFilter={activeRegions}
       onFilter={setLayerFilter}
       filterStatus={filterStatus}
-      extras={{ 'op:points': pointFilterExtra, 'op:territories': <TerritoryLegend />, 'op:priority': <PriorityLegend /> }}
+      extras={{ 'op:points': pointFilterExtra }}
+      legendExtras={{ 'op:territories': <TerritoryLegend />, 'op:priority': <PriorityLegend /> }}
+      groupTools={communityTools ? { 'grp:comunidades': communityTools } : {}}
+      rowFilter={communityRowFilter}
+      rowChildren={communityRows}
       embedded
     />
   ) : null;

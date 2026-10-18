@@ -58,7 +58,7 @@ export default function MapLayersDock({
   }
 
   return (
-    <div className="pointer-events-none absolute bottom-3 right-3 top-3 z-[600] flex w-[300px] max-w-[calc(100%-1.5rem)] flex-col items-end">
+    <div className="pointer-events-none absolute bottom-3 right-3 top-3 z-[600] flex w-[340px] max-w-[calc(100%-1.5rem)] flex-col items-end">
       {open ? (
         <section
           id={LAYERS_PANEL_ID}

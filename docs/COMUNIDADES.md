@@ -88,7 +88,9 @@ Segue o mapa de referência aprovado pela usuária-chave (Cataguases, 42 microrr
   - O teste `communityColors.test.js` confere as 1.982 comunidades: nenhuma vizinha com a mesma cor.
 - **Área urbana em cinza:** é o que sobra do município fora das comunidades rurais.
 - **Contorno:** fino; tracejado quando a confiança é baixa.
-- **Rótulo:** escuro, só quando a comunidade cabe na tela, para os nomes não se amontoarem de longe.
+- **Rótulo:** preto, negrito, com contorno branco nítido (no escuro, claro com contorno escuro), igual ao mapa de referência.
+  - Aparece só quando a comunidade cabe na tela, para os nomes não se amontoarem de longe.
+  - Os rótulos de todos os municípios ficam num pane próprio, acima dos polígonos, para o vizinho não cobrir os nomes perto da divisa.
 - **Zoom:** de longe as cores são fortes. Ao aproximar, o preenchimento clareia para o mapa base aparecer.
   - Ao editar uma sub-região, o preenchimento fica bem leve.
 - **Mapa base padrão "Limpo (nomes ao aproximar)":** Esri World Light Gray, sem ícones nem nomes.
@@ -96,6 +98,27 @@ Segue o mapa de referência aprovado pela usuária-chave (Cataguases, 42 microrr
   - Para mais detalhe, use "Ruas" ou "Satélite" em Camadas › Mapa base.
   - Os mapas da CARTO foram testados e descartados: passaram a exigir chave de API.
   - Quem já tinha escolhido outro mapa base neste navegador continua com ele.
+
+## Painel de camadas: grupo Comunidades
+
+- **Filtro:** "Filtrar comunidade ou município", sem acento e sem diferenciar maiúsculas.
+  - Mostra só os municípios encontrados.
+  - Quando o texto bate com nomes de comunidade, elas aparecem sob o município, cada uma com caixa de marcar.
+- **Marcar todos / Desmarcar todos:** com filtro, viram "Marcar filtrados / Desmarcar filtrados".
+  - Município cujo nome bate (ou sem filtro): liga ou desliga o município inteiro.
+  - Só comunidades batem: marca ou desmarca só elas. Se o município estava desligado, ele liga só com as encontradas.
+- **Contagem:** quantos municípios e comunidades estão no mapa. Desligar o que não precisa deixa o mapa mais leve.
+- **Comunidade desmarcada:**
+  - some do mapa, do destaque ao passar o mouse e do clique;
+  - **continua** no serviço de nomes, na carta e no cruzamento dos pontos (é só exibição);
+  - fica salva por usuário neste navegador (`hiddenCommunities` em `userLayerState.js`);
+  - buscar a comunidade pela busca do mapa volta a marcá-la.
+
+O painel também foi reorganizado:
+- caixas e amostras maiores e mapa base em botões;
+- legendas de Setores e Prioritários dentro das opções da camada (seta), para o painel não crescer;
+- contador de camadas ligadas por grupo;
+- painel com 340 px de largura.
 
 ## Serviço coordenada → nome (`src/lib/placeNames.js`)
 
