@@ -268,6 +268,17 @@ export const IBGE_HIERARCHY = {
 };
 
 /**
+ * Funcionalidades ligáveis.
+ * orgSubregions: sub-regiões desenhadas pela organização (camada "Sub-regiões",
+ *   botão "Sub-regiões", "Criar sub-região aqui"). Desligada em 18/10/2026: as
+ *   comunidades cobrem o uso. O código e os dados no navegador continuam; para
+ *   voltar, troque para true. As comunidades usam a mesma base e não mudam.
+ */
+export const FEATURES = {
+  orgSubregions: false,
+};
+
+/**
  * Comunidades (camada de nomes abaixo do distrito; ver lib/communities.js).
  * manifestUrl lista os arquivos microrregioes_<COD_IBGE_MUN>.geojson do projeto.
  * nearMeters: lacuna entre polígonos em que vale a comunidade mais próxima.

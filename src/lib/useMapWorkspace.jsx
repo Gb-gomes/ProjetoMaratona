@@ -9,9 +9,9 @@
 import {
   Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
-import { Shapes, Search } from 'lucide-react';
+import { Users, Shapes, Search } from 'lucide-react';
 import {
-  BASEMAPS, IBGE_HIERARCHY, ORGANIZATION, ROLES, CUSTOM_REGION_RULES, PILOT_CONFIG, COMMUNITIES,
+  BASEMAPS, IBGE_HIERARCHY, ORGANIZATION, ROLES, CUSTOM_REGION_RULES, PILOT_CONFIG, COMMUNITIES, FEATURES,
 } from '../config.js';
 import { loadHierarchy, LEVEL_LABEL } from './ibgeHierarchy.js';
 import { useCustomRegions } from './useCustomRegions.js';
@@ -60,7 +60,7 @@ const CommunitiesDialog = lazy(() => import('../components/subregions/Communitie
 const SYSTEM_GROUPS = [
   { id: 'grp:operacao', name: 'Operação do desligamento', sortOrder: 300 },
   { id: 'grp:comunidades', name: 'Comunidades', sortOrder: 275 },
-  { id: 'grp:subregioes', name: 'Sub-regiões', sortOrder: 250 },
+  ...(FEATURES.orgSubregions ? [{ id: 'grp:subregioes', name: 'Sub-regiões', sortOrder: 250 }] : []),
   { id: 'grp:ibge', name: 'Limites IBGE (somente leitura)', sortOrder: 100 },
 ];
 const OP_LAYER_KEYS = { 'op:points': 'points', 'op:priority': 'priority', 'op:territories': 'territories' };
@@ -106,7 +106,8 @@ export function useMapWorkspace({
   const rules = useMemo(() => ({ ...RULES, allowSiblingOverlap: !!regionsHook.settings?.allowSiblingOverlap }), [regionsHook.settings]);
   const regions = regionsHook.regions;
   // Sub-regiões da organização e comunidades são conjuntos separados (lib/communities.js).
-  const activeRegions = useMemo(() => regionsHook.active.filter((r) => !isCommunity(r)), [regionsHook.active]);
+  // Com FEATURES.orgSubregions desligada, as sub-regiões da organização somem de toda a interface (os dados ficam).
+  const activeRegions = useMemo(() => (FEATURES.orgSubregions ? regionsHook.active.filter((r) => !isCommunity(r)) : []), [regionsHook.active]);
   const activeCommunities = useMemo(() => regionsHook.active.filter(isCommunity), [regionsHook.active]);
   const communitiesByMun = useMemo(() => {
     const m = new Map();
@@ -281,11 +282,11 @@ export function useMapWorkspace({
         legend: { items: [{ geometryType: 'polygon', color: '#94A3B8', dash: '3 3' }] },
         bounds: sectorLayer?.bounds ?? null,
       },
-      {
+      ...(FEATURES.orgSubregions ? [{
         id: 'custom_regions', groupId: 'grp:subregioes', defaultOrder: 1, kind: 'custom_regions', name: `Sub-regiões da organização (${activeRegions.length})`, geometryType: 'polygon',
         legend: { items: [{ geometryType: 'polygon', color: '#0E7490' }] }, defaultVisible: true, canConfigure: true, configureLabel: 'Gerenciar sub-regiões',
         bounds: activeRegions.length ? bboxToBounds(activeRegions.map((r) => geometryBboxAny(r.geometry)).reduce((a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])])) : null,
-      },
+      }] : []),
       ...(communitiesByMun.size ? [...communitiesByMun.entries()].map(([cod, list], i) => ({
         id: `communities:${cod}`, groupId: 'grp:comunidades', defaultOrder: 100 - i, kind: 'communities', codMun: cod,
         name: `${hierarchy?.byCode.get(cod)?.name ?? cod} (${list.length})`, geometryType: 'polygon',
@@ -1265,7 +1266,8 @@ export function useMapWorkspace({
             current={pickCurrent}
             summary={pickCurrent.kind === 'custom' ? summary : null}
             place={pickCurrent.kind === 'custom' && isCommunity(pickCurrent.region) && locator ? locator.locate(pickCurrent.region.labelPoint) : null}
-            canCreate={canEditRegions && !(pickCurrent.kind === 'custom' && isCommunity(pickCurrent.region))}
+            canCreate={FEATURES.orgSubregions && canEditRegions && !(pickCurrent.kind === 'custom' && isCommunity(pickCurrent.region))}
+            panelLabel={FEATURES.orgSubregions ? 'Sub-regiões' : 'Comunidades'}
             canEditCommunity={canManage}
             needsResponsible={!operatorLocked && !String(operator ?? '').trim()}
             onRename={(newName, typedBy) => regionActions.onUpdate(pickCurrent.region.id, { name: newName }, typedBy ?? operator)}
@@ -1310,8 +1312,8 @@ export function useMapWorkspace({
       onClick={() => setPanel({ open: true, detailId: null, focusCode: null })}
       className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-2 py-1 text-[12px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-3 max-lg:text-[14px] max-lg:shadow-md"
     >
-      <Shapes className="h-3.5 w-3.5 max-lg:h-4 max-lg:w-4" aria-hidden="true" />
-      Sub-regiões ({activeRegions.length})
+      {FEATURES.orgSubregions ? <Shapes className="h-3.5 w-3.5 max-lg:h-4 max-lg:w-4" aria-hidden="true" /> : <Users className="h-3.5 w-3.5 max-lg:h-4 max-lg:w-4" aria-hidden="true" />}
+      {FEATURES.orgSubregions ? `Sub-regiões (${activeRegions.length})` : `Comunidades (${activeCommunities.length.toLocaleString('pt-BR')})`}
     </button>
   ) : null;
 
@@ -1362,7 +1364,8 @@ export function useMapWorkspace({
         open={panel.open}
         onClose={() => setPanel((p) => ({ ...p, open: false }))}
         hierarchy={hierarchy}
-        regions={regions}
+        regions={FEATURES.orgSubregions ? regions : regions.filter(isCommunity)}
+        communitiesOnly={!FEATURES.orgSubregions}
         sectorsLabel="Setores censitários"
         detailId={panel.detailId}
         onOpenDetail={(id) => setPanel((p) => ({ ...p, detailId: id }))}

@@ -2,6 +2,11 @@
 
 Disponível só no modo **Teste com dados reais**. A Demonstração continua com o controle de camadas simples e a área fictícia.
 
+> **Sub-regiões da organização desligadas (18/10/2026).** As comunidades cobrem o uso: `FEATURES.orgSubregions = false` em `src/config.js`.
+> - Somem a camada "Sub-regiões", o botão "Sub-regiões" (virou "Comunidades") e o "Criar sub-região aqui".
+> - O código e os dados já gravados no navegador continuam; para voltar, troque para `true`.
+> - As comunidades usam a mesma base (editor, IndexedDB, histórico) e não mudam.
+
 Esta etapa é um **MVP somente front-end**, no mesmo padrão do cadastro de pontos prioritários: tudo roda e fica salvo **neste navegador**. A especificação original pede PostgreSQL + PostGIS, vector tiles servidos pelo backend e permissões por organização. O modelo de dados abaixo já segue essa especificação, para que a troca do armazenamento por uma API não mude a interface.
 
 ## Visão geral

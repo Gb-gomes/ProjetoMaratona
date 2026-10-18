@@ -13,7 +13,7 @@ import { isCommunity, confidenceReason } from '../../lib/communities.js';
  */
 export default function MapPickCard({
   pick, current, summary, place = null, canCreate, onSelect, onClose, onCreateHere, onDetails, onZoom, onFilterLayers,
-  canEditCommunity = false, needsResponsible = false, onRename, onEditGeometry, onSplit,
+  canEditCommunity = false, needsResponsible = false, onRename, onEditGeometry, onSplit, panelLabel = 'Sub-regiões',
 }) {
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState('');
@@ -130,13 +130,13 @@ export default function MapPickCard({
             Enquadrar
           </button>
           {isCustom && (
-            <button type="button" onClick={onFilterLayers} className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-3" title="Mostrar só o que está dentro desta sub-região nas camadas de dados ativas">
+            <button type="button" onClick={onFilterLayers} className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-3" title="Mostrar só o que está dentro desta área nas camadas de dados ativas">
               <Filter className="h-3.5 w-3.5" aria-hidden="true" />
               Filtrar camadas
             </button>
           )}
           <button type="button" onClick={onDetails} className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-3">
-            {isCustom ? 'Detalhes' : 'Sub-regiões'}
+            {isCustom ? 'Detalhes' : panelLabel}
             <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
