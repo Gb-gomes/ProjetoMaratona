@@ -3,7 +3,6 @@ import {
   FileSpreadsheet, Upload, LoaderCircle, CircleCheck, CircleAlert, Info, RotateCcw, X, Play,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
-import { Panel, PanelHeader } from './ui/Panel.jsx';
 import { PROCESSING_STEPS } from '../config.js';
 
 /** Rótulo e tom de cada estado do arquivo. */
@@ -33,8 +32,13 @@ export default function CsvUpload({
   };
 
   return (
-    <Panel labelledBy="upload-title">
-      <PanelHeader id="upload-title" icon={FileSpreadsheet} title="Importação de pontos" />
+    <section className="rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="upload-title">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3.5 py-2.5">
+        <h2 id="upload-title" className="flex items-center gap-2 text-[13.5px] font-semibold text-petrol-900">
+          <FileSpreadsheet className="h-4 w-4 text-petrol-500" aria-hidden="true" />
+          Importação de pontos
+        </h2>
+      </div>
 
       <div className="space-y-3 p-3.5">
         {/* Área de arrastar e soltar */}
@@ -51,13 +55,13 @@ export default function CsvUpload({
           } ${processing ? 'opacity-60' : ''}`}
         >
           <Upload className="mx-auto h-5 w-5 text-petrol-400" aria-hidden="true" />
-          <p className="mt-1 text-[13px] text-slate-600 max-lg:hidden">Arraste o arquivo da engenharia ou clique para procurar</p>
+          <p className="mt-1 text-[12.5px] text-slate-600 max-lg:hidden">Arraste o arquivo da engenharia ou clique para procurar</p>
           <p className="mt-1 text-[14px] text-slate-600 lg:hidden">Escolha o arquivo CSV da engenharia</p>
           <button
             type="button"
             disabled={processing}
             onClick={() => inputRef.current?.click()}
-            className="mt-2 rounded border border-petrol-200 bg-white px-3 py-1 text-[13px] font-medium text-petrol-700 hover:border-petrol-400 disabled:cursor-not-allowed max-lg:min-h-12 max-lg:w-full max-lg:text-[15px]"
+            className="mt-2 rounded border border-petrol-200 bg-white px-3 py-1 text-[12.5px] font-medium text-petrol-700 hover:border-petrol-400 disabled:cursor-not-allowed max-lg:min-h-12 max-lg:w-full max-lg:text-[15px]"
           >
             <span className="max-lg:hidden">Selecionar arquivo</span>
             <span className="lg:hidden">Escolher arquivo CSV</span>
@@ -76,10 +80,10 @@ export default function CsvUpload({
         <div className="flex items-start gap-2.5 rounded-md border border-slate-200 px-3 py-2.5">
           <FileSpreadsheet className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-medium text-petrol-900" title={file.name}>{file.name}</p>
-            <p className="text-[12px] text-slate-500">
+            <p className="truncate text-[12.5px] font-medium text-petrol-900" title={file.name}>{file.name}</p>
+            <p className="text-[11.5px] text-slate-500">
               {file.source === 'demo' ? 'Arquivo demonstrativo' : 'Arquivo selecionado'}
-              {file.records != null && ` · ${file.records} registros`}
+              {file.records != null && ` | ${file.records} registros`}
             </p>
             <StatusBadge tone={status.tone} className="mt-1">{status.label}</StatusBadge>
           </div>
@@ -109,7 +113,7 @@ export default function CsvUpload({
         )}
 
         {file.source === 'user' && (
-          <div className="flex gap-2 rounded-md bg-petrol-50 px-3 py-2 text-[12px] leading-snug text-petrol-800">
+          <div className="flex gap-2 rounded-md bg-petrol-50 px-3 py-2 text-[11.5px] leading-snug text-petrol-800">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <p>
               O arquivo foi apenas validado no navegador. A simulação usa os 100 pontos demonstrativos; as coordenadas
@@ -159,7 +163,7 @@ export default function CsvUpload({
               type="button"
               onClick={onProcess}
               disabled={!canProcess}
-              className="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent-500 px-3 py-2 text-[14px] font-semibold text-white shadow-sm max-lg:min-h-12 max-lg:text-[15px] hover:bg-accent-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent-500 px-3 py-2 text-[13.5px] font-semibold text-white shadow-sm max-lg:min-h-12 max-lg:text-[15px] hover:bg-accent-600 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               <Play className="h-4 w-4" aria-hidden="true" />
               Processar Coordenadas
@@ -170,7 +174,7 @@ export default function CsvUpload({
               <button
                 type="button"
                 disabled
-                className="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent-400 px-3 py-2 text-[14px] font-semibold text-white max-lg:min-h-12 max-lg:text-[15px]"
+                className="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent-400 px-3 py-2 text-[13.5px] font-semibold text-white max-lg:min-h-12 max-lg:text-[15px]"
               >
                 <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
                 Processando…
@@ -178,7 +182,7 @@ export default function CsvUpload({
               <button
                 type="button"
                 onClick={onCancel}
-                className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50 max-lg:min-h-12 max-lg:text-[15px]"
+                className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-[12.5px] font-medium text-slate-700 hover:bg-slate-50 max-lg:min-h-12 max-lg:text-[15px]"
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
                 Cancelar
@@ -197,6 +201,6 @@ export default function CsvUpload({
           )}
         </div>
       </div>
-    </Panel>
+    </section>
   );
 }

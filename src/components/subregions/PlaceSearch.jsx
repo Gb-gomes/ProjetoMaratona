@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { searchPlaces } from '../../lib/placeNames.js';
+import { parseLatLngText, formatLatLng } from '../../lib/coords.js';
 
-const KIND_TEXT = { comunidade: 'Comunidade', distrito: 'Distrito', municipio: 'Município' };
+const KIND_TEXT = {
+  comunidade: 'Comunidade', distrito: 'Distrito', municipio: 'Município', coordenada: 'Coordenada',
+};
 
 /**
  * Busca de lugares (comunidades, distritos, municípios), sem diferenciar
  * acentos e maiúsculas. Escolher um resultado enquadra o lugar no mapa.
+ * Também aceita coordenada em graus decimais ("-21,3905, -42,5520"): o
+ * resultado leva ao ponto e mostra a comunidade e a fazenda do lugar.
  */
 export default function PlaceSearch({
   hierarchy, communities, onSelect, compact = false, autoFocus = false, onClose,
@@ -16,7 +21,20 @@ export default function PlaceSearch({
   const [active, setActive] = useState(0);
   const inputRef = useRef(null);
   const boxRef = useRef(null);
-  const results = useMemo(() => searchPlaces(q, { hierarchy, communities }), [q, hierarchy, communities]);
+  const coord = useMemo(() => parseLatLngText(q), [q]);
+  const results = useMemo(() => {
+    if (coord && !coord.error) {
+      return [{
+        kind: 'coordenada',
+        id: formatLatLng(coord.lat, coord.lng),
+        nome: formatLatLng(coord.lat, coord.lng),
+        detalhe: coord.swapped ? 'Coordenada (latitude e longitude estavam invertidas)' : 'Ir para a coordenada',
+        lat: coord.lat,
+        lng: coord.lng,
+      }];
+    }
+    return coord?.error ? [] : searchPlaces(q, { hierarchy, communities });
+  }, [q, coord, hierarchy, communities]);
 
   useEffect(() => { if (autoFocus) inputRef.current?.focus(); }, [autoFocus]);
   useEffect(() => {
@@ -29,7 +47,7 @@ export default function PlaceSearch({
   const choose = (r) => {
     onSelect(r);
     setOpen(false);
-    setQ(r.nome);
+    setQ(r.kind === 'coordenada' ? '' : r.nome);
     inputRef.current?.blur();
   };
 
@@ -48,7 +66,7 @@ export default function PlaceSearch({
             if (e.key === 'Enter' && results[active]) { e.preventDefault(); choose(results[active]); }
             if (e.key === 'Escape') { setOpen(false); onClose?.(); }
           }}
-          placeholder="Buscar comunidade, distrito…"
+          placeholder="Comunidade, distrito ou lat, long…"
           aria-label="Buscar lugar"
           role="combobox"
           aria-expanded={open && results.length > 0}
@@ -82,7 +100,7 @@ export default function PlaceSearch({
               </button>
             </li>
           ))}
-          {!results.length && <li className="px-3 py-2 text-[12px] text-slate-500">Nenhum lugar encontrado.</li>}
+          {!results.length && <li className="px-3 py-2 text-[12px] text-slate-500">{coord?.error ?? 'Nenhum lugar encontrado.'}</li>}
         </ul>
       )}
     </div>

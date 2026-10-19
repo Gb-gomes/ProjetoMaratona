@@ -1,0 +1,18 @@
+{
+  "gerado_em": "2026-10-19",
+  "script": "MARATONA-TIVIT/scripts/comunidades/exportar_indice_fazendas.py",
+  "entrada": "dados/catalogo/<cod_ibge>/fazendas.csv (catalogo_fazendas.py)",
+  "municipios": 66,
+  "fazendas": 78165,
+  "sha256": "d3110592dbd7fcb402ae9f8010ead21d499c4375c327cedbcc7a0ba1c0db0f34",
+  "campos": {
+    "id": "sufixo do ID_CATALOGO (o ID completo é <mun>-<id>)",
+    "mun": "código IBGE do município",
+    "nome": "nome da fazenda no catálogo (texto exato da fonte; vazio = sem nome)",
+    "car": "código CAR; quando no formato UF-<mun>-<hash>, só o hash",
+    "incra": "código do imóvel no INCRA (SIGEF/SNCI)",
+    "lat/lon": "ponto da fazenda (dentro do contorno, ou ponto de consumo da BDGD)",
+    "trafos": "transformadores da BDGD que atendem a fazenda, separados por vírgula",
+    "carRep": "outros códigos CAR do mesmo imóvel (cadastros repetidos)"
+  }
+}
