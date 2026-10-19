@@ -22,7 +22,7 @@ const ACTION_TEXT = {
  * (pesquisa e filtros) e formulário de inclusão/edição, sem modais extras.
  */
 export default function PriorityRegistry({
-  open, view, editingId, mode, records, alerts, operator, operatorLocked = false, duplicateWarningMeters,
+  open, view, editingId, prefill = null, mode, records, alerts, operator, operatorLocked = false, duplicateWarningMeters,
   onClose, onNavigate, onSave, onSetStatus, onDelete, onViewOnMap, onResetDemo, placeOf = null,
 }) {
   const panelRef = useRef(null);
@@ -92,8 +92,9 @@ export default function PriorityRegistry({
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
           {view === 'form' ? (
             <RecordForm
-              key={editingId ?? 'new'}
+              key={editingId ?? `new${prefill?.nonce ?? ''}`}
               record={editingId ? records.find((r) => r.id === editingId) : null}
+              prefill={editingId ? null : prefill}
               records={records}
               duplicateWarningMeters={duplicateWarningMeters}
               placeOf={placeOf}
@@ -229,10 +230,14 @@ function RecordList({
 }
 
 function RecordForm({
-  record, records, duplicateWarningMeters, onCancel, onSave, placeOf = null,
+  record, records, duplicateWarningMeters, onCancel, onSave, placeOf = null, prefill = null,
 }) {
+  // prefill: coordenada escolhida no mapa (busca por lat/long).
   const [form, setForm] = useState(() => (record ? recordToForm(record) : {
-    ...EMPTY_RECORD_FORM, id: nextRecordId(records), registeredOn: todayIso(),
+    ...EMPTY_RECORD_FORM,
+    id: nextRecordId(records),
+    registeredOn: todayIso(),
+    ...(prefill ? { lat: prefill.lat.toFixed(6), lng: prefill.lng.toFixed(6) } : {}),
   }));
   const [check, setCheck] = useState(null); // resultado da última validação
   const [ackKey, setAckKey] = useState(null); // avisos já revistos para estes valores

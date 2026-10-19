@@ -19,7 +19,9 @@
 import { featureBounds, mergeBounds, bboxToBounds } from './geo.js';
 import { polygonsOf } from './geoOps.js';
 
-export const PLACE_KIND = { community: 'microrregiao', area: 'area_ibge', sector: 'setor' };
+export const PLACE_KIND = {
+  community: 'microrregiao', area: 'area_ibge', sector: 'setor', municipality: 'municipio',
+};
 
 const byName = (a, b) => (a ?? '').localeCompare(b ?? '', 'pt-BR');
 const uniq = (list) => [...new Set(list.filter(Boolean))];
@@ -124,9 +126,10 @@ export function groupByPlace(placed, { locator, sectorLayer } = {}) {
       };
     }
 
-    // Município sem arquivo de comunidades: continua o setor censitário.
+    // Município sem arquivo de comunidades: continua o setor censitário (ou o município, sem malha de setores).
     const sector = sectorUnits.get(g.key);
-    return { ...sector, ...base, kind: PLACE_KIND.sector, fallbackName: sector?.fallbackName ?? null };
+    const kind = g.key.startsWith('mun:') ? PLACE_KIND.municipality : PLACE_KIND.sector;
+    return { ...sector, ...base, kind, fallbackName: sector?.fallbackName ?? null };
   });
 
   const matched = matchedPts.length;
