@@ -90,7 +90,7 @@ function MobileHeader({
       <div className="flex h-14 items-center gap-2.5 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))]">
         <BrandMark />
         <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-[15px] font-semibold text-petrol-900">Conecta Rural</p>
+          <h1 className="truncate text-[15px] font-semibold text-petrol-900">Conecta Rural</h1>
           <p className="truncate text-[12px] text-slate-500">{mode === 'demo' ? 'Demonstração' : 'Teste com dados reais'}</p>
         </div>
         <button
@@ -183,20 +183,20 @@ function DesktopHeader({
   mode = 'demo', onModeChange, modeLocked, themePreference = 'system', onThemeChange, identity = null,
 }) {
   return (
-    <header className="max-lg:hidden flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 bg-white px-4 py-2 sm:h-14 sm:flex-nowrap sm:py-0">
-      <div className="flex items-center gap-3">
+    <header className="max-lg:hidden sticky top-0 z-40 flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 bg-white px-4 py-2 sm:h-14 sm:flex-nowrap sm:py-0">
+      <div className="flex min-w-0 items-center gap-3">
         <BrandMark />
-        <div className="leading-tight">
-          <p className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-petrol-900">
+        <div className="min-w-0 leading-tight">
+          <h1 className="flex items-center gap-2 whitespace-nowrap text-[15px] font-semibold tracking-[-0.01em] text-petrol-900">
             Conecta Rural
-            <span className="h-3.5 w-px bg-slate-300" aria-hidden="true" />
-            <span className="text-[13px] font-medium tracking-normal text-slate-500">Inteligência Geográfica</span>
-          </p>
-          <p className="text-[12px] text-slate-500">Comunicação de desligamentos programados</p>
+            <span className="h-3.5 w-px bg-slate-300 max-xl:hidden" aria-hidden="true" />
+            <span className="text-[13px] font-medium tracking-normal text-slate-500 max-xl:hidden">Inteligência Geográfica</span>
+          </h1>
+          <p className="truncate text-[12px] text-slate-500">Comunicação de desligamentos programados</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-4 sm:ml-auto">
+      <div className="flex shrink-0 items-center gap-3 sm:ml-auto xl:gap-4">
         <div role="radiogroup" aria-label="Modo de operação" className="flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
           {MODES.map((m) => (
             <button
@@ -206,7 +206,7 @@ function DesktopHeader({
               aria-checked={mode === m.value}
               disabled={modeLocked}
               onClick={() => onModeChange?.(m.value)}
-              className={`rounded px-2.5 py-1 text-[12px] font-medium transition-colors disabled:cursor-not-allowed ${
+              className={`whitespace-nowrap rounded px-2.5 py-1 text-[12px] font-medium transition-colors disabled:cursor-not-allowed ${
                 mode === m.value ? 'bg-white text-petrol-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-petrol-800'
               }`}
             >
@@ -215,10 +215,13 @@ function DesktopHeader({
           ))}
         </div>
         {onThemeChange && <ThemeSwitch preference={themePreference} onChange={onThemeChange} />}
-        {mode === 'demo'
-          ? <StatusBadge tone="neutral" icon={FlaskConical}>Ambiente de Demonstração</StatusBadge>
-          : <StatusBadge tone="info" icon={Database}>Teste local — sem envio externo</StatusBadge>}
-        <span className="hidden items-center gap-1.5 text-[12px] text-slate-600 md:inline-flex">
+        {/* Abaixo de 1280 px o seletor de modo já diz o ambiente; o selo e o estado do sistema saem para caber. */}
+        <span className="max-xl:hidden">
+          {mode === 'demo'
+            ? <StatusBadge tone="neutral" icon={FlaskConical}>Ambiente de Demonstração</StatusBadge>
+            : <StatusBadge tone="info" icon={Database}>Teste local — sem envio externo</StatusBadge>}
+        </span>
+        <span className="hidden items-center gap-1.5 whitespace-nowrap text-[12px] text-slate-600 xl:inline-flex">
           <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
           Sistema disponível
         </span>
@@ -243,11 +246,11 @@ function DesktopHeader({
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-3 xl:pl-4">
             <span className="grid h-8 w-8 place-items-center rounded-full bg-petrol-700 text-[12px] font-semibold text-white" aria-hidden="true">
               OP
             </span>
-            <span className="hidden text-[13px] font-medium text-petrol-800 sm:inline">Operador COP</span>
+            <span className="sr-only xl:not-sr-only xl:whitespace-nowrap xl:text-[13px] xl:font-medium xl:text-petrol-800">Operador COP</span>
           </div>
         )}
       </div>

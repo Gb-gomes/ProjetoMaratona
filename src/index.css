@@ -11,6 +11,9 @@
   textarea:focus-visible { outline-offset: 0; }
 }
 
+/* Coluna esquerda do computador: rola sozinha, com barra fina e discreta. */
+.cr-rail { scrollbar-width: thin; scrollbar-color: rgb(var(--c-slate-300)) transparent; }
+
 /* Fundo cartográfico (ruas) em tons neutros para dar contraste às camadas.
    Só o mapa base de ruas recebe o filtro: satélite e camadas WMS/XYZ ficam com as cores originais. */
 .cr-basemap-muted { filter: grayscale(0.85) brightness(1.05) contrast(0.92); }

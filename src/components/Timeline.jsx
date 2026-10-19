@@ -1,4 +1,5 @@
-import { Check } from 'lucide-react';
+import { Check, ListOrdered } from 'lucide-react';
+import { Panel, PanelHeader } from './ui/Panel.jsx';
 
 /**
  * Linha do tempo operacional. A etapa atual é derivada do estado da
@@ -42,10 +43,8 @@ export default function Timeline({
   ];
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="timeline-title">
-      <h2 id="timeline-title" className="border-b border-slate-100 px-3.5 py-2.5 text-[14px] font-semibold text-petrol-900">
-        Linha do tempo operacional
-      </h2>
+    <Panel labelledBy="timeline-title">
+      <PanelHeader id="timeline-title" icon={ListOrdered} title="Linha do tempo operacional" />
       <ol className="px-3.5 py-3">
         {steps.map((s, i) => (
           <li key={s.title} className="relative flex gap-3 pb-3 last:pb-0" aria-current={s.state === 'current' ? 'step' : undefined}>
@@ -84,6 +83,6 @@ export default function Timeline({
           </li>
         ))}
       </ol>
-    </section>
+    </Panel>
   );
 }

@@ -3,6 +3,7 @@ import {
   ShieldAlert, Plus, List, HeartPulse, Tractor, TriangleAlert, Info, ChevronDown, ChevronRight, History, Eye, EyeOff, MapPin,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
+import { Panel, PanelHeader } from './ui/Panel.jsx';
 import { PRIORITY_CATEGORIES } from '../lib/priorityRecords.js';
 import { MATCH_LABEL } from '../lib/priorityMatch.js';
 import {
@@ -58,16 +59,18 @@ export default function PriorityAlertsPanel({
   const byId = new Map(records.map((r) => [r.id, r]));
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="prio-title">
-      <div className="flex items-center gap-2 border-b border-slate-100 px-3.5 py-2.5">
-        <ShieldAlert className="h-4 w-4 text-red-600" aria-hidden="true" />
-        <h2 id="prio-title" className="text-[14px] font-semibold text-petrol-900 max-lg:text-[16px]">Alertas de pontos prioritários</h2>
-        {done && !analysis.blocked && (
-          <StatusBadge tone={analysis.alerts.length ? 'danger' : 'neutral'} className="ml-auto">
+    <Panel labelledBy="prio-title">
+      <PanelHeader
+        id="prio-title"
+        icon={ShieldAlert}
+        iconClassName="text-red-600"
+        title="Alertas de pontos prioritários"
+        actions={done && !analysis.blocked && (
+          <StatusBadge tone={analysis.alerts.length ? 'danger' : 'neutral'}>
             {analysis.alerts.length} alerta(s)
           </StatusBadge>
         )}
-      </div>
+      />
 
       <div className="space-y-2.5 px-3.5 py-3">
         <div className="flex flex-wrap gap-1.5">
@@ -231,7 +234,7 @@ export default function PriorityAlertsPanel({
           </>
         )}
       </div>
-    </section>
+    </Panel>
   );
 }
 

@@ -1,4 +1,5 @@
 import { Zap, TriangleAlert } from 'lucide-react';
+import { Panel, PanelHeader } from './ui/Panel.jsx';
 
 const FIELDS = [
   { key: 'orderId', label: 'Ordem', type: 'text', placeholder: 'Não informado' },
@@ -19,12 +20,9 @@ export default function OutageForm({
   form, view, onChange, defaultAudience,
 }) {
   return (
-    <section className="rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="outage-title">
-      <h2 id="outage-title" className="flex items-center gap-2 border-b border-slate-100 px-3.5 py-2.5 text-[14px] font-semibold text-petrol-900">
-        <Zap className="h-4 w-4 text-petrol-500" aria-hidden="true" />
-        Desligamento programado
-      </h2>
-      <div className="space-y-1.5 px-3.5 py-2.5">
+    <Panel labelledBy="outage-title">
+      <PanelHeader id="outage-title" icon={Zap} title="Desligamento programado" />
+      <div className="space-y-1.5 px-3.5 py-3">
         {FIELDS.map((f) => (
           <label key={f.key} className="grid grid-cols-[96px_1fr] items-center gap-2 text-[12px] max-lg:grid-cols-[104px_minmax(0,1fr)] max-lg:text-[14px]">
             <span className="text-slate-500">{f.label}</span>
@@ -49,6 +47,6 @@ export default function OutageForm({
           </p>
         ))}
       </div>
-    </section>
+    </Panel>
   );
 }

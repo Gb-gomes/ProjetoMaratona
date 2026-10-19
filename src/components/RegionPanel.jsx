@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { resolveSpeakableName } from '../lib/communicationUtils.js';
 import RegionDetailScreen from './RegionDetailScreen.jsx';
+import { Panel, PanelHeader } from './ui/Panel.jsx';
 
 export function Detail({ label, children }) {
   return (
@@ -101,18 +102,27 @@ export default function RegionPanel({
   }
 
   return (
-    <section className={`flex min-h-0 flex-col rounded-md border border-slate-200 bg-white shadow-panel ${className}`} aria-labelledby="regions-title">
-      <div className="border-b border-slate-100 px-3.5 py-2.5">
-        <h2 id="regions-title" className="text-[14px] font-semibold text-petrol-900 max-lg:text-[16px]">Regiões identificadas</h2>
-        <p className="text-[12px] text-slate-500 max-lg:text-[13px]">
-          <span className="max-lg:hidden">
-            {done && result.grouping === 'place'
-              ? 'Microrregiões com pontos afetados; pontos fora delas, pela área do IBGE'
-              : 'Unidades territoriais associadas aos pontos importados'}
+    <Panel labelledBy="regions-title" className={`flex min-h-0 flex-col ${className}`}>
+      <PanelHeader
+        id="regions-title"
+        icon={MapPinned}
+        title="Regiões identificadas"
+        actions={done && result.units.length > 0 && (
+          <span className="text-[12px] text-slate-500 max-lg:text-[13px]">
+            <strong className="font-semibold text-accent-700">{summary.selectedCount} de {summary.unitCount}</strong> no aviso<span className="max-lg:hidden"> · {summary.selectedPoints} pontos</span>
           </span>
-          <span className="lg:hidden">Toque numa região para ver os detalhes. A caixa inclui a região no aviso.</span>
-        </p>
-      </div>
+        )}
+        description={(
+          <>
+            <span className="max-lg:hidden">
+              {done && result.grouping === 'place'
+                ? 'Microrregiões com pontos afetados; pontos fora delas, pela área do IBGE'
+                : 'Unidades territoriais associadas aos pontos importados'}
+            </span>
+            <span className="lg:hidden">Toque numa região para ver os detalhes. A caixa inclui a região no aviso.</span>
+          </>
+        )}
+      />
 
       {/* Status da camada usada */}
       <div className={`mx-3.5 mt-3 flex gap-2 rounded-md border px-2.5 py-2 text-[12px] leading-snug ${
@@ -123,7 +133,8 @@ export default function RegionPanel({
         <Database className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <p>
           <span className="font-semibold">{layerInfo.title}</span>
-          <br />
+          <span className="max-lg:hidden" aria-hidden="true"> · </span>
+          <br className="lg:hidden" />
           {layerInfo.note}
           {isReal && layerState?.status === 'loaded' && (
             <span className="block">{layerState.layer.features.length} unidades carregadas · ano de referência {layerInfo.referenceYear}</span>
@@ -188,11 +199,10 @@ export default function RegionPanel({
 
         {done && (
           <>
-            <div className="mb-2 flex items-center justify-between text-[12px] text-slate-500 max-lg:text-[13px]">
-              <span>No aviso</span>
-              <span className="flex items-center gap-2">
+            <div className="mb-2 flex items-center justify-between gap-2 text-[12px] text-slate-500 max-lg:justify-end max-lg:text-[13px]">
+              <span className="max-lg:hidden">Marque as regiões citadas no aviso</span>
+              <span className="flex items-center gap-3">
                 <button type="button" onClick={onSelectAll} className="font-medium text-petrol-600 hover:underline max-lg:min-h-11 max-lg:px-1">Selecionar todas</button>
-                <span aria-hidden="true">|</span>
                 <button type="button" onClick={onClearSelection} className="font-medium text-petrol-600 hover:underline max-lg:min-h-11 max-lg:px-1">Limpar</button>
               </span>
             </div>
@@ -337,23 +347,7 @@ export default function RegionPanel({
           </>
         )}
       </div>
-
-      {/* Totais */}
-      <div className="grid grid-cols-3 border-t border-slate-200 bg-slate-50 text-center">
-        <div className="px-2 py-2">
-          <p className="text-[16px] font-semibold text-petrol-900">{done ? summary.unitCount : '—'}</p>
-          <p className="text-[11px] text-slate-500 max-lg:text-[12px]">regiões</p>
-        </div>
-        <div className="border-l border-slate-200 px-2 py-2">
-          <p className="text-[16px] font-semibold text-petrol-900">{done ? summary.matched : '—'}</p>
-          <p className="text-[11px] text-slate-500 max-lg:text-[12px]">pontos associados</p>
-        </div>
-        <div className="border-l border-slate-200 px-2 py-2">
-          <p className="text-[16px] font-semibold text-accent-700">{done ? `${summary.selectedCount}/${summary.unitCount}` : '—'}</p>
-          <p className="text-[11px] text-slate-500 max-lg:text-[12px]">{done ? `no aviso (${summary.selectedPoints} pts)` : 'no aviso'}</p>
-        </div>
-      </div>
-    </section>
+    </Panel>
   );
 }
 

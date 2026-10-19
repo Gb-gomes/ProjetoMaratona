@@ -290,17 +290,33 @@ export default function MapView({
     <section
       className={fullscreen
         ? 'cr-map-fullscreen fixed inset-0 z-[1000] flex flex-col overflow-hidden bg-white pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]'
-        : `flex min-h-[520px] flex-1 flex-col overflow-hidden lg:h-[74vh] lg:max-h-[900px] lg:min-h-[560px] lg:flex-none rounded-md border border-slate-200 bg-white shadow-panel ${className}`}
+        : `isolate flex min-h-[520px] flex-1 flex-col overflow-hidden lg:h-[74vh] lg:max-h-[900px] lg:min-h-[560px] lg:flex-none rounded-md border border-slate-200 bg-white shadow-panel ${className}`}
       aria-labelledby="map-title"
     >
       <div className={`border-b border-slate-100 px-4 py-2 max-lg:px-3 ${fullscreen ? '' : 'max-lg:[@media(max-height:500px)]:hidden'}`}>
-        <div className="flex items-center gap-3 max-lg:gap-2">
+        {/* Uma linha no computador (título · situação · camada · ações); no celular a camada desce. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 max-lg:gap-x-2">
           <h2 id="map-title" className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[14px] font-semibold text-petrol-900">
-            <MapPinned className="h-4 w-4 text-petrol-500" aria-hidden="true" />
+            <MapPinned className="h-4 w-4 text-petrol-500 max-lg:hidden" aria-hidden="true" />
             Mapa do desligamento
           </h2>
-          {phaseBadge}
-          <span className="ml-auto" />
+          {/* No celular o selo encolhe para o botão de tela cheia caber na mesma linha. */}
+          <span className="flex min-w-0 max-lg:flex-1 max-lg:overflow-hidden">{phaseBadge}</span>
+          {/* Situação da camada (antes flutuava sobre o mapa) */}
+          <div className="order-last flex min-w-0 basis-full items-center gap-2 text-[12px] lg:order-none lg:flex-1 lg:basis-0">
+            {isDemo ? (
+              <span className="inline-flex min-w-0 items-center gap-1.5 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 font-medium text-amber-900" title="Dados demonstrativos — geometrias territoriais ilustrativas">
+                <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">Dados demonstrativos — geometrias territoriais ilustrativas</span>
+              </span>
+            ) : layerLoaded && (
+              <span className="inline-flex min-w-0 items-center gap-1.5 rounded border border-petrol-200 bg-petrol-50 px-2 py-0.5 font-medium text-petrol-800" title={`${layerInfo.statusLabel}${done ? ' · pontos do CSV (processamento local)' : ''}`}>
+                <Database className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">{layerInfo.statusLabel}{done ? ' · pontos do CSV (processamento local)' : ''}</span>
+              </span>
+            )}
+            <span className="min-w-0 truncate text-slate-500 max-sm:hidden lg:max-2xl:hidden">{layerInfo.title}</span>
+          </div>
           {headerActions && <span className="shrink-0 max-lg:hidden">{headerActions}</span>}
           <button
             ref={fsButtonRef}
@@ -313,21 +329,6 @@ export default function MapView({
           >
             {fullscreen ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
           </button>
-        </div>
-        {/* Situação da camada (antes flutuava sobre o mapa) */}
-        <div className="mt-1 flex min-w-0 items-center gap-2 text-[12px]">
-          {isDemo ? (
-            <span className="inline-flex min-w-0 items-center gap-1.5 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 font-medium text-amber-900" title="Dados demonstrativos — geometrias territoriais ilustrativas">
-              <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">Dados demonstrativos — geometrias territoriais ilustrativas</span>
-            </span>
-          ) : layerLoaded && (
-            <span className="inline-flex min-w-0 items-center gap-1.5 rounded border border-petrol-200 bg-petrol-50 px-2 py-0.5 font-medium text-petrol-800" title={`${layerInfo.statusLabel}${done ? ' · pontos do CSV (processamento local)' : ''}`}>
-              <Database className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">{layerInfo.statusLabel}{done ? ' · pontos do CSV (processamento local)' : ''}</span>
-            </span>
-          )}
-          <span className="min-w-0 truncate text-slate-500 max-sm:hidden">{layerInfo.title}</span>
         </div>
       </div>
 

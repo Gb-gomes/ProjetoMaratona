@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import {
-  ArrowRight, ArrowDown, Copy, ShieldCheck, WandSparkles, TriangleAlert, CircleCheck, FileText, Info, ChevronDown,
+  ArrowRight, ArrowDown, Copy, ShieldCheck, WandSparkles, TriangleAlert, CircleCheck, FileText, Info, ChevronDown, Radio,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
+import { Panel, PanelHeader, PanelBody } from './ui/Panel.jsx';
 import { countCharacters } from '../lib/communicationUtils.js';
 import { RADIO_MONTHLY_COST_LABEL } from '../config.js';
 
@@ -70,9 +71,14 @@ export default function CommunicationPanel({
   }, [notice.text, done]);
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-3.5 shadow-panel" aria-labelledby="comm-title">
-      <h2 id="comm-title" className="sr-only">Comunicação rural</h2>
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_minmax(0,1.5fr)]">
+    <Panel labelledBy="comm-title">
+      <PanelHeader
+        id="comm-title"
+        icon={Radio}
+        title="Comunicação ao cliente"
+        description="Compare o aviso tradicional com a carta para as rádios, revise e aprove"
+      />
+      <PanelBody className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_minmax(0,1.5fr)]">
         {/* Celular: resumo do indicador sempre visível, no topo da tela */}
         <div className="rounded-md border border-petrol-100 bg-petrol-50 text-petrol-800 max-lg:order-first lg:hidden">
           <p className="px-3 py-2.5 text-[14px] leading-snug">
@@ -234,8 +240,8 @@ export default function CommunicationPanel({
             <EmptyState />
           )}
         </div>
-      </div>
-    </section>
+      </PanelBody>
+    </Panel>
   );
 }
 

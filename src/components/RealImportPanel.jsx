@@ -3,6 +3,7 @@ import {
   FileSpreadsheet, Upload, LoaderCircle, CircleCheck, CircleAlert, Info, RotateCcw, Play, ShieldCheck, ListChecks, TriangleAlert,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
+import { Panel, PanelHeader } from './ui/Panel.jsx';
 import { MAPPABLE_FIELDS, CRS_OPTIONS, isProcessableCrs } from '../lib/csv.js';
 import { REAL_PROCESSING_STEPS } from '../config.js';
 
@@ -61,14 +62,8 @@ export default function RealImportPanel({
   const errorRecords = v ? v.records.filter((r) => r.issues.length) : [];
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="upload-title">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3.5 py-2.5">
-        <h2 id="upload-title" className="flex items-center gap-2 text-[14px] font-semibold text-petrol-900">
-          <FileSpreadsheet className="h-4 w-4 text-petrol-500" aria-hidden="true" />
-          Importação de pontos
-        </h2>
-        <StatusBadge tone="info">Dados reais</StatusBadge>
-      </div>
+    <Panel labelledBy="upload-title">
+      <PanelHeader id="upload-title" icon={FileSpreadsheet} title="Importação de pontos" actions={<StatusBadge tone="info">Dados reais</StatusBadge>} />
 
       <div className="space-y-3 p-3.5">
         {!done && (
@@ -305,6 +300,6 @@ export default function RealImportPanel({
           )}
         </div>
       </div>
-    </section>
+    </Panel>
   );
 }

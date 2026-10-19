@@ -953,6 +953,12 @@ export default function App() {
 
   return (
     <div className="cr-app flex min-h-screen flex-col bg-slate-100 font-sans text-petrol-900">
+      <a
+        href="#conteudo"
+        className="sr-only z-[1300] rounded-md bg-petrol-800 px-3 py-2 text-[13px] font-semibold text-white focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+      >
+        Pular para o conteúdo
+      </a>
       <Header
         mode={mode}
         onModeChange={handleModeChange}
@@ -963,16 +969,22 @@ export default function App() {
       />
 
       <main
+        id="conteudo"
+        tabIndex={-1}
         ref={mainRef}
         onScroll={(e) => { scrollByScreen.current[screenKeyRef.current] = e.currentTarget.scrollTop; }}
-        className={`grid flex-1 grid-cols-1 content-start gap-3 p-3 lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)] max-lg:min-h-0 max-lg:overflow-x-hidden max-lg:overscroll-contain ${
+        className={`grid flex-1 grid-cols-1 content-start gap-3 p-3 focus:outline-none lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)] max-lg:min-h-0 max-lg:overflow-x-hidden max-lg:overscroll-contain ${
           mapScreen
             ? 'max-lg:flex max-lg:flex-col max-lg:overflow-y-hidden max-lg:p-0'
             : 'max-lg:overflow-y-auto max-lg:pl-[max(0.75rem,env(safe-area-inset-left))] max-lg:pr-[max(0.75rem,env(safe-area-inset-right))]'
         }`}
       >
         {/* Coluna esquerda: importação e informações (celular: telas Dados e Alertas) */}
-        <aside className={`flex flex-col gap-3 lg:row-span-3 ${screen('dados', 'alertas')}`} aria-label="Importação e informações do desligamento">
+        {/* No computador a coluna fica parada sob o cabeçalho e rola sozinha: o mapa não sai da tela ao ler os alertas. */}
+        <aside
+          className={`flex flex-col gap-3 lg:sticky lg:top-[calc(3.5rem+1px+0.75rem)] lg:row-span-3 lg:max-h-[calc(100vh-3.5rem-1px-1.5rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain cr-rail ${screen('dados', 'alertas')}`}
+          aria-label="Importação e informações do desligamento"
+        >
           <section className={`rounded-md border border-slate-200 bg-white px-3.5 py-3 shadow-panel lg:hidden ${screen('dados')}`} aria-label="Modo de operação">
             <p className="mb-1.5 text-[13px] font-semibold text-petrol-900">Modo de operação</p>
             <ModeSwitch mode={mode} onModeChange={handleModeChange} modeLocked={phase === 'processing'} />
