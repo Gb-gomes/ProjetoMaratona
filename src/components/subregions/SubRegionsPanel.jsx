@@ -83,7 +83,7 @@ export default function SubRegionsPanel({
                 readOnly={operatorLocked}
                 onChange={(e) => setBy(e.target.value)}
                 title={operatorLocked ? 'Identificado pelo login do Cloudflare Access' : undefined}
-                className={`min-w-0 flex-1 rounded border px-2 py-1 text-[12.5px] max-lg:min-h-11 ${operatorLocked ? 'cursor-default border-slate-200 bg-slate-50' : 'border-slate-300 bg-white'}`}
+                className={`min-w-0 flex-1 rounded border px-2 py-1 text-[13px] max-lg:min-h-11 ${operatorLocked ? 'cursor-default border-slate-200 bg-slate-50' : 'border-slate-300 bg-white'}`}
                 placeholder="Nome ou matrícula"
                 autoComplete="off"
               />
@@ -91,7 +91,7 @@ export default function SubRegionsPanel({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-[12.5px] text-petrol-900 max-lg:text-[14px]">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-[13px] text-petrol-900 max-lg:text-[14px]">
           {detail ? (
             <RegionDetail
               key={detail.id}
@@ -134,7 +134,7 @@ export default function SubRegionsPanel({
           )}
         </div>
 
-        <div className="space-y-1.5 border-t border-slate-200 bg-slate-50 px-4 py-2 text-[11.5px] leading-snug text-slate-600 max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom))] max-lg:text-[12.5px]">
+        <div className="space-y-1.5 border-t border-slate-200 bg-slate-50 px-4 py-2 text-[12px] leading-snug text-slate-600 max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom))] max-lg:text-[13px]">
           {!detail && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <label className="flex items-center gap-1.5 max-lg:min-h-11">
@@ -200,12 +200,12 @@ function RegionTree({
           <button type="button" onClick={() => onOpenDetail(r.id)} className="min-w-0 flex-1 truncate text-left font-medium">
             {r.name}
             {isCommunity(r) && r.confidence === 'baixa' && <span className="ml-1 text-[11px] font-normal text-amber-700" title={confidenceReason(r)}>≈</span>}
-            {isCommunity(r) && r.nameEdited && <span className="ml-1 rounded bg-petrol-50 px-1 text-[10px] font-normal text-petrol-700">nome editado</span>}
+            {isCommunity(r) && r.nameEdited && <span className="ml-1 rounded bg-petrol-50 px-1 text-[11px] font-normal text-petrol-700">nome editado</span>}
             <span className="ml-1.5 font-normal text-slate-500">{fmtArea(r.areaKm2)}</span>
             {r.internalCode && <span className="ml-1.5 font-mono text-[11px] text-slate-500">{r.internalCode}</span>}
           </button>
           {r.deletedAt ? (
-            canEdit && <button type="button" onClick={() => onRestore(r.id)} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11.5px] text-petrol-700 hover:bg-slate-100 max-lg:min-h-11"><RotateCcw className="h-3 w-3" aria-hidden="true" />Restaurar</button>
+            canEdit && <button type="button" onClick={() => onRestore(r.id)} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] text-petrol-700 hover:bg-slate-100 max-lg:min-h-11"><RotateCcw className="h-3 w-3" aria-hidden="true" />Restaurar</button>
           ) : (
             <button type="button" onClick={() => onShowOnMap(r.id)} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-petrol-700 max-lg:grid max-lg:h-11 max-lg:w-11 max-lg:place-items-center" aria-label={`Ver ${r.name} no mapa`}>
               <MapPin className="h-3.5 w-3.5" />
@@ -242,13 +242,13 @@ function RegionTree({
               </div>
               {communitiesOnly ? <StatusBadge tone="neutral">{comms.length}</StatusBadge> : <StatusBadge tone="neutral">{descendantCount(byParent, ib.code) - comms.length}</StatusBadge>}
               {canEdit && !communitiesOnly && (
-                <button type="button" onClick={() => onCreate({ kind: 'ibge', code: ib.code })} className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11.5px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-2.5" aria-label={`Nova sub-região em ${ib.name}`}>
+                <button type="button" onClick={() => onCreate({ kind: 'ibge', code: ib.code })} className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[12px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-2.5" aria-label={`Nova sub-região em ${ib.name}`}>
                   <Plus className="h-3 w-3" aria-hidden="true" />
                   Nova
                 </button>
               )}
             </div>
-            {!communitiesOnly && (top.length ? <ul className="py-1">{top.map((r) => renderRegion(r, 0))}</ul> : <p className="px-2.5 py-1.5 text-[11.5px] text-slate-500">Nenhuma sub-região.</p>)}
+            {!communitiesOnly && (top.length ? <ul className="py-1">{top.map((r) => renderRegion(r, 0))}</ul> : <p className="px-2.5 py-1.5 text-[12px] text-slate-500">Nenhuma sub-região.</p>)}
             {comms.length > 0 && (
               <details className="border-t border-slate-100" open={focusCode === ib.code}>
                 <summary className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 font-medium text-petrol-800 max-lg:min-h-11">
@@ -304,7 +304,7 @@ function RegionDetail({
       <div className="flex items-start gap-2">
         <span className="mt-1 h-4 w-4 shrink-0 rounded" style={{ background: r.color }} aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <p className="text-[11.5px] text-slate-500 max-lg:text-[12.5px]">
+          <p className="text-[12px] text-slate-500 max-lg:text-[13px]">
             {path.map((p) => p.name).join(' › ')}
             {parentCustom && (
               <>
@@ -372,7 +372,7 @@ function RegionDetail({
       )}
 
       {community && (
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 rounded border border-petrol-100 bg-petrol-50/50 px-3 py-2 text-[12px] max-lg:text-[13.5px]">
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 rounded border border-petrol-100 bg-petrol-50/50 px-3 py-2 text-[12px] max-lg:text-[14px]">
           {place?.rotulo && (<><dt className="text-slate-500">Localização</dt><dd>{place.rotulo}</dd></>)}
           <dt className="text-slate-500">ID</dt><dd className="font-mono">{r.externalCode}</dd>
           {r.originalName && r.originalName !== r.name && (<><dt className="text-slate-500">Nome no arquivo</dt><dd>{r.originalName}</dd></>)}
@@ -387,7 +387,7 @@ function RegionDetail({
         </dl>
       )}
 
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-[12px] max-lg:text-[13.5px]">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-[12px] max-lg:text-[14px]">
         <dt className="text-slate-500">Área</dt><dd>{fmtArea(r.areaKm2)}</dd>
         <dt className="text-slate-500">Perímetro</dt><dd>{r.perimeterKm.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} km</dd>
         <dt className="text-slate-500">Criação</dt><dd>{CREATION_METHODS[r.creationMethod]}{r.sourceFile ? ` (${r.sourceFile})` : ''}</dd>
@@ -457,7 +457,7 @@ function Action({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[12px] font-medium max-lg:min-h-11 max-lg:px-3 max-lg:text-[13.5px] ${danger ? 'border-red-200 text-red-700 hover:bg-red-50' : 'border-slate-300 text-petrol-800 hover:bg-slate-50'}`}
+      className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[12px] font-medium max-lg:min-h-11 max-lg:px-3 max-lg:text-[14px] ${danger ? 'border-red-200 text-red-700 hover:bg-red-50' : 'border-slate-300 text-petrol-800 hover:bg-slate-50'}`}
     >
       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
       {children}

@@ -290,17 +290,33 @@ export default function MapView({
     <section
       className={fullscreen
         ? 'cr-map-fullscreen fixed inset-0 z-[1000] flex flex-col overflow-hidden bg-white pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]'
-        : `flex min-h-[520px] flex-1 flex-col overflow-hidden lg:h-[74vh] lg:max-h-[900px] lg:min-h-[560px] lg:flex-none rounded-md border border-slate-200 bg-white shadow-panel ${className}`}
+        : `isolate flex min-h-[520px] flex-1 flex-col overflow-hidden lg:h-[74vh] lg:max-h-[900px] lg:min-h-[560px] lg:flex-none rounded-md border border-slate-200 bg-white shadow-panel ${className}`}
       aria-labelledby="map-title"
     >
       <div className={`border-b border-slate-100 px-4 py-2 max-lg:px-3 ${fullscreen ? '' : 'max-lg:[@media(max-height:500px)]:hidden'}`}>
-        <div className="flex items-center gap-3 max-lg:gap-2">
-          <h2 id="map-title" className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[14px] font-semibold text-petrol-900">
-            <MapPinned className="h-4 w-4 text-petrol-500" aria-hidden="true" />
+        {/* Uma linha no computador (título · situação · camada · ações); no celular a camada desce. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 max-lg:gap-x-2">
+          <h2 id="map-title" className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[17px] font-bold tracking-[-0.01em] text-petrol-900 max-lg:text-[15px]">
+            <MapPinned className="h-4 w-4 text-petrol-500 max-lg:hidden" aria-hidden="true" />
             Mapa do desligamento
           </h2>
-          {phaseBadge}
-          <span className="ml-auto" />
+          {/* No celular o selo encolhe para o botão de tela cheia caber na mesma linha. */}
+          <span className="flex min-w-0 max-lg:flex-1 max-lg:overflow-hidden">{phaseBadge}</span>
+          {/* Situação da camada (antes flutuava sobre o mapa) */}
+          <div className="order-last flex min-w-0 basis-full items-center gap-2 text-[13px] lg:order-none lg:flex-1 lg:basis-0">
+            {isDemo ? (
+              <span className="inline-flex min-w-0 items-center gap-1.5 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 font-medium text-amber-900" title="Dados demonstrativos — geometrias territoriais ilustrativas">
+                <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">Dados demonstrativos — geometrias territoriais ilustrativas</span>
+              </span>
+            ) : layerLoaded && (
+              <span className="inline-flex min-w-0 items-center gap-1.5 rounded border border-petrol-200 bg-petrol-50 px-2 py-0.5 font-medium text-petrol-800" title={`${layerInfo.statusLabel}${done ? ' · pontos do CSV (processamento local)' : ''}`}>
+                <Database className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">{layerInfo.statusLabel}{done ? ' · pontos do CSV (processamento local)' : ''}</span>
+              </span>
+            )}
+            <span className="min-w-0 truncate text-slate-500 max-sm:hidden lg:max-2xl:hidden">{layerInfo.title}</span>
+          </div>
           {headerActions && <span className="shrink-0 max-lg:hidden">{headerActions}</span>}
           <button
             ref={fsButtonRef}
@@ -313,21 +329,6 @@ export default function MapView({
           >
             {fullscreen ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
           </button>
-        </div>
-        {/* Situação da camada (antes flutuava sobre o mapa) */}
-        <div className="mt-1 flex min-w-0 items-center gap-2 text-[12px]">
-          {isDemo ? (
-            <span className="inline-flex min-w-0 items-center gap-1.5 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 font-medium text-amber-900" title="Dados demonstrativos — geometrias territoriais ilustrativas">
-              <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">Dados demonstrativos — geometrias territoriais ilustrativas</span>
-            </span>
-          ) : layerLoaded && (
-            <span className="inline-flex min-w-0 items-center gap-1.5 rounded border border-petrol-200 bg-petrol-50 px-2 py-0.5 font-medium text-petrol-800" title={`${layerInfo.statusLabel}${done ? ' | pontos do CSV (processamento local)' : ''}`}>
-              <Database className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">{layerInfo.statusLabel}{done ? ' | pontos do CSV (processamento local)' : ''}</span>
-            </span>
-          )}
-          <span className="min-w-0 truncate text-slate-500 max-sm:hidden">{layerInfo.title}</span>
         </div>
       </div>
 
@@ -416,10 +417,9 @@ export default function MapView({
                 )}
                 {!affected && isReal && sectorTooltips && (
                   <Tooltip sticky className="cr-point-tip">
-                    {layerInfo.unitType} {feature.properties.code}
-                    {feature.properties.name && <><br />{feature.properties.name}</>}
-                    <br />
-                    {done ? 'Sem pontos associados' : 'Camada oficial'}
+                    <span className="cr-tip-title">{feature.properties.name || `${layerInfo.unitType} ${feature.properties.code}`}</span>
+                    <span className="cr-tip-sub">{layerInfo.unitType} {feature.properties.code}</span>
+                    <span className="cr-tip-sub">{done ? 'Sem pontos associados' : 'Camada oficial'}</span>
                   </Tooltip>
                 )}
               </Polygon>
@@ -449,24 +449,23 @@ export default function MapView({
                 <Tooltip direction="top" offset={[0, -4]} className="cr-point-tip">
                   {isDemo ? (
                     <>
-                      <strong>{p.id}</strong> | {p.property}
-                      <br />
-                      {unit ? unit.label : 'Sem correspondência'}
+                      <span className="cr-tip-title">{p.id}</span>
+                      <span className="cr-tip-sub">{p.property}</span>
+                      <span className={`cr-tip-status${unit ? '' : ' is-low'}`}>{unit ? unit.label : 'Sem correspondência'}</span>
                     </>
                   ) : (
                     <>
-                      <strong>{p.id ?? `Linha ${p.line}`}</strong>{p.id && ` | linha ${p.line}`}
-                      <br />
-                      {unit ? `${layerInfo.unitType} ${p.sectorCode ?? unit.code}` : STATUS_TEXT[p.status]}
-                      {p.status === 'ambiguous' && <><br />Candidatas: {p.candidates.join(', ')}</>}
-                      {p.place?.rotulo && (
-                        <>
-                          <br />
-                          {p.place.rotulo}
-                          {p.place.comunidade?.aproximada && ' (localização aproximada)'}
-                          {p.place.origem_nome === 'comunidade_proxima' && ' (comunidade mais próxima)'}
-                        </>
-                      )}
+                      <span className="cr-tip-title">{p.id ?? `Linha ${p.line}`}</span>
+                      {p.place?.rotulo && <span className="cr-tip-sub">{p.place.local ?? p.place.rotulo}</span>}
+                      <dl className="cr-tip-meta">
+                        {p.id && <><dt>Linha do CSV</dt><dd>{p.line}</dd></>}
+                        <dt>{unit ? layerInfo.unitType : 'Situação'}</dt>
+                        <dd>{unit ? p.sectorCode ?? unit.code : STATUS_TEXT[p.status]}</dd>
+                        {p.status === 'ambiguous' && <><dt>Candidatas</dt><dd>{p.candidates.join(', ')}</dd></>}
+                        {p.place?.municipio && <><dt>Município</dt><dd>{p.place.municipio.nome}{p.place.municipio.uf ? `/${p.place.municipio.uf}` : ''}</dd></>}
+                      </dl>
+                      {p.place?.comunidade?.aproximada && <span className="cr-tip-status is-low">Localização aproximada</span>}
+                      {p.place?.origem_nome === 'comunidade_proxima' && <span className="cr-tip-note">Comunidade mais próxima do ponto</span>}
                     </>
                   )}
                 </Tooltip>
@@ -499,11 +498,15 @@ export default function MapView({
                 eventHandlers={onPriorityFocus ? { click: () => onPriorityFocus(r.id) } : undefined}
               >
                 <Tooltip direction="top" offset={[0, -12]} className="cr-point-tip">
-                  <strong>{r.id}</strong> | {PRIORITY_CATEGORIES[r.category]?.label}
-                  <br />
-                  {a
-                    ? `${MATCH_LABEL[a.matchStatus]}: ${a.distanceMeters.toLocaleString('pt-BR')} m de ${a.primaryPointLabel}`
-                    : (done ? 'Sem alerta nesta análise' : 'Ponto prioritário cadastrado')}
+                  <span className="cr-tip-title">{r.id}</span>
+                  <span className="cr-tip-sub">{PRIORITY_CATEGORIES[r.category]?.label}</span>
+                  {a ? (
+                    <dl className="cr-tip-meta">
+                      <dt>Situação</dt><dd>{MATCH_LABEL[a.matchStatus]}</dd>
+                      <dt>Distância</dt><dd>{a.distanceMeters.toLocaleString('pt-BR')} m</dd>
+                      <dt>Ponto</dt><dd>{a.primaryPointLabel}</dd>
+                    </dl>
+                  ) : <span className="cr-tip-sub">{done ? 'Sem alerta nesta análise' : 'Ponto prioritário cadastrado'}</span>}
                 </Tooltip>
               </Marker>
             );
@@ -534,7 +537,7 @@ export default function MapView({
               onClick={() => setDockOpen((v) => !v)}
               aria-expanded={dockOpen}
               aria-controls={LAYERS_PANEL_ID}
-              className={`pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-[14px] font-medium shadow-md ${
+              className={`pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-[15px] font-medium shadow-md ${
                 dockOpen ? 'border-petrol-700 bg-petrol-700 text-white' : 'border-slate-200 bg-white text-petrol-800'
               }`}
             >
@@ -552,13 +555,13 @@ export default function MapView({
           const unit = unitsById.get(focusId);
           return (
             <div className="absolute bottom-3 left-3 right-[4.25rem] z-[600] flex items-center gap-2 rounded-md border border-slate-200 bg-white py-1.5 pl-3 pr-1 shadow-lg lg:hidden">
-              <span className="grid h-8 w-9 shrink-0 place-items-center rounded bg-petrol-800 text-[14px] font-semibold text-white">
+              <span className="grid h-8 w-9 shrink-0 place-items-center rounded bg-petrol-800 text-[15px] font-semibold text-white">
                 {String(unit.number).padStart(2, '0')}
               </span>
               <button type="button" onClick={() => onOpenDetails?.(focusId)} className="flex min-h-11 min-w-0 flex-1 items-center gap-1 text-left">
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[14px] font-semibold text-petrol-900">{nameOf(unit) ?? `Região ${String(unit.number).padStart(2, '0')}`}</span>
-                  <span className="block text-[12.5px] text-slate-500">{unit.count} pontos | Ver detalhes</span>
+                  <span className="block truncate text-[15px] font-semibold text-petrol-900">{nameOf(unit) ?? `Região ${String(unit.number).padStart(2, '0')}`}</span>
+                  <span className="block text-[14px] text-slate-500">{unit.count} pontos · Ver detalhes</span>
                 </span>
                 <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
               </button>
@@ -571,7 +574,7 @@ export default function MapView({
 
         {tilesUnavailable && (
           <div className="absolute bottom-3 left-1/2 z-[500] -translate-x-1/2" role="alert">
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-1.5 text-[12px] text-red-700 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-1.5 text-[13px] text-red-700 shadow-sm">
               <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" />
               Fundo cartográfico indisponível. As camadas e os resultados continuam funcionando.
             </span>
@@ -588,8 +591,8 @@ export default function MapView({
               {isDemo && phase === 'idle' && (
                 <>
                   <MapPinned className="mx-auto h-6 w-6 text-petrol-400" aria-hidden="true" />
-                  <p className="mt-2 text-[13.5px] font-semibold text-petrol-900">Aguardando processamento</p>
-                  <p className="mt-1 text-[12.5px] leading-snug text-slate-600">
+                  <p className="mt-2 text-[15px] font-semibold text-petrol-900">Aguardando processamento</p>
+                  <p className="mt-1 text-[14px] leading-snug text-slate-600">
                     Os pontos e as unidades territoriais aparecem aqui depois que as coordenadas forem processadas.
                   </p>
                 </>
@@ -597,8 +600,8 @@ export default function MapView({
               {phase === 'processing' && (
                 <>
                   <LoaderCircle className="mx-auto h-6 w-6 animate-spin text-accent-500" aria-hidden="true" />
-                  <p className="mt-2 text-[13.5px] font-semibold text-petrol-900">Validando pontos e cruzando dados geográficos</p>
-                  <p className="mt-1 text-[12px] text-slate-500">
+                  <p className="mt-2 text-[15px] font-semibold text-petrol-900">Validando pontos e cruzando dados geográficos</p>
+                  <p className="mt-1 text-[13px] text-slate-500">
                     {isDemo ? 'Simulação local, sem consulta a serviços externos.' : 'Cruzamento real no navegador, sem envio de coordenadas.'}
                   </p>
                 </>
@@ -606,8 +609,8 @@ export default function MapView({
               {phase === 'error' && (
                 <>
                   <CircleAlert className="mx-auto h-6 w-6 text-red-600" aria-hidden="true" />
-                  <p className="mt-2 text-[13.5px] font-semibold text-petrol-900">Não foi possível concluir o processamento</p>
-                  <p className="mt-1 text-[12.5px] text-slate-600">Confira a mensagem no painel de importação e tente novamente.</p>
+                  <p className="mt-2 text-[15px] font-semibold text-petrol-900">Não foi possível concluir o processamento</p>
+                  <p className="mt-1 text-[14px] text-slate-600">Confira a mensagem no painel de importação e tente novamente.</p>
                 </>
               )}
             </div>
@@ -624,7 +627,7 @@ function RealLayerStatus({ layerState }) {
     return (
       <>
         <LoaderCircle className="mx-auto h-6 w-6 animate-spin text-accent-500" aria-hidden="true" />
-        <p className="mt-2 text-[13.5px] font-semibold text-petrol-900">Carregando camada territorial oficial…</p>
+        <p className="mt-2 text-[15px] font-semibold text-petrol-900">Carregando camada territorial oficial…</p>
       </>
     );
   }
@@ -632,8 +635,8 @@ function RealLayerStatus({ layerState }) {
     return (
       <>
         <CircleAlert className="mx-auto h-6 w-6 text-red-600" aria-hidden="true" />
-        <p className="mt-2 text-[13.5px] font-semibold text-petrol-900">Camada oficial indisponível</p>
-        <ul className="mt-1 text-left text-[12px] leading-snug text-slate-600">
+        <p className="mt-2 text-[15px] font-semibold text-petrol-900">Camada oficial indisponível</p>
+        <ul className="mt-1 text-left text-[13px] leading-snug text-slate-600">
           {layerState.errors.slice(0, 3).map((e) => <li key={e}>• {e}</li>)}
         </ul>
       </>
@@ -642,8 +645,8 @@ function RealLayerStatus({ layerState }) {
   return (
     <>
       <Database className="mx-auto h-6 w-6 text-petrol-400" aria-hidden="true" />
-      <p className="mt-2 text-[13.5px] font-semibold text-petrol-900">Camada oficial não configurada</p>
-      <p className="mt-1 text-[12.5px] leading-snug text-slate-600">
+      <p className="mt-2 text-[15px] font-semibold text-petrol-900">Camada oficial não configurada</p>
+      <p className="mt-1 text-[14px] leading-snug text-slate-600">
         O município piloto ainda não foi definido. Prepare o recorte da malha do IBGE conforme
         docs/CAMADA_TERRITORIAL.md e atualize PILOT_CONFIG em src/config.js. Nenhuma geometria demonstrativa é exibida neste modo.
       </p>

@@ -1,4 +1,4 @@
-import { LoaderCircle, Layers } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
 import LegendSwatch from '../layers/LegendSwatch.jsx';
 
 const n = (v) => Math.round(v).toLocaleString('pt-BR');
@@ -14,35 +14,31 @@ export function summaryPhrase(item) {
 }
 
 /**
- * Resumo das camadas ativas dentro de uma sub-região.
+ * Resumo das camadas ativas dentro de uma sub-região: uma linha por camada,
+ * nome à esquerda e quantidade à direita.
  * summary: { status: 'loading'|'ready'|'error', items: [{ layerId, name, legend, ... }], error }
  */
-export default function RegionSummary({ summary, regionName, compact = false }) {
+export default function RegionSummary({ summary, compact = false }) {
   if (!summary) return null;
   if (summary.status === 'loading') {
-    return <p className="flex items-center gap-1.5 text-slate-500"><LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />Calculando o resumo das camadas ativas…</p>;
+    return <p className="flex items-center gap-1.5 text-slate-500"><LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />Calculando…</p>;
   }
   if (summary.status === 'error') return <p className="text-red-700">Não foi possível calcular o resumo: {summary.error}</p>;
   if (!summary.items.length) {
-    return <p className="text-slate-500">Ligue camadas de dados (ou processe um CSV) para ver o resumo do que há dentro {regionName ? `de ${regionName}` : 'da sub-região'}.</p>;
+    return <p className="text-slate-500">Nenhuma camada de dados ativa. Ligue uma camada ou processe um CSV para ver o que há na área.</p>;
   }
   return (
     <div>
-      {!compact && (
-        <p className="flex items-center gap-1.5 font-medium text-petrol-900">
-          <Layers className="h-3.5 w-3.5 text-petrol-500" aria-hidden="true" />
-          Camadas ativas dentro da área
-        </p>
-      )}
-      <ul className="mt-0.5 space-y-0.5">
+      {!compact && <p className="mb-1 font-medium text-petrol-900">Camadas ativas na área</p>}
+      <ul className="divide-y divide-slate-100" title="Comprimentos e áreas com cálculo geodésico (metros reais)">
         {summary.items.map((it) => (
-          <li key={it.layerId} className="flex items-start gap-1.5">
-            {it.legend && <span className="mt-0.5"><LegendSwatch {...it.legend} size={14} /></span>}
-            <span className="min-w-0"><strong className="font-medium">{it.name}:</strong> {summaryPhrase(it)}</span>
+          <li key={it.layerId} className="flex items-center gap-2 py-1">
+            {it.legend && <LegendSwatch {...it.legend} size={12} />}
+            <span className="min-w-0 flex-1 truncate text-slate-600">{it.name}</span>
+            <span className="shrink-0 font-medium tabular-nums text-petrol-900">{summaryPhrase(it)}</span>
           </li>
         ))}
       </ul>
-      <p className="mt-0.5 text-[10.5px] text-slate-500">Comprimentos e áreas em metros reais (cálculo geodésico).</p>
     </div>
   );
 }

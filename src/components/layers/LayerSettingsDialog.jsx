@@ -46,13 +46,13 @@ export default function LayerSettingsDialog({
         </div>
         <div className="flex gap-1 overflow-x-auto border-b border-slate-100 px-3 pt-1.5" role="tablist">
           {tabs.map(([id, label, Icon]) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`inline-flex shrink-0 items-center gap-1.5 border-b-2 px-2.5 py-1.5 text-[12.5px] font-medium max-lg:min-h-11 max-lg:text-[14px] ${tab === id ? 'border-accent-500 text-petrol-900' : 'border-transparent text-slate-500'}`}>
+            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`inline-flex shrink-0 items-center gap-1.5 border-b-2 px-2.5 py-1.5 text-[13px] font-medium max-lg:min-h-11 max-lg:text-[14px] ${tab === id ? 'border-accent-500 text-petrol-900' : 'border-transparent text-slate-500'}`}>
               <Icon className="h-3.5 w-3.5" aria-hidden="true" />
               {label}
             </button>
           ))}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-[12.5px] text-petrol-900 max-lg:text-[14px]">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-[13px] text-petrol-900 max-lg:text-[14px]">
           {!canEdit && <p className="mb-2 rounded bg-slate-50 px-2 py-1 text-slate-600">Somente leitura para o seu papel.</p>}
           {tab === 'style' && <StyleTab layer={layer} canEdit={canEdit} onSave={onSave} />}
           {tab === 'info' && <InfoTab layer={layer} groupPath={groupPath} groupPaths={groupPaths} canEdit={canEdit} onSave={onSave} onDelete={onDelete} />}
@@ -235,7 +235,7 @@ function InfoTab({
       {canEdit && (
         <button type="button" disabled={name.trim().length < 2} onClick={() => onSave({ name: name.trim(), description: description.trim() || null }, { groupPath: group })} className="rounded bg-accent-500 px-3 py-1.5 font-semibold text-white disabled:opacity-40 max-lg:min-h-11">Salvar</button>
       )}
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 rounded border border-slate-200 px-3 py-2 text-[12px] max-lg:text-[13.5px]">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 rounded border border-slate-200 px-3 py-2 text-[12px] max-lg:text-[14px]">
         {layer.kind === 'external' ? (
           <>
             <dt className="text-slate-500">Origem</dt><dd>{layer.external?.type?.toUpperCase()} — <span className="break-all font-mono text-[11px]">{layer.external?.url}</span></dd>
@@ -285,19 +285,19 @@ function VersionsTab({
             <span className={`mt-0.5 rounded px-1.5 py-0.5 text-[11px] font-semibold ${v.version === layer.currentVersion ? 'bg-accent-500 text-white' : 'bg-slate-100 text-slate-600'}`}>v{v.version}</span>
             <div className="min-w-0 flex-1">
               <p>{MODE_LABEL[v.mode] ?? v.mode} — {fmt(v.featureCount)} feições{v.fileName ? ` (${v.fileName})` : ''}</p>
-              <p className="text-[11.5px] text-slate-500">
+              <p className="text-[12px] text-slate-500">
                 {fmtDate(v.createdAt)} por {v.createdBy}
                 {v.rejectedCount ? ` · ${fmt(v.rejectedCount)} rejeitada(s)` : ''}
                 {v.removedAt ? ` · dados removidos em ${fmtDate(v.removedAt)}` : ''}
               </p>
             </div>
             {canEdit && v.version !== layer.currentVersion && !v.removedAt && (
-              <button type="button" onClick={() => onRemoveVersion(v.version)} className="rounded px-1.5 py-1 text-[11.5px] text-red-700 hover:bg-red-50 max-lg:min-h-11">Liberar espaço</button>
+              <button type="button" onClick={() => onRemoveVersion(v.version)} className="rounded px-1.5 py-1 text-[12px] text-red-700 hover:bg-red-50 max-lg:min-h-11">Liberar espaço</button>
             )}
           </li>
         ))}
       </ul>
-      <p className="text-[11.5px] text-slate-500">O histórico de versões é mantido. “Liberar espaço” apaga as feições de uma versão antiga, mas o registro dela continua aqui.</p>
+      <p className="text-[12px] text-slate-500">O histórico de versões é mantido. “Liberar espaço” apaga as feições de uma versão antiga, mas o registro dela continua aqui.</p>
     </div>
   );
 }

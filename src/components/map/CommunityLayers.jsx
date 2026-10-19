@@ -162,15 +162,16 @@ export function CommunityHover({
         if (!c || !visible.has(place.municipio?.cod) || place.origem_nome !== 'comunidade' || hiddenIds[c.regionId]) { hide(); return; }
         if (last.current !== c.regionId) { last.current = c.regionId; onHover(c.regionId); }
         const box = document.createElement('div');
-        const title = document.createElement('strong');
-        title.textContent = c.nome;
-        const where = document.createElement('div');
-        where.textContent = [place.distrito && (place.distrito.sede ? `Distrito-sede (${place.distrito.nome})` : `Distrito de ${place.distrito.nome}`), `${place.municipio.nome}${place.municipio.uf ? `/${place.municipio.uf}` : ''}`].filter(Boolean).join(' · ');
-        const conf = document.createElement('div');
-        conf.className = c.aproximada ? 'cr-tip-low' : 'cr-tip-ok';
-        conf.textContent = c.aproximada ? `Localização aproximada: ${confidenceReason(regionsById.get(c.regionId))}` : 'Confiança: boa';
-        box.append(title, where, conf);
-        if (!tipRef.current) tipRef.current = L.tooltip({ direction: 'top', offset: [0, -10], className: 'cr-point-tip cr-community-tip', opacity: 1 });
+        const line = (cls, text) => { const el = document.createElement('span'); el.className = cls; el.textContent = text; return el; };
+        const mun = `${place.municipio.nome}${place.municipio.uf ? `/${place.municipio.uf}` : ''}`;
+        const dist = place.distrito && (place.distrito.sede ? 'Distrito-sede' : `Distrito de ${place.distrito.nome}`);
+        box.append(
+          line('cr-tip-title', c.nome),
+          line('cr-tip-sub', [mun, dist].filter(Boolean).join(' · ')),
+          line(`cr-tip-status${c.aproximada ? ' is-low' : ''}`, c.aproximada ? 'Localização aproximada' : 'Localização confiável'),
+        );
+        if (c.aproximada) box.append(line('cr-tip-note', confidenceReason(regionsById.get(c.regionId))));
+        if (!tipRef.current) tipRef.current = L.tooltip({ direction: 'top', offset: [0, -12], className: 'cr-point-tip', opacity: 1 });
         tipRef.current.setLatLng(e.latlng).setContent(box);
         if (!map.hasLayer(tipRef.current)) tipRef.current.addTo(map);
       });

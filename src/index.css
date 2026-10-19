@@ -11,6 +11,9 @@
   textarea:focus-visible { outline-offset: 0; }
 }
 
+/* Barras de rolagem finas e discretas (coluna esquerda, legenda do mapa, listas). */
+* { scrollbar-width: thin; scrollbar-color: rgb(var(--c-slate-300)) transparent; }
+
 /* Fundo cartográfico (ruas) em tons neutros para dar contraste às camadas.
    Só o mapa base de ruas recebe o filtro: satélite e camadas WMS/XYZ ficam com as cores originais. */
 .cr-basemap-muted { filter: grayscale(0.85) brightness(1.05) contrast(0.92); }
@@ -47,7 +50,26 @@
 .cr-region-chip.is-focused { background: rgb(var(--c-petrol-800)); color: rgb(var(--c-white)); border-color: rgb(var(--c-petrol-800)); }
 .cr-region-chip.is-focused b { background: #EE7A12; color: #fff; }
 
-.leaflet-tooltip.cr-point-tip { font-size: 12px; border-radius: 4px; padding: 5px 8px; color: rgb(var(--c-petrol-900)); }
+/* Dicas ao passar o mouse: um cartão só para todo o mapa.
+   Título, linha de contexto e linhas de detalhe (.cr-tip-*), sem frases soltas. */
+.leaflet-tooltip.cr-point-tip {
+  font-size: 12px; line-height: 1.45; color: rgb(var(--c-slate-600));
+  background: rgb(var(--c-white)); border: 1px solid rgb(var(--c-slate-200)); border-radius: 6px;
+  padding: 8px 10px; box-shadow: 0 6px 16px -4px rgba(11,34,51,.18), 0 1px 2px rgba(11,34,51,.08);
+  white-space: nowrap; opacity: 1 !important;
+}
+.leaflet-tooltip-top.cr-point-tip::before { border-top-color: rgb(var(--c-slate-200)); }
+.cr-tip-title { display: block; font-size: 13px; font-weight: 600; color: rgb(var(--c-petrol-900)); }
+.cr-tip-sub { display: block; color: rgb(var(--c-slate-500)); }
+.cr-tip-meta { display: grid; grid-template-columns: auto auto; gap: 1px 12px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgb(var(--c-slate-100)); }
+.cr-tip-meta dt { color: rgb(var(--c-slate-500)); }
+.cr-tip-meta dd { margin: 0; color: rgb(var(--c-petrol-900)); font-weight: 500; }
+.cr-tip-status { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-weight: 500; color: rgb(var(--c-petrol-800)); }
+.cr-tip-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--c-emerald-600)); flex: none; }
+.cr-tip-status.is-low { color: rgb(var(--c-amber-800)); }
+.cr-tip-status.is-low::before { background: rgb(var(--c-amber-500)); }
+.cr-tip-note { display: block; max-width: 240px; margin-top: 2px; white-space: normal; color: rgb(var(--c-slate-500)); }
+.cr-tip-note::first-letter { text-transform: uppercase; }
 
 /* Rótulos das sub-regiões */
 .leaflet-tooltip.cr-subregion-label { background: transparent; border: 0; box-shadow: none; padding: 0; }
@@ -79,18 +101,24 @@
 }
 .cr-community-label.is-selected { color: rgb(var(--c-petrol-900)); text-decoration: underline; }
 .dark .cr-community-label.is-selected { color: #fff; }
-.leaflet-tooltip.cr-community-tip strong { display: block; font-size: 12.5px; }
-.cr-tip-low { color: rgb(var(--c-amber-800)); margin-top: 2px; max-width: 240px; white-space: normal; }
-.cr-tip-ok { color: rgb(var(--c-slate-500)); margin-top: 2px; }
 
 /* Popup de atributos das camadas de dados */
-.leaflet-popup-content-wrapper { border-radius: 6px; }
+.leaflet-popup-content-wrapper {
+  border-radius: 8px; border: 1px solid rgb(var(--c-slate-200));
+  box-shadow: 0 10px 24px -6px rgba(11,34,51,.22), 0 1px 2px rgba(11,34,51,.08);
+}
+.leaflet-popup-content { margin: 0; }
+.leaflet-container a.leaflet-popup-close-button { top: 6px; right: 6px; color: rgb(var(--c-slate-500)); }
 .dark .leaflet-popup-content-wrapper, .dark .leaflet-popup-tip { background: rgb(var(--c-white)); color: rgb(var(--c-petrol-900)); }
-.cr-attr-popup { font-size: 12px; max-height: 260px; overflow: auto; }
-.cr-attr-title { font-weight: 600; margin: 0 0 4px; color: rgb(var(--c-petrol-900)); }
+.cr-attr-popup { font-size: 12px; line-height: 1.45; max-height: 280px; overflow: auto; min-width: 220px; }
+.cr-attr-title {
+  position: sticky; top: 0; margin: 0; padding: 10px 32px 8px 12px; background: rgb(var(--c-white));
+  font-size: 13px; font-weight: 600; color: rgb(var(--c-petrol-900)); border-bottom: 1px solid rgb(var(--c-slate-200));
+}
 .cr-attr-table { border-collapse: collapse; width: 100%; }
-.cr-attr-table th { text-align: left; font-weight: 500; color: rgb(var(--c-slate-500)); padding: 1px 8px 1px 0; vertical-align: top; white-space: nowrap; }
-.cr-attr-table td { color: rgb(var(--c-petrol-900)); padding: 1px 0; word-break: break-word; }
+.cr-attr-table tr:nth-child(even) { background: rgb(var(--c-slate-50)); }
+.cr-attr-table th { text-align: left; font-weight: 400; color: rgb(var(--c-slate-500)); padding: 4px 12px; vertical-align: top; white-space: nowrap; }
+.cr-attr-table td { color: rgb(var(--c-petrol-900)); font-weight: 500; padding: 4px 12px 4px 0; word-break: break-word; }
 
 /* Editor de sub-região (Leaflet-Geoman): vértices com área de toque maior no celular */
 .leaflet-container .marker-icon { border-color: #EE7A12; }

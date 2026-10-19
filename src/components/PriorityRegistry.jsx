@@ -75,13 +75,13 @@ export default function PriorityRegistry({
                 value={operator}
                 readOnly
                 title="Identificado pelo login do Cloudflare Access"
-                className="min-w-0 flex-1 cursor-default rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[12.5px] text-petrol-800 max-lg:min-h-11"
+                className="min-w-0 flex-1 cursor-default rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[13px] text-petrol-800 max-lg:min-h-11"
               />
             ) : (
               <input
                 value={by}
                 onChange={(e) => setBy(e.target.value)}
-                className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-[12.5px] text-petrol-900 max-lg:min-h-11"
+                className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-[13px] text-petrol-900 max-lg:min-h-11"
                 placeholder="Nome ou matrícula"
                 autoComplete="off"
               />
@@ -165,7 +165,7 @@ function RecordList({
         </select>
       </div>
       <div className="flex items-center justify-between">
-        <p className="text-[11.5px] text-slate-500">{list.length} de {records.length} registro(s)</p>
+        <p className="text-[12px] text-slate-500">{list.length} de {records.length} registro(s)</p>
         <button
           type="button"
           onClick={onNew}
@@ -189,18 +189,18 @@ function RecordList({
               <li key={r.id} className={`rounded-md border border-slate-200 px-2.5 py-2 ${active ? 'bg-white' : 'bg-slate-50'}`}>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <CategoryChip category={r.category} compact />
-                  <span className="text-[12.5px] font-semibold text-petrol-900">{r.id}</span>
-                  <StatusBadge tone={active ? 'success' : 'neutral'} className="!px-1.5 !text-[10.5px]">{active ? 'Ativo' : 'Inativo'}</StatusBadge>
-                  {r.fictitious && <StatusBadge tone="neutral" className="!px-1.5 !text-[10.5px]">Fictício</StatusBadge>}
+                  <span className="text-[13px] font-semibold text-petrol-900">{r.id}</span>
+                  <StatusBadge tone={active ? 'success' : 'neutral'} className="!px-1.5 !text-[11px]">{active ? 'Ativo' : 'Inativo'}</StatusBadge>
+                  {r.fictitious && <StatusBadge tone="neutral" className="!px-1.5 !text-[11px]">Fictício</StatusBadge>}
                 </div>
                 {r.label && <p className="mt-0.5 truncate text-[12px] text-slate-700">{r.label}</p>}
                 {r.location?.rotulo && (
-                  <p className="truncate text-[11.5px] text-petrol-700" title={`Gravado em ${fmtDate(r.location.at)}`}>
+                  <p className="truncate text-[12px] text-petrol-700" title={`Gravado em ${fmtDate(r.location.at)}`}>
                     {r.location.rotulo}{r.location.confianca === 'baixa' ? ' ≈' : ''}
                   </p>
                 )}
                 <p className="text-[11px] text-slate-500">Atualizado em {fmtDate(r.updatedAt)} por {r.updatedBy}</p>
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] font-medium max-lg:gap-x-1 max-lg:gap-y-0 max-lg:text-[14px] max-lg:[&>button]:min-h-11 max-lg:[&>button]:px-1.5">
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[12px] font-medium max-lg:gap-x-1 max-lg:gap-y-0 max-lg:text-[14px] max-lg:[&>button]:min-h-11 max-lg:[&>button]:px-1.5">
                   <button type="button" onClick={() => onViewOnMap(r.id)} disabled={!active} className="inline-flex items-center gap-1 text-petrol-700 hover:underline disabled:text-slate-400 disabled:no-underline" title={active ? undefined : 'Registros inativos não aparecem no mapa'}>
                     <MapPin className="h-3 w-3" aria-hidden="true" />Ver no mapa
                   </button>
@@ -251,9 +251,9 @@ function RecordForm({
   const err = check?.errors ?? {};
   const warnings = check?.ok ? check.warnings : [];
   const confirming = warnings.length > 0 && ackKey === valuesKey;
-  const input = (k) => `w-full rounded border bg-white px-2 py-1 text-[12.5px] text-petrol-900 max-lg:min-h-11 ${err[k] ? 'border-red-400' : 'border-slate-300'}`;
+  const input = (k) => `w-full rounded border bg-white px-2 py-1 text-[13px] text-petrol-900 max-lg:min-h-11 ${err[k] ? 'border-red-400' : 'border-slate-300'}`;
   const Label = ({ k, children, hint }) => (
-    <span className="mb-0.5 block text-[11.5px] font-medium text-petrol-800">
+    <span className="mb-0.5 block text-[12px] font-medium text-petrol-800">
       {children}
       {hint && <span className="ml-1 font-normal text-slate-500">{hint}</span>}
     </span>
@@ -300,7 +300,7 @@ function RecordForm({
         const place = placeOf(parseDecimal(form.lat), parseDecimal(form.lng));
         if (!place) return null;
         return (
-          <p className="-mt-1 rounded border border-petrol-100 bg-petrol-50 px-2 py-1 text-[11.5px] text-petrol-800 max-lg:text-[13px]" role="status">
+          <p className="-mt-1 rounded border border-petrol-100 bg-petrol-50 px-2 py-1 text-[12px] text-petrol-800 max-lg:text-[13px]" role="status">
             <b>Localização:</b> {place.rotulo}
             {place.comunidade?.aproximada && ' (localização aproximada)'}
             {place.origem_nome === 'comunidade_proxima' && ' (comunidade mais próxima, até 100 m)'}
@@ -309,7 +309,7 @@ function RecordForm({
       })()}
 
       <fieldset>
-        <legend className="mb-1 text-[11.5px] font-medium text-petrol-800">Categoria de prioridade *</legend>
+        <legend className="mb-1 text-[12px] font-medium text-petrol-800">Categoria de prioridade *</legend>
         <div className="grid gap-1.5">
           {Object.values(PRIORITY_CATEGORIES).map((c) => (
             <label
@@ -360,7 +360,7 @@ function RecordForm({
       </label>
       <fieldset className="flex items-center gap-3 text-[12px] text-petrol-900">
         <legend className="sr-only">Status do registro</legend>
-        <span className="text-[11.5px] font-medium text-petrol-800">Status *</span>
+        <span className="text-[12px] font-medium text-petrol-800">Status *</span>
         {[['active', 'Ativo'], ['inactive', 'Inativo']].map(([v, l]) => (
           <label key={v} className="inline-flex items-center gap-1 max-lg:min-h-11 max-lg:gap-2 max-lg:text-[14px]">
             <input type="radio" name="status" value={v} checked={form.status === v} onChange={set('status')} className="accent-accent-500 max-lg:h-5 max-lg:w-5" />
@@ -383,17 +383,17 @@ function RecordForm({
       )}
 
       <div className="flex gap-2">
-        <button type="submit" className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-semibold text-white max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:text-[15px] ${confirming ? 'bg-amber-600 hover:bg-amber-700' : 'bg-petrol-700 hover:bg-petrol-800'}`}>
+        <button type="submit" className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold text-white max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:text-[15px] ${confirming ? 'bg-amber-600 hover:bg-amber-700' : 'bg-petrol-700 hover:bg-petrol-800'}`}>
           <Save className="h-3.5 w-3.5" aria-hidden="true" />
           {confirming ? 'Salvar mesmo assim' : 'Salvar'}
         </button>
-        <button type="button" onClick={onCancel} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:flex-1 max-lg:text-[15px]">
+        <button type="button" onClick={onCancel} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[13px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:flex-1 max-lg:text-[15px]">
           Cancelar
         </button>
       </div>
 
       {record?.history?.length > 0 && (
-        <div className="border-t border-slate-100 pt-2 text-[11.5px] text-slate-600">
+        <div className="border-t border-slate-100 pt-2 text-[12px] text-slate-600">
           <p className="flex items-center gap-1 font-semibold text-petrol-900"><History className="h-3 w-3" aria-hidden="true" />Histórico do registro</p>
           <ol className="mt-0.5 space-y-0.5">
             {[...record.history].reverse().map((h, i) => (

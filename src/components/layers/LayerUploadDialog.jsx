@@ -190,7 +190,7 @@ export default function LayerUploadDialog({
                 role="tab"
                 aria-selected={tab === id}
                 onClick={() => setTab(id)}
-                className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-[12.5px] font-medium max-lg:min-h-11 max-lg:text-[14px] ${tab === id ? 'border-accent-500 text-petrol-900' : 'border-transparent text-slate-500'}`}
+                className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-[13px] font-medium max-lg:min-h-11 max-lg:text-[14px] ${tab === id ? 'border-accent-500 text-petrol-900' : 'border-transparent text-slate-500'}`}
               >
                 <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                 {label}
@@ -199,7 +199,7 @@ export default function LayerUploadDialog({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-[12.5px] text-petrol-900 max-lg:text-[14px]">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-[13px] text-petrol-900 max-lg:text-[14px]">
           {tab === 'url' && !target ? (
             <ExternalForm groupPaths={groupPaths} by={by} onCancel={onClose} onSave={(meta) => { onSavedExternal(meta); onClose(); }} />
           ) : (
@@ -256,13 +256,13 @@ export default function LayerUploadDialog({
               O arquivo é lido e processado só neste navegador (nada é enviado). A camada fica no IndexedDB deste navegador.
             </p>
             {phase === 'preview' && (
-              <button type="button" onClick={commit} className="inline-flex items-center gap-1.5 rounded bg-accent-500 px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-accent-600 max-lg:min-h-11 max-lg:w-full max-lg:justify-center max-lg:text-[15px]">
+              <button type="button" onClick={commit} className="inline-flex items-center gap-1.5 rounded bg-accent-500 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-accent-600 max-lg:min-h-11 max-lg:w-full max-lg:justify-center max-lg:text-[15px]">
                 <CircleCheck className="h-4 w-4" aria-hidden="true" />
                 {target ? (mode === 'append' ? 'Anexar como nova versão' : 'Substituir (nova versão)') : `Confirmar e importar ${fmt(info.stats.accepted)} feições`}
               </button>
             )}
             {phase === 'done' && (
-              <button type="button" onClick={onClose} className="rounded bg-petrol-800 px-3 py-1.5 text-[12.5px] font-semibold text-white max-lg:min-h-11 max-lg:w-full">Fechar</button>
+              <button type="button" onClick={onClose} className="rounded bg-petrol-800 px-3 py-1.5 text-[13px] font-semibold text-white max-lg:min-h-11 max-lg:w-full">Fechar</button>
             )}
           </div>
         ) : null}
@@ -284,7 +284,7 @@ function FilePicker({ onPick, target }) {
     >
       <FileUp className="mx-auto h-7 w-7 text-petrol-400" aria-hidden="true" />
       <p className="mt-2 font-semibold">{mobile ? 'Escolha o arquivo da camada' : 'Arraste o arquivo aqui ou escolha no computador'}</p>
-      <p className="mt-1 text-[11.5px] text-slate-600 max-lg:text-[13px]">
+      <p className="mt-1 text-[12px] text-slate-600 max-lg:text-[13px]">
         GeoJSON, KML/KMZ, Shapefile (.zip com .shp, .dbf e .prj) ou CSV com latitude/longitude.
         {target ? ' O resultado vira uma nova versão da camada; as anteriores ficam no histórico.' : ''}
       </p>
@@ -386,7 +386,7 @@ function Preview({
       <div className="space-y-3">
         <section>
           <h3 className="font-semibold">Resumo</h3>
-          <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-[12px] max-lg:text-[13.5px]">
+          <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-[12px] max-lg:text-[14px]">
             <dt className="text-slate-500">Arquivo</dt><dd className="truncate">{file?.name} ({KIND_LABEL[kind]}{file ? `, ${mb(file.size)}` : ''})</dd>
             <dt className="text-slate-500">Feições</dt><dd>{fmt(stats.accepted)} aceitas de {fmt(stats.total)}{famText ? ` — ${famText}` : ''}</dd>
             <dt className="text-slate-500">Corrigidas</dt><dd>{fmt(stats.fixed)}</dd>
@@ -426,7 +426,7 @@ function Preview({
             </label>
           )}
           {showRejected && (
-            <ul className="mt-1 max-h-40 overflow-y-auto rounded border border-red-100 bg-red-50/50 px-2 py-1 text-[11.5px]">
+            <ul className="mt-1 max-h-40 overflow-y-auto rounded border border-red-100 bg-red-50/50 px-2 py-1 text-[12px]">
               {info.rejected.map((r) => <li key={r.index}>{r.ref}: {r.reason}</li>)}
               {info.rejectedTotal > info.rejected.length && <li>… e mais {fmt(info.rejectedTotal - info.rejected.length)}</li>}
             </ul>
@@ -439,7 +439,7 @@ function Preview({
         <section>
           <h3 className="font-semibold">Atributos ({info.attributes.length}) — escolha quais manter</h3>
           <div className="mt-1 max-h-52 overflow-auto rounded border border-slate-200">
-            <table className="w-full text-left text-[11.5px] max-lg:text-[13px]">
+            <table className="w-full text-left text-[12px] max-lg:text-[13px]">
               <thead className="sticky top-0 bg-slate-50 text-slate-500">
                 <tr><th className="px-2 py-1"><span className="sr-only">Manter</span></th><th className="px-2 py-1">Campo</th><th className="px-2 py-1">Tipo</th><th className="px-2 py-1">Exemplos</th></tr>
               </thead>
@@ -468,7 +468,7 @@ function Preview({
                   {label}
                 </label>
               ))}
-              <p className="mt-1 text-[11.5px] text-slate-500">A versão atual (v{target.currentVersion}) continua no histórico.</p>
+              <p className="mt-1 text-[12px] text-slate-500">A versão atual (v{target.currentVersion}) continua no histórico.</p>
             </fieldset>
           ) : (
             <>
@@ -517,7 +517,7 @@ function Preview({
                   <input type="number" min="0" max="18" value={form.minZoom} placeholder="—" onChange={(e) => set('minZoom', e.target.value)} className="mt-0.5 block w-20 rounded border border-slate-300 bg-white px-2 py-1 max-lg:min-h-11" />
                 </label>
               </div>
-              <p className="col-span-2 text-[11.5px] text-slate-500 max-sm:col-span-1">O estilo por atributo (ex.: cor da linha por tensão) é definido depois, em “Configurar” no painel de camadas.</p>
+              <p className="col-span-2 text-[12px] text-slate-500 max-sm:col-span-1">O estilo por atributo (ex.: cor da linha por tensão) é definido depois, em “Configurar” no painel de camadas.</p>
             </>
           )}
         </section>

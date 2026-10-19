@@ -54,7 +54,7 @@ export default function PlaceSearch({
           aria-expanded={open && results.length > 0}
           aria-controls="place-search-results"
           aria-autocomplete="list"
-          className="min-w-0 flex-1 bg-transparent text-[12.5px] text-petrol-900 outline-none max-lg:text-[16px]"
+          className="min-w-0 flex-1 bg-transparent text-[13px] text-petrol-900 outline-none max-lg:text-[16px]"
           autoComplete="off"
         />
         {(q || onClose) && (
@@ -74,11 +74,11 @@ export default function PlaceSearch({
                 onMouseEnter={() => setActive(i)}
                 className={`flex w-full flex-col px-3 py-1.5 text-left max-lg:min-h-11 ${i === active ? 'bg-slate-100' : ''}`}
               >
-                <span className="text-[12.5px] font-medium text-petrol-900 max-lg:text-[14px]">
+                <span className="text-[13px] font-medium text-petrol-900 max-lg:text-[14px]">
                   {r.nome}
                   {r.confianca === 'baixa' && <span className="ml-1 text-[11px] font-normal text-amber-700">≈ aproximada</span>}
                 </span>
-                <span className="text-[11px] text-slate-500 max-lg:text-[12.5px]">{r.detalhe ?? KIND_TEXT[r.kind]}</span>
+                <span className="text-[11px] text-slate-500 max-lg:text-[13px]">{r.detalhe ?? KIND_TEXT[r.kind]}</span>
               </button>
             </li>
           ))}

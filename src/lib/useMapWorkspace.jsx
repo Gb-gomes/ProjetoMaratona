@@ -1311,7 +1311,7 @@ export function useMapWorkspace({
       type="button"
       onClick={() => setMobileSearch((v) => !v)}
       aria-expanded={mobileSearch}
-      className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-[14px] font-medium text-petrol-800 shadow-md"
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-[15px] font-medium text-petrol-800 shadow-md"
     >
       <Search className="h-4 w-4" aria-hidden="true" />
       Buscar
@@ -1321,7 +1321,7 @@ export function useMapWorkspace({
     <button
       type="button"
       onClick={() => setPanel({ open: true, detailId: null, focusCode: null })}
-      className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-2 py-1 text-[12px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-3 max-lg:text-[14px] max-lg:shadow-md"
+      className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-2 py-1 text-[13px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11 max-lg:px-3 max-lg:text-[15px] max-lg:shadow-md"
     >
       {FEATURES.orgSubregions ? <Shapes className="h-3.5 w-3.5 max-lg:h-4 max-lg:w-4" aria-hidden="true" /> : <Users className="h-3.5 w-3.5 max-lg:h-4 max-lg:w-4" aria-hidden="true" />}
       {FEATURES.orgSubregions ? `Sub-regiões (${activeRegions.length})` : `Comunidades (${activeCommunities.length.toLocaleString('pt-BR')})`}
