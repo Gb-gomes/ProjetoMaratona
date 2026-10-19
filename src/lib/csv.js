@@ -5,6 +5,10 @@
  * processado em memória. Nenhuma coordenada é registrada em log.
  */
 
+import {
+  FARM_FAR_METERS, METHOD_TEXT, describeFarm, distanceMeters,
+} from './farmIndex.js';
+
 const normalize = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
 /* ------------------------------------------------------------------ */
@@ -146,24 +150,60 @@ export async function readFileAsText(file) {
 /* Mapeamento de colunas                                               */
 /* ------------------------------------------------------------------ */
 
-/** Campos que o operador pode mapear. */
+/**
+ * Campos que o operador pode mapear. A linha precisa de latitude e longitude
+ * OU de algo que identifique a fazenda: aí o ponto vem do índice de fazendas
+ * (lib/farmIndex.js).
+ */
 export const MAPPABLE_FIELDS = [
   { key: 'id', label: 'Identificador do ponto', required: false },
-  { key: 'lat', label: 'Latitude', required: true },
-  { key: 'lng', label: 'Longitude', required: true },
+  { key: 'lat', label: 'Latitude', required: false, group: 'coords' },
+  { key: 'lng', label: 'Longitude', required: false, group: 'coords' },
   { key: 'client', label: 'Cliente / unidade consumidora', required: false },
-  { key: 'equipment', label: 'Equipamento', required: false },
-  { key: 'property', label: 'Propriedade', required: false },
+  { key: 'equipment', label: 'Equipamento / transformador', required: false },
+  { key: 'property', label: 'Propriedade / fazenda', required: false },
+  { key: 'car', label: 'Código CAR', required: false, group: 'farm' },
+  { key: 'incra', label: 'Código INCRA', required: false, group: 'farm' },
+  { key: 'municipality', label: 'Município', required: false },
+  { key: 'catalogId', label: 'ID no catálogo de fazendas', required: false, group: 'farm' },
 ];
 
 const SUGGESTIONS = {
-  id: ['id', 'codigo', 'cod', 'ponto', 'id_ponto'],
-  lat: ['lat', 'latitude', 'coord_y', 'y'],
-  lng: ['lon', 'lng', 'long', 'longitude', 'coord_x', 'x'],
-  client: ['cliente', 'uc', 'unidade_consumidora', 'cod_cliente', 'instalacao'],
-  equipment: ['equipamento', 'equip', 'transformador', 'trafo', 'chave', 'poste'],
-  property: ['propriedade', 'fazenda', 'nome_propriedade', 'imovel'],
+  id: ['id', 'codigo', 'cod', 'ponto', 'id_ponto', 'cod_ponto', 'item'],
+  lat: ['lat', 'latitude', 'coord_y', 'y', 'lat_dec', 'latitude_graus', 'lat_graus', 'latitude_decimal'],
+  lng: ['lon', 'lng', 'long', 'longitude', 'coord_x', 'x', 'lon_dec', 'longitude_graus', 'lon_graus', 'long_graus', 'longitude_decimal'],
+  client: ['cliente', 'uc', 'unidade_consumidora', 'cod_cliente', 'instalacao', 'cod_uc', 'codigo_uc', 'num_uc', 'numero_uc', 'n_uc', 'no_uc', 'conta_contrato'],
+  equipment: ['equipamento', 'equip', 'transformador', 'trafo', 'chave', 'poste', 'cod_trafo', 'codigo_trafo', 'cod_transformador'],
+  property: ['propriedade', 'fazenda', 'nome_propriedade', 'imovel', 'nome_fazenda', 'nome_imovel', 'sitio', 'denominacao'],
+  car: ['car', 'codigo_car', 'cod_car', 'car_imovel', 'recibo_car', 'numero_car', 'n_car', 'cod_imovel_car', 'inscricao_car'],
+  incra: ['incra', 'codigo_incra', 'cod_incra', 'ccir', 'sncr', 'codigo_imovel_incra', 'cod_imovel_incra', 'codigo_sncr'],
+  municipality: ['municipio', 'cidade', 'mun', 'cod_ibge', 'cd_mun', 'nome_municipio', 'nm_mun', 'cod_municipio'],
+  catalogId: ['id_catalogo', 'catalogo', 'cod_catalogo'],
 };
+
+const STOP_WORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+/** Cabeçalho comparável: sem acento, minúsculo, sem "da/do/de", separadores viram "_" ("Nome da Fazenda" → "nome_fazenda"). */
+const headerKey = (h) => normalize(h).split(/[^a-z0-9]+/).filter((w) => w && !STOP_WORDS.has(w)).join('_');
+
+/**
+ * Segunda tentativa, por palavra do cabeçalho ("Latitude (graus)", "Nº da UC",
+ * "Código do imóvel no CAR"). Ordem importa: o primeiro campo que reconhece fica com a coluna.
+ */
+const KEYWORDS = [
+  ['lat', ['latitude', 'lat']],
+  ['lng', ['longitude', 'long', 'lon', 'lng']],
+  ['car', ['car', 'sicar']],
+  ['incra', ['incra', 'ccir', 'sncr', 'sigef']],
+  ['municipality', ['municipio', 'cidade']],
+  ['catalogId', ['catalogo']],
+  ['property', ['fazenda', 'propriedade', 'imovel', 'sitio', 'chacara']],
+  ['client', ['uc', 'cliente', 'instalacao', 'consumidora']],
+  ['equipment', ['transformador', 'trafo', 'equipamento', 'chave']],
+];
+
+/** O mapeamento tem coordenadas? E algo que localize a fazenda? */
+export const hasCoordMapping = (m) => m?.lat != null && m?.lng != null;
+export const hasFarmMapping = (m) => ['catalogId', 'car', 'incra', 'property', 'equipment'].some((k) => m?.[k] != null);
 
 /**
  * Sugere um mapeamento pelos nomes dos cabeçalhos. É apenas uma sugestão:
@@ -171,13 +211,18 @@ const SUGGESTIONS = {
  * @returns {Record<string, number|null>} campo → índice da coluna
  */
 export function suggestMapping(headers) {
-  const norm = headers.map(normalize);
+  const norm = headers.map(headerKey);
   const used = new Set();
   const mapping = {};
   MAPPABLE_FIELDS.forEach(({ key }) => {
     const idx = norm.findIndex((h, i) => !used.has(i) && SUGGESTIONS[key].includes(h));
     mapping[key] = idx >= 0 ? idx : null;
     if (idx >= 0) used.add(idx);
+  });
+  KEYWORDS.forEach(([key, words]) => {
+    if (mapping[key] != null) return;
+    const idx = norm.findIndex((h, i) => !used.has(i) && h.split('_').some((w) => words.includes(w)));
+    if (idx >= 0) { mapping[key] = idx; used.add(idx); }
   });
   return mapping;
 }
@@ -240,25 +285,41 @@ const cell = (row, idx) => (idx == null ? '' : (row[idx] ?? '').trim());
  *
  * Nenhuma coordenada é corrigida automaticamente (inclusive inversões).
  *
- * @param {{headers:string[], rows:string[][], rowLines?:number[]}} parsed
+ * Ligação com a fazenda (quando `farms` é informado e a linha cita a fazenda
+ * pelo ID do catálogo, CAR, INCRA, nome ou transformador):
+ *  - linha SEM coordenada válida → o ponto passa a ser o da fazenda
+ *    (coordOrigin 'fazenda'); se a coordenada do arquivo existia mas era
+ *    inválida, isso fica registrado como alerta;
+ *  - linha COM coordenada → a fazenda é só conferida: ponto a mais de
+ *    FARM_FAR_METERS da fazenda citada vira alerta (o ponto do arquivo vale);
+ *  - fazenda não encontrada ou ambígua (mais de uma possível) → erro com o
+ *    motivo e os candidatos, para o operador completar a linha.
+ *
+ * @param {{headers:string[], rows:string[][], rowLines?:(number|string)[]}} parsed
  * @param {Record<string, number|null>} mapping
+ * @param {{ farms?: ReturnType<import('./farmIndex.js').createFarmIndex> }} [options]
  */
-export function validateRecords(parsed, mapping) {
+export function validateRecords(parsed, mapping, { farms = null } = {}) {
   const { headers = [], rows = [], rowLines = [] } = parsed ?? {};
   const fileProblems = [];
+  const coordsMapped = hasCoordMapping(mapping);
+  const farmMapped = hasFarmMapping(mapping);
 
   if (!headers.length) fileProblems.push('O arquivo está vazio ou não pôde ser interpretado como CSV.');
   else if (!rows.length) fileProblems.push('O arquivo contém apenas o cabeçalho, sem registros.');
-  if (headers.length && (mapping?.lat == null || mapping?.lng == null)) {
-    const missing = [mapping?.lat == null && 'latitude', mapping?.lng == null && 'longitude'].filter(Boolean);
-    fileProblems.push(`Mapeie a(s) coluna(s) obrigatória(s): ${missing.join(' e ')}.`);
+  if (headers.length && !coordsMapped) {
+    if (mapping?.lat != null || mapping?.lng != null) {
+      fileProblems.push(`Mapeie a(s) coluna(s) obrigatória(s): ${mapping?.lat == null ? 'latitude' : 'longitude'}.`);
+    } else if (!farmMapped) {
+      fileProblems.push('Mapeie as colunas de latitude e longitude, ou uma coluna que identifique a fazenda (código CAR, código INCRA ou nome da fazenda).');
+    }
   }
   if (mapping?.lat != null && mapping.lat === mapping.lng) {
     fileProblems.push('Latitude e longitude não podem usar a mesma coluna.');
   }
   if (fileProblems.length) {
     return {
-      ok: false, fileProblems, records: [], total: rows.length, valid: 0, invalid: rows.length, warnings: 0,
+      ok: false, fileProblems, records: [], total: rows.length, valid: 0, invalid: rows.length, warnings: 0, fromFarm: 0, farmChecked: 0,
     };
   }
 
@@ -268,7 +329,7 @@ export function validateRecords(parsed, mapping) {
 
   const records = rows.map((row, i) => {
     const line = rowLines[i] ?? i + 2;
-    const issues = [];
+    let issues = [];
     const err = (code, message) => issues.push({ code, severity: 'error', message });
     const warn = (code, message) => issues.push({ code, severity: 'warning', message });
 
@@ -279,6 +340,10 @@ export function validateRecords(parsed, mapping) {
       client: cell(row, mapping.client) || null,
       equipment: cell(row, mapping.equipment) || null,
       property: cell(row, mapping.property) || null,
+      car: cell(row, mapping.car) || null,
+      incra: cell(row, mapping.incra) || null,
+      municipality: cell(row, mapping.municipality) || null,
+      catalogId: cell(row, mapping.catalogId) || null,
     };
 
     if (row.length !== headers.length) {
@@ -287,7 +352,9 @@ export function validateRecords(parsed, mapping) {
 
     let lat = NaN;
     let lng = NaN;
-    if (rawLat === '' || rawLng === '') {
+    if (!coordsMapped || (rawLat === '' && rawLng === '')) {
+      err('missing', 'Coordenada ausente (latitude e longitude).');
+    } else if (rawLat === '' || rawLng === '') {
       err('missing', `Coordenada ausente (${[rawLat === '' && 'latitude', rawLng === '' && 'longitude'].filter(Boolean).join(' e ')}).`);
     } else {
       lat = parseDecimal(rawLat);
@@ -313,6 +380,54 @@ export function validateRecords(parsed, mapping) {
       }
     }
 
+    // Fazenda citada na linha.
+    let coordOrigin = 'arquivo';
+    let farm = null;
+    let farmMethod = null;
+    const coordOk = !issues.some((x) => x.severity === 'error');
+    const keys = {
+      catalogId: fields.catalogId,
+      car: fields.car,
+      incra: fields.incra,
+      property: fields.property,
+      municipality: fields.municipality,
+      // O transformador só localiza a fazenda quando falta a coordenada (um transformador atende várias).
+      equipment: coordOk ? null : fields.equipment,
+    };
+    const citesFarm = !!(keys.catalogId || keys.car || keys.incra || keys.property || keys.equipment);
+    if (farms && citesFarm) {
+      const res = farms.find(keys);
+      if (res.farm) {
+        farm = res.farm;
+        farmMethod = res.method;
+        if (coordOk) {
+          const d = distanceMeters(lat, lng, farm.lat, farm.lng);
+          if (d > FARM_FAR_METERS) {
+            warn('farm-far', `Ponto a ${(d / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km da fazenda citada (${describeFarm(farm)}). Vale a coordenada do arquivo; confira.`);
+          }
+        } else {
+          const coordProblem = issues.find((x) => x.severity === 'error' && x.code !== 'missing');
+          issues = issues.filter((x) => x.severity !== 'error');
+          if (coordProblem) warn('farm-replaced', `Coordenada do arquivo inválida (${coordProblem.message}) Usado o ponto da fazenda.`);
+          lat = farm.lat;
+          lng = farm.lng;
+          coordOrigin = 'fazenda';
+        }
+      } else if (!coordOk) {
+        // O motivo principal passa a ser a fazenda (a falta da coordenada já está implícita).
+        issues = issues.filter((x) => x.code !== 'missing');
+        const how = res.method ? METHOD_TEXT[res.method] : null;
+        if (res.candidates.length > 1) {
+          const list = res.candidates.slice(0, 3).map(describeFarm).join('; ');
+          err('farm-ambiguous', `${res.candidates.length} fazendas possíveis pelo ${how}: ${list}${res.candidates.length > 3 ? '…' : ''}. Informe o CAR, o município ou a coordenada.`);
+        } else {
+          err('farm-not-found', `Fazenda não encontrada no catálogo (procurado por ${res.tried.map((m) => METHOD_TEXT[m]).join(', ')}). Informe a coordenada.`);
+        }
+      }
+    } else if (!coordOk && citesFarm && !farms) {
+      err('farm-index', 'Índice de fazendas não carregado: não foi possível localizar a fazenda.');
+    }
+
     const valid = !issues.some((x) => x.severity === 'error');
 
     // Duplicidades: só consideradas entre registros com coordenadas válidas.
@@ -325,7 +440,7 @@ export function validateRecords(parsed, mapping) {
         }
       }
       if (!issues.some((x) => x.code === 'duplicate-id')) {
-        const rowKey = [lat, lng, fields.id, fields.client, fields.equipment, fields.property].join('|');
+        const rowKey = [lat, lng, fields.id, fields.client, fields.equipment, fields.property, fields.car].join('|');
         const coordKey = `${lat}|${lng}`;
         if (seenRows.has(rowKey)) {
           err('duplicate-row', `Registro repetido (idêntico à linha ${seenRows.get(rowKey)}).`);
@@ -344,8 +459,15 @@ export function validateRecords(parsed, mapping) {
     return {
       line,
       ...fields,
+      // Sem nome de propriedade no arquivo, vale o nome da fazenda do catálogo.
+      property: fields.property ?? farm?.nome ?? null,
       lat: status === 'valid' ? lat : null,
       lng: status === 'valid' ? lng : null,
+      coordOrigin: status === 'valid' ? coordOrigin : null,
+      farm: farm ? {
+        id: farm.id, nome: farm.nome, car: farm.car, incra: farm.incra, mun: farm.mun, municipio: farm.municipio,
+      } : null,
+      farmMethod,
       status,
       issues,
     };
@@ -361,6 +483,8 @@ export function validateRecords(parsed, mapping) {
     valid,
     invalid: records.length - valid,
     warnings,
+    fromFarm: records.filter((r) => r.coordOrigin === 'fazenda').length,
+    farmChecked: records.filter((r) => r.coordOrigin === 'arquivo' && r.farm).length,
   };
 }
 

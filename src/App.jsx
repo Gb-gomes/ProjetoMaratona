@@ -25,7 +25,10 @@ import {
   TERRITORIAL_LAYER, PROCESSING_STEPS, PROCESSING_DURATION_MS, PILOT_CONFIG, PILOT_STATUS_LABEL, ANNOUNCEMENT_RULES, PRIORITY_MATCH,
 } from './config.js';
 import { mockSpatialJoin } from './lib/mockSpatialJoin.js';
-import { spatialJoin } from './lib/spatialJoin.js';
+import { placeJoin } from './lib/placeJoin.js';
+import { readPointsFile } from './lib/spreadsheet.js';
+import { loadFarmIndex } from './lib/farmIndex.js';
+import { withManualPoints, isManualLine, MANUAL_FILE_NAME } from './lib/manualPoints.js';
 import { loadLayer, loadNameCorrespondence } from './lib/layer.js';
 import {
   buildTraditionalNotice, buildTraditionalFromNames, buildRadioLetterFromLines, hasPlaceholders, resolveSpeakableName,
@@ -36,7 +39,7 @@ import {
   loadStore, saveStore, loadOperator, saveOperator,
 } from './lib/regionNames.js';
 import {
-  parseCsv, validateCoordinates, readFileAsText, readFileWithEncoding, suggestMapping, validateRecords, isProcessableCrs,
+  parseCsv, validateCoordinates, readFileAsText, suggestMapping, validateRecords, isProcessableCrs, hasFarmMapping,
 } from './lib/csv.js';
 import { buildOutageView, EMPTY_OUTAGE_FORM } from './lib/outage.js';
 import {
@@ -68,8 +71,33 @@ const DEMO_FILE = {
 const EMPTY_NOTICE = { text: '', status: 'draft', dirty: false, stale: false };
 const DEFAULT_LAYERS = { points: true, territories: true, priority: true };
 const EMPTY_IMPORT = {
-  status: 'empty', fileName: '', encoding: '', parsed: null, mapping: {}, crs: '', validation: null, error: '',
+  status: 'empty',
+  fileName: '',
+  encoding: '',
+  format: '', // csv | xlsx
+  sheets: null, // abas do Excel ({ name, table }) — só em memória
+  sheetIndex: 0,
+  parsed: null,
+  mapping: {},
+  // Mapeamento usado na última validação (inclui as colunas dos pontos inseridos à mão).
+  effectiveMapping: null,
+  crs: '',
+  validation: null,
+  error: '',
+  // Pontos inseridos à mão (lat/long ou CAR), validados junto com o arquivo.
+  manual: [],
 };
+const parsedFromTable = (table) => ({ ...table, rowCount: table.rows.length, preview: table.rows.slice(0, 5) });
+
+/**
+ * Referencial efetivo: o declarado pelo operador; sem declaração, SIRGAS 2000
+ * quando todos os pontos válidos vêm do catálogo de fazendas ou foram
+ * digitados em graus decimais (não dependem do referencial do arquivo).
+ */
+function needsDeclaredCrs(validation) {
+  return (validation?.records ?? []).some((r) => r.status === 'valid' && r.coordOrigin === 'arquivo' && !r.manual);
+}
+const effectiveCrs = (imp) => (isProcessableCrs(imp.crs) || needsDeclaredCrs(imp.validation) ? imp.crs : 'EPSG:4674');
 
 /** Metadados exibidos da camada no modo real. */
 const REAL_LAYER_INFO = {
@@ -108,6 +136,7 @@ export default function App() {
 
   // Somente modo real (mantidos em memória; nunca em localStorage).
   const [imp, setImp] = useState(EMPTY_IMPORT);
+  const impMapping = imp.effectiveMapping ?? imp.mapping;
   const [outageForm, setOutageForm] = useState(EMPTY_OUTAGE_FORM);
   const [layerState, setLayerState] = useState({ status: 'idle', layer: null, errors: [], warnings: [], correspondence: {} });
   // Nomes de região definidos pelo operador (salvos neste navegador, com histórico).
@@ -133,7 +162,7 @@ export default function App() {
   const [priorityTolerance, setPriorityTolerance] = useState(PRIORITY_MATCH.toleranceMeters);
   const [analysisRef, setAnalysisRef] = useState(null); // desligamento analisado (congelado no processamento)
   const [priorityFocus, setPriorityFocus] = useState(null); // { recordId, pointKeys, nonce }
-  const [registryNav, setRegistryNav] = useState(null); // null | { view: 'list' } | { view: 'form', editingId }
+  const [registryNav, setRegistryNav] = useState(null); // null | { view: 'list' } | { view: 'form', editingId, prefill? }
 
   // Celular/tablet (abaixo de lg): uma tela por vez, escolhida na barra inferior.
   // Todas as telas continuam montadas; só a apresentação muda (nenhum estado se perde).
@@ -152,6 +181,7 @@ export default function App() {
 
   const isReal = mode === 'real';
   const timers = useRef([]);
+  const addPointRef = useRef(null);
   const toastSeq = useRef(0);
 
   /* ---------------- Notificações ---------------- */
@@ -198,6 +228,9 @@ export default function App() {
     sectorLayer: layerState.layer,
     isMobile,
     onShowMap: () => setMobileTab('mapa'),
+    // Coordenada buscada no mapa: incluir no desligamento ou cadastrar como ponto prioritário.
+    onAddPoint: isReal ? (p) => addPointRef.current?.(p) : null,
+    onRegisterPriority: (p) => setRegistryNav({ view: 'form', editingId: null, prefill: { lat: p.lat, lng: p.lng, nonce: Date.now() } }),
   });
 
 
@@ -294,9 +327,9 @@ export default function App() {
 
   const traditionalText = useMemo(() => {
     if (!isReal) return buildTraditionalNotice(DEMO_POINTS, OUTAGE);
-    if (!result || imp.mapping.property == null) return '';
+    if (!result || impMapping.property == null) return '';
     return buildTraditionalFromNames(result.points.map((p) => p.property), outage);
-  }, [isReal, result, imp.mapping.property, outage]);
+  }, [isReal, result, impMapping.property, outage]);
 
   const summary = useMemo(() => summarize(result, selectedIds), [result, selectedIds]);
   const selectedUnits = useMemo(
@@ -317,8 +350,8 @@ export default function App() {
       namesOf: demo ? null : (u) => resolveSpeakableName(u, opts).names ?? null,
       threshold: ANNOUNCEMENT_RULES.minClientsForRegion,
       overrides,
-      clientMapped: !demo && imp.mapping.client != null,
-      propertyMapped: demo || imp.mapping.property != null,
+      clientMapped: !demo && impMapping.client != null,
+      propertyMapped: demo || impMapping.property != null,
     });
     return {
       ...buildRadioLetterFromLines(announcement.lines, outageView),
@@ -326,7 +359,7 @@ export default function App() {
       notes: announcement.notes,
       items: announcement.items,
     };
-  }, [nameOptions, announceOverrides, imp.mapping.client, imp.mapping.property, placesFor]);
+  }, [nameOptions, announceOverrides, impMapping.client, impMapping.property, placesFor]);
   const noticeFor = useCallback((ids) => letterFor(result, ids, outage), [letterFor, result, outage]);
 
   const currentNotice = useMemo(() => noticeFor(selectedIds), [noticeFor, selectedIds]);
@@ -649,49 +682,124 @@ export default function App() {
 
   /* ---------------- Importação (dados reais) ---------------- */
   const handleSelectRealFile = async (selected) => {
-    if (!/\.csv$/i.test(selected.name) && selected.type !== 'text/csv') {
-      notify('error', 'Formato não suportado. Selecione um arquivo .csv.');
+    if (!/\.(csv|txt|tsv|xlsx|xlsm|xls|ods)$/i.test(selected.name) && selected.type !== 'text/csv') {
+      notify('error', 'Formato não suportado. Selecione uma planilha CSV ou Excel (.xlsx).');
       return;
     }
     resetResults();
-    setImp({ ...EMPTY_IMPORT, status: 'reading', fileName: selected.name });
+    const { manual } = imp;
+    setImp({
+      ...EMPTY_IMPORT, status: 'reading', fileName: selected.name, manual,
+    });
     try {
-      const { text, encoding } = await readFileWithEncoding(selected);
-      const parsed = parseCsv(text);
-      if (!parsed.headers.length) throw new Error('O arquivo está vazio ou não pôde ser interpretado como CSV.');
-      if (parsed.headers.length < 2) {
-        throw new Error('Foi encontrada apenas uma coluna. Confira se o separador é vírgula, ponto e vírgula ou tabulação.');
+      const book = await readPointsFile(selected);
+      const { table, name: sheetName } = book.sheets[book.sheetIndex];
+      if (!table.headers.length) throw new Error('O arquivo está vazio ou não pôde ser interpretado como tabela.');
+      if (table.headers.length < 2) {
+        throw new Error(book.format === 'csv'
+          ? 'Foi encontrada apenas uma coluna. Confira se o separador é vírgula, ponto e vírgula ou tabulação.'
+          : 'A aba escolhida tem apenas uma coluna.');
       }
       setImp({
         ...EMPTY_IMPORT,
         status: 'parsed',
         fileName: selected.name,
-        encoding,
+        encoding: book.encoding,
+        format: book.format,
         // O conteúdo completo fica só em memória, para validação e processamento.
-        parsed: { ...parsed, rowCount: parsed.rows.length, preview: parsed.rows.slice(0, 5) },
-        mapping: suggestMapping(parsed.headers),
+        sheets: book.sheets,
+        sheetIndex: book.sheetIndex,
+        parsed: parsedFromTable(table),
+        mapping: suggestMapping(table.headers),
+        manual,
       });
-      notify('info', `${parsed.rows.length} registro(s) lido(s). Confira o mapeamento e o referencial e clique em Validar.`);
+      const where = book.sheets.length > 1 ? ` da aba "${sheetName}"` : '';
+      notify('info', `${table.rows.length} registro(s) lido(s)${where}. Confira o mapeamento e clique em Validar.`);
     } catch (err) {
-      setImp({ ...EMPTY_IMPORT, status: 'error', fileName: selected.name, error: err.message });
+      setImp({
+        ...EMPTY_IMPORT, status: 'error', fileName: selected.name, error: err.message, manual,
+      });
       notify('error', err.message);
     }
   };
 
+  const handleSheetChange = (index) => {
+    if (phase === 'done' || phase === 'error') resetResults();
+    setImp((s) => {
+      const table = s.sheets?.[index]?.table;
+      if (!table) return s;
+      return {
+        ...s, sheetIndex: index, parsed: parsedFromTable(table), mapping: suggestMapping(table.headers), status: 'parsed', validation: null, effectiveMapping: null,
+      };
+    });
+  };
+
+  /** Ponto inserido à mão (painel de importação ou coordenada buscada no mapa). */
+  const handleAddManualPoint = (p) => {
+    if (phase === 'done' || phase === 'error') resetResults();
+    setImp((s) => ({
+      ...s,
+      status: ['empty', 'validated', 'error'].includes(s.status) ? 'parsed' : s.status,
+      fileName: s.fileName && s.status !== 'error' ? s.fileName : MANUAL_FILE_NAME,
+      error: '',
+      validation: null,
+      effectiveMapping: null,
+      manual: [...s.manual, {
+        id: p.id ?? '',
+        lat: p.lat ?? '',
+        lng: p.lng ?? '',
+        client: p.client ?? '',
+        property: p.property ?? p.farm?.nome ?? '',
+        car: p.car ?? p.farm?.car ?? '',
+      }],
+    }));
+    notify('success', 'Ponto incluído na lista. Valide e processe para vê-lo no resultado.');
+    setMobileTab('dados');
+  };
+  addPointRef.current = handleAddManualPoint;
+
+  const handleRemoveManualPoint = (index) => {
+    if (phase === 'done' || phase === 'error') resetResults();
+    setImp((s) => {
+      const manual = s.manual.filter((_, i) => i !== index);
+      if (!manual.length && !s.parsed) return EMPTY_IMPORT;
+      return {
+        ...s, manual, validation: null, effectiveMapping: null, status: s.status === 'validated' ? 'parsed' : s.status,
+      };
+    });
+  };
+
   const invalidateValidation = (patch) => {
     if (phase === 'done' || phase === 'error') resetResults();
-    setImp((s) => ({ ...s, ...patch, status: s.status === 'validated' ? 'parsed' : s.status, validation: null }));
+    setImp((s) => ({
+      ...s, ...patch, status: s.status === 'validated' ? 'parsed' : s.status, validation: null, effectiveMapping: null,
+    }));
   };
   const handleMappingChange = (key, idx) => invalidateValidation({ mapping: { ...imp.mapping, [key]: idx } });
   const handleCrsChange = (crs) => setImp((s) => ({ ...s, crs }));
 
-  const handleValidate = () => {
-    const validation = validateRecords(imp.parsed, imp.mapping);
-    setImp((s) => ({ ...s, status: 'validated', validation }));
+  const handleValidate = async () => {
+    // Pontos inseridos à mão entram como linhas extras (M1, M2…), nas mesmas regras.
+    const { parsed, mapping } = withManualPoints(imp.parsed, imp.mapping, imp.manual);
+    // Linha que cita a fazenda (CAR, INCRA, nome, transformador): o catálogo localiza ou confere o ponto.
+    let farms = null;
+    if (hasFarmMapping(mapping)) {
+      try {
+        farms = await loadFarmIndex();
+      } catch (err) {
+        notify('warning', `${err.message} A validação segue sem a busca por fazenda.`);
+      }
+    }
+    const raw = validateRecords(parsed, mapping, { farms });
+    const validation = { ...raw, records: raw.records.map((r) => (isManualLine(r.line) ? { ...r, manual: true } : r)) };
+    setImp((s) => ({
+      ...s, status: 'validated', validation, effectiveMapping: mapping,
+    }));
+    const fromFarm = validation.fromFarm ? ` ${validation.fromFarm} localizado(s) pela fazenda.` : '';
     if (!validation.ok) notify('error', validation.fileProblems[0] ?? 'Nenhum registro válido.');
     else if (validation.invalid || validation.warnings) {
-      notify('warning', `${validation.valid} válido(s), ${validation.invalid} inválido(s), ${validation.warnings} com alerta.`);
-    } else notify('success', `${validation.valid} registro(s) válido(s).`);
+      notify('warning', `${validation.valid} válido(s), ${validation.invalid} inválido(s), ${validation.warnings} com alerta.${fromFarm}`);
+    } else notify('success', `${validation.valid} registro(s) válido(s).${fromFarm}`);
   };
 
   /* ---------------- Processamento ---------------- */
@@ -723,7 +831,12 @@ export default function App() {
       setStepIndex(1);
       timers.current.push(setTimeout(() => {
         try {
-          const joined = spatialJoin(imp.validation, layerState.layer, { mapping: imp.mapping });
+          // Cruzamento pela malha de lugares (município → distrito → comunidade); setores só como detalhe.
+          const joined = placeJoin(imp.validation, {
+            locator: ws.locator,
+            sectorLayer: layerState.status === 'loaded' ? layerState.layer : null,
+            mapping: impMapping,
+          });
           setStepIndex(2);
           if (!joined.checks.unitSumEqualsMatched || !joined.checks.statusSumEqualsValid) {
             throw new Error('Verificação de consistência falhou: as contagens não fecham. Resultado descartado.');
@@ -732,6 +845,7 @@ export default function App() {
           const parts = [`${joined.matched} associado(s) em ${view.units.length} região(ões)`];
           if (joined.unmatched) parts.push(`${joined.unmatched} sem correspondência`);
           if (joined.ambiguous) parts.push(`${joined.ambiguous} ambíguo(s)`);
+          if (joined.fromFarm) parts.push(`${joined.fromFarm} localizado(s) pela fazenda`);
           notify(joined.unmatched || joined.ambiguous ? 'warning' : 'success', `Cruzamento concluído: ${parts.join(', ')}.`);
         } catch (err) {
           failProcessing(err);
@@ -763,11 +877,11 @@ export default function App() {
       ...buildAnalysisRef({
         outageId: outageView.id,
         dateLabel: outageView.dateLabel,
-        fileName: joined.source === 'demo' ? DEMO_FILE_NAME : imp.fileName,
+        fileName: joined.source === 'demo' ? DEMO_FILE_NAME : (imp.fileName || MANUAL_FILE_NAME),
         processedAt: joined.processedAt ?? new Date().toISOString(),
       }),
-      crs: joined.source === 'demo' ? null : imp.crs,
-      sharedIdMapped: joined.source !== 'demo' && imp.mapping[PRIORITY_MATCH.sharedIdField] != null,
+      crs: joined.source === 'demo' ? null : effectiveCrs(imp),
+      sharedIdMapped: joined.source !== 'demo' && impMapping[PRIORITY_MATCH.sharedIdField] != null,
     });
     return view;
   };
@@ -785,8 +899,8 @@ export default function App() {
       return;
     }
     if (isReal) {
-      if (layerState.status !== 'loaded') { notify('error', 'A camada territorial oficial não está carregada.'); return; }
-      if (!isProcessableCrs(imp.crs)) { notify('error', 'Declare o referencial das coordenadas antes de processar.'); return; }
+      if (!ws.locator) { notify('error', 'A malha de municípios e comunidades ainda está carregando.'); return; }
+      if (!isProcessableCrs(effectiveCrs(imp))) { notify('error', 'Declare o referencial das coordenadas antes de processar.'); return; }
       if (!imp.validation?.ok) { notify('error', 'Valide o arquivo antes de processar.'); return; }
     }
     clearTimers();
@@ -992,7 +1106,12 @@ export default function App() {
               phase={phase}
               stepIndex={stepIndex}
               errorMessage={errorMessage}
+              placesReady={!!ws.locator}
+              needsCrs={!imp.validation || needsDeclaredCrs(imp.validation)}
               onSelectFile={handleSelectRealFile}
+              onSheetChange={handleSheetChange}
+              onAddManual={handleAddManualPoint}
+              onRemoveManual={handleRemoveManualPoint}
               onMappingChange={handleMappingChange}
               onCrsChange={handleCrsChange}
               onValidate={handleValidate}
@@ -1146,7 +1265,7 @@ export default function App() {
             phase={phase}
             result={result}
             traditionalText={traditionalText}
-            propertyMapped={!isReal || imp.mapping.property != null}
+            propertyMapped={!isReal || impMapping.property != null}
             notice={notice}
             onNoticeChange={handleNoticeChange}
             onGenerate={handleGenerate}
@@ -1174,6 +1293,7 @@ export default function App() {
         open={!!registryNav}
         view={registryNav?.view ?? 'list'}
         editingId={registryNav?.editingId ?? null}
+        prefill={registryNav?.prefill ?? null}
         mode={mode}
         records={priorityRegistry.records}
         alerts={priorityRegistry.alerts}

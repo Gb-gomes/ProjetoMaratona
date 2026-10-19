@@ -45,6 +45,7 @@ import SubRegionEditorPanel from '../components/subregions/SubRegionEditorPanel.
 import SubRegionsPanel from '../components/subregions/SubRegionsPanel.jsx';
 import MapPickCard from '../components/subregions/MapPickCard.jsx';
 import PlaceSearch from '../components/subregions/PlaceSearch.jsx';
+import CoordinatePin from '../components/map/CoordinatePin.jsx';
 import { CommunitiesLayer, CommunityHover, CommunityLabels } from '../components/map/CommunityLayers.jsx';
 import { assignCommunityColors, COMMUNITY_PALETTE, URBAN_FILL } from './communityColors.js';
 import CommunityLayerTools, { CommunityMatches, matchCommunities } from '../components/layers/CommunityLayerTools.jsx';
@@ -81,6 +82,7 @@ function download(name, data, type = 'application/geo+json') {
 export function useMapWorkspace({
   enabled, identity, operator, operatorLocked, authorFor, rememberOperator, notify,
   opLayers, setOpLayers, pointFilterExtra, result, priorityRecords, sectorLayer, isMobile, onShowMap,
+  onAddPoint = null, onRegisterPriority = null,
 }) {
   const user = userKey(identity);
   const role = (identity?.email && ROLES.byEmail[identity.email]) || ROLES.default;
@@ -1058,7 +1060,18 @@ export function useMapWorkspace({
 
   /* ---------------- Busca de lugares ---------------- */
   const [mobileSearch, setMobileSearch] = useState(false);
+  // Coordenada buscada (lat/long digitados): pino com o lugar, a fazenda e as ações.
+  const [coordPin, setCoordPin] = useState(null);
   const onSearchSelect = (r) => {
+    if (r.kind === 'coordenada') {
+      setPick(null);
+      setCoordPin({ lat: r.lat, lng: r.lng, nonce: Date.now() });
+      setMobileSearch(false);
+      const d = 0.004;
+      flyTo([[r.lat - d, r.lng - d], [r.lat + d, r.lng + d]], 16);
+      onShowMap?.();
+      return;
+    }
     if (r.kind === 'comunidade') {
       const reg = regionById.get(r.id);
       updateLs((cur) => {
@@ -1086,6 +1099,15 @@ export function useMapWorkspace({
       <PaneManager panes={panes} />
       <NavigationBounds maxBounds={navBounds} minZoom={navBounds ? 6 : null} />
       <CameraRequest request={camera} compact={isMobile} editing={!!editor} />
+      {coordPin && (
+        <CoordinatePin
+          pin={coordPin}
+          locator={locator}
+          onAddPoint={onAddPoint ? (p) => { onAddPoint(p); setCoordPin(null); } : null}
+          onRegisterPriority={onRegisterPriority ? (p) => { onRegisterPriority(p); setCoordPin(null); } : null}
+          onClose={() => setCoordPin(null)}
+        />
+      )}
       {visibleOrdered.map((l) => {
         if (l.kind === 'ibge') return <IbgeLevelLayer key={l.id} layer={l} regions={hierarchy?.byLevel[l.levelStyle.level] ?? []} highlightCode={highlightCode} />;
         if (l.kind === 'communities') {
