@@ -1,9 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import {
-  ArrowRight, ArrowDown, Copy, ShieldCheck, WandSparkles, TriangleAlert, CircleCheck, FileText, Info, ChevronDown, Radio,
+  ArrowRight, ArrowDown, Copy, ShieldCheck, WandSparkles, TriangleAlert, CircleCheck, FileText, Info, ChevronDown,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
-import { Panel, PanelHeader, PanelBody } from './ui/Panel.jsx';
 import { countCharacters } from '../lib/communicationUtils.js';
 import { RADIO_MONTHLY_COST_LABEL } from '../config.js';
 
@@ -19,10 +18,10 @@ function ColumnHeader({ title, badge, badgeTone, subtitle, right }) {
     <div className="mb-2 flex items-start gap-2">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-[14px] font-semibold text-petrol-900">{title}</h3>
+          <h3 className="text-[13.5px] font-semibold text-petrol-900">{title}</h3>
           <StatusBadge tone={badgeTone}>{badge}</StatusBadge>
         </div>
-        {subtitle && <p className="text-[12px] text-slate-500">{subtitle}</p>}
+        {subtitle && <p className="text-[11.5px] text-slate-500">{subtitle}</p>}
       </div>
       {right && <div className="ml-auto shrink-0">{right}</div>}
     </div>
@@ -33,16 +32,16 @@ function ColumnHeader({ title, badge, badgeTone, subtitle, right }) {
 function EfficiencyIndicator({ done, total, units }) {
   return (
     <div className="flex h-full flex-col overflow-y-auto rounded-md border border-petrol-100 bg-petrol-50 px-2.5 py-2 text-center" aria-labelledby="eff-title">
-      <p id="eff-title" className="text-[13px] font-semibold text-petrol-900">Transformação da comunicação</p>
+      <p id="eff-title" className="text-[12.5px] font-semibold text-petrol-900">Transformação da comunicação</p>
       <div className="flex flex-1 flex-col items-center justify-center gap-0.5">
         <p className="text-[24px] font-semibold leading-none text-petrol-800">{done ? total : '—'}</p>
-        <p className="text-[12px] text-slate-600">pontos individuais</p>
+        <p className="text-[11.5px] text-slate-600">pontos individuais</p>
         <ArrowDown className="my-0.5 h-4 w-4 text-accent-500" aria-hidden="true" />
         <p className="text-[24px] font-semibold leading-none text-accent-700">{done ? units : '—'}</p>
         <p className="text-[11px] leading-tight text-slate-600">unidades territoriais identificadas</p>
       </div>
-      <p className="text-[12px] font-medium leading-tight text-petrol-700">Menos itens para organizar no aviso</p>
-      <p className="mt-1.5 border-t border-petrol-100 pt-1.5 text-[11px] leading-snug text-slate-500">
+      <p className="text-[11.5px] font-medium leading-tight text-petrol-700">Menos itens para organizar no aviso</p>
+      <p className="mt-1.5 border-t border-petrol-100 pt-1.5 text-[10px] leading-snug text-slate-500">
         Custo mensal de rádio informado pela organização: {RADIO_MONTHLY_COST_LABEL}. A economia potencial depende da
         contratação e do modelo de transmissão.
       </p>
@@ -71,14 +70,9 @@ export default function CommunicationPanel({
   }, [notice.text, done]);
 
   return (
-    <Panel labelledBy="comm-title">
-      <PanelHeader
-        id="comm-title"
-        icon={Radio}
-        title="Comunicação ao cliente"
-        description="Compare o aviso tradicional com a carta para as rádios, revise e aprove"
-      />
-      <PanelBody className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_minmax(0,1.5fr)]">
+    <section className="rounded-md border border-slate-200 bg-white p-3.5 shadow-panel" aria-labelledby="comm-title">
+      <h2 id="comm-title" className="sr-only">Comunicação rural</h2>
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_minmax(0,1.5fr)]">
         {/* Celular: resumo do indicador sempre visível, no topo da tela */}
         <div className="rounded-md border border-petrol-100 bg-petrol-50 text-petrol-800 max-lg:order-first lg:hidden">
           <p className="px-3 py-2.5 text-[14px] leading-snug">
@@ -130,7 +124,7 @@ export default function CommunicationPanel({
                 value={traditionalText}
                 className="min-h-[320px] flex-1 resize-none rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] leading-[1.45] text-slate-700"
               />
-              <div className="mt-1.5 flex items-center justify-between text-[12px] text-slate-500">
+              <div className="mt-1.5 flex items-center justify-between text-[11.5px] text-slate-500">
                 <span>{isReal ? `${result.valid} pontos válidos do CSV` : `${result.total} pontos individuais considerados na demonstração`}</span>
                 <span>{countCharacters(traditionalText).toLocaleString('pt-BR')} caracteres</span>
               </div>
@@ -178,7 +172,7 @@ export default function CommunicationPanel({
                 </p>
               )}
               {!noSelection && notes.length > 0 && (
-                <ul className="mb-1.5 space-y-0.5 rounded-md border border-petrol-100 bg-petrol-50 px-2.5 py-1.5 text-[12px] leading-snug text-petrol-800 max-lg:text-[14px]" aria-label="Observações da carta">
+                <ul className="mb-1.5 space-y-0.5 rounded-md border border-petrol-100 bg-petrol-50 px-2.5 py-1.5 text-[11.5px] leading-snug text-petrol-800 max-lg:text-[13.5px]" aria-label="Observações da carta">
                   {notes.map((n) => (
                     <li key={n} className="flex gap-1.5">
                       <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
@@ -197,14 +191,14 @@ export default function CommunicationPanel({
                 className="min-h-[320px] resize-y overflow-hidden rounded-md border-2 max-lg:min-h-[45dvh] border-accent-300 bg-white px-3 py-2 text-[13px] leading-[1.5] text-petrol-900 focus:border-accent-500"
               />
               <div className="mt-2 flex flex-wrap items-center gap-2 max-lg:sticky max-lg:-bottom-3 max-lg:z-10 max-lg:-mx-3.5 max-lg:gap-1.5 max-lg:border-t max-lg:border-slate-200 max-lg:bg-white max-lg:px-3.5 max-lg:py-2">
-                <span className="mr-auto text-[12px] text-slate-500 max-lg:w-full max-lg:text-[13px]" aria-live="polite">
+                <span className="mr-auto text-[11.5px] text-slate-500 max-lg:w-full max-lg:text-[12.5px]" aria-live="polite">
                   {chars.toLocaleString('pt-BR')} caracteres
                 </span>
                 <button
                   type="button"
                   onClick={onGenerate}
                   disabled={noSelection}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-petrol-700 px-3 py-1.5 text-[13px] font-semibold max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:whitespace-nowrap max-lg:px-2 max-lg:text-[14px] text-white hover:bg-petrol-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-petrol-700 px-3 py-1.5 text-[12.5px] font-semibold max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:whitespace-nowrap max-lg:px-2 max-lg:text-[14px] text-white hover:bg-petrol-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   <WandSparkles className="h-3.5 w-3.5 max-[399px]:hidden" aria-hidden="true" />
                   Gerar carta
@@ -213,7 +207,7 @@ export default function CommunicationPanel({
                   type="button"
                   onClick={onCopy}
                   disabled={!notice.text.trim()}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[13px] font-medium max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:whitespace-nowrap max-lg:px-2 max-lg:text-[14px] text-petrol-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-medium max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:whitespace-nowrap max-lg:px-2 max-lg:text-[14px] text-petrol-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
                 >
                   <Copy className="h-3.5 w-3.5 max-[399px]:hidden" aria-hidden="true" />
                   Copiar texto
@@ -223,13 +217,13 @@ export default function CommunicationPanel({
                   onClick={onApprove}
                   disabled={!notice.text.trim() || noSelection || notice.status === 'approved' || !!approvalBlocker}
                   title={approvalBlocker ?? undefined}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-[13px] font-medium max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:whitespace-nowrap max-lg:px-2 max-lg:text-[14px] text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-[12.5px] font-medium max-lg:min-h-11 max-lg:flex-1 max-lg:justify-center max-lg:whitespace-nowrap max-lg:px-2 max-lg:text-[14px] text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
                 >
                   <ShieldCheck className="h-3.5 w-3.5 max-[399px]:hidden" aria-hidden="true" />
                   Aprovar carta
                 </button>
                 {notice.status === 'approved' && notice.approvedBy && (
-                  <span className="self-center text-[12px] text-slate-600 max-lg:w-full max-lg:text-[13px]">
+                  <span className="self-center text-[11.5px] text-slate-600 max-lg:w-full max-lg:text-[12.5px]">
                     Aprovada por <span className="font-medium text-petrol-800">{notice.approvedBy}</span>
                     {notice.approvedAt && ` em ${new Date(notice.approvedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`}
                   </span>
@@ -240,14 +234,14 @@ export default function CommunicationPanel({
             <EmptyState />
           )}
         </div>
-      </PanelBody>
-    </Panel>
+      </div>
+    </section>
   );
 }
 
 function EmptyState() {
   return (
-    <div className="flex min-h-[120px] flex-1 items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 text-center text-[13px] text-slate-500">
+    <div className="flex min-h-[120px] flex-1 items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 text-center text-[12.5px] text-slate-500">
       <ArrowRight className="h-4 w-4 text-slate-400" aria-hidden="true" />
       A comparação aparece após o processamento das coordenadas.
     </div>

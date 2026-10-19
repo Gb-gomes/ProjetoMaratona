@@ -1,5 +1,4 @@
-import { Check, ListOrdered } from 'lucide-react';
-import { Panel, PanelHeader } from './ui/Panel.jsx';
+import { Check } from 'lucide-react';
 
 /**
  * Linha do tempo operacional. A etapa atual é derivada do estado da
@@ -43,8 +42,10 @@ export default function Timeline({
   ];
 
   return (
-    <Panel labelledBy="timeline-title">
-      <PanelHeader id="timeline-title" icon={ListOrdered} title="Linha do tempo operacional" />
+    <section className="rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="timeline-title">
+      <h2 id="timeline-title" className="border-b border-slate-100 px-3.5 py-2.5 text-[13.5px] font-semibold text-petrol-900">
+        Linha do tempo operacional
+      </h2>
       <ol className="px-3.5 py-3">
         {steps.map((s, i) => (
           <li key={s.title} className="relative flex gap-3 pb-3 last:pb-0" aria-current={s.state === 'current' ? 'step' : undefined}>
@@ -66,13 +67,13 @@ export default function Timeline({
               {s.state === 'current' && <span className="h-2 w-2 rounded-full bg-accent-500" />}
             </span>
             <div className="min-w-0">
-              <p className="text-[13px] font-semibold leading-tight text-petrol-900">
+              <p className="text-[12.5px] font-semibold leading-tight text-petrol-900">
                 {i + 1}. {s.title}
               </p>
-              <p className="text-[12px] text-petrol-600">{s.when}</p>
-              <p className="text-[12px] leading-snug text-slate-500">{s.text}</p>
+              <p className="text-[11.5px] text-petrol-600">{s.when}</p>
+              <p className="text-[11.5px] leading-snug text-slate-500">{s.text}</p>
               {s.tag && (
-                <span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                <span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[10.5px] font-medium ${
                   s.state === 'done' ? 'bg-emerald-50 text-emerald-800' : 'bg-accent-50 text-accent-800'
                 }`}
                 >
@@ -83,6 +84,6 @@ export default function Timeline({
           </li>
         ))}
       </ol>
-    </Panel>
+    </section>
   );
 }

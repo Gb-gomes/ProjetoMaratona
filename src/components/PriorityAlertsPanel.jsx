@@ -3,14 +3,13 @@ import {
   ShieldAlert, Plus, List, HeartPulse, Tractor, TriangleAlert, Info, ChevronDown, ChevronRight, History, Eye, EyeOff, MapPin,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
-import { Panel, PanelHeader } from './ui/Panel.jsx';
 import { PRIORITY_CATEGORIES } from '../lib/priorityRecords.js';
 import { MATCH_LABEL } from '../lib/priorityMatch.js';
 import {
   ALERT_STATUS, ACTION_LABEL, DECISIONS, alertKey, recommendedAction,
 } from '../lib/priorityAlerts.js';
 
-const MATCH_TEXT = { confirmed: 'text-red-700', possible: 'text-amber-700', review: 'text-amber-700' };
+const MATCH_TONE = { confirmed: 'danger', possible: 'warning', review: 'warning' };
 const fmtMeters = (m) => `${Number(m).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} m`;
 const fmtDateTime = (iso) => {
   const d = new Date(iso);
@@ -35,9 +34,9 @@ export function CategoryChip({ category, compact = false }) {
 
 function SummaryCell({ label, value, tone = 'text-petrol-900' }) {
   return (
-    <div className="bg-white px-2 py-1.5">
-      <p className={`text-[16px] font-semibold leading-tight tabular-nums ${tone}`}>{value}</p>
-      <p className="mt-0.5 text-[11px] leading-tight text-slate-500">{label}</p>
+    <div className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-center">
+      <p className={`text-[16px] font-semibold leading-tight ${tone}`}>{value}</p>
+      <p className="text-[10.5px] leading-tight text-slate-500">{label}</p>
     </div>
   );
 }
@@ -59,18 +58,16 @@ export default function PriorityAlertsPanel({
   const byId = new Map(records.map((r) => [r.id, r]));
 
   return (
-    <Panel labelledBy="prio-title">
-      <PanelHeader
-        id="prio-title"
-        icon={ShieldAlert}
-        iconClassName="text-red-600"
-        title="Alertas de pontos prioritários"
-        actions={done && !analysis.blocked && (
-          <StatusBadge tone={analysis.alerts.length ? 'danger' : 'neutral'}>
+    <section className="rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="prio-title">
+      <div className="flex items-center gap-2 border-b border-slate-100 px-3.5 py-2.5">
+        <ShieldAlert className="h-4 w-4 text-red-600" aria-hidden="true" />
+        <h2 id="prio-title" className="text-[13.5px] font-semibold text-petrol-900 max-lg:text-[16px]">Alertas de pontos prioritários</h2>
+        {done && !analysis.blocked && (
+          <StatusBadge tone={analysis.alerts.length ? 'danger' : 'neutral'} className="ml-auto">
             {analysis.alerts.length} alerta(s)
           </StatusBadge>
         )}
-      />
+      </div>
 
       <div className="space-y-2.5 px-3.5 py-3">
         <div className="flex flex-wrap gap-1.5">
@@ -94,7 +91,7 @@ export default function PriorityAlertsPanel({
           </button>
         </div>
 
-        <p className={`flex gap-1.5 rounded-md border px-2 py-1.5 text-[11px] leading-snug max-lg:text-[13px] ${
+        <p className={`flex gap-1.5 rounded-md border px-2 py-1.5 text-[11px] leading-snug max-lg:text-[12.5px] ${
           isReal ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-slate-200 bg-slate-50 text-slate-600'
         }`}
         >
@@ -116,7 +113,7 @@ export default function PriorityAlertsPanel({
         )}
 
         {done && (
-          <label className="flex items-center gap-2 text-[12px] text-slate-600 max-lg:text-[14px]">
+          <label className="flex items-center gap-2 text-[11.5px] text-slate-600 max-lg:text-[13.5px]">
             Tolerância
             <input
               type="number"
@@ -129,7 +126,7 @@ export default function PriorityAlertsPanel({
               aria-describedby="tol-note"
             />
             m
-            <span id="tol-note" className="text-[11px] text-slate-500">(parâmetro de teste)</span>
+            <span id="tol-note" className="rounded bg-amber-50 px-1 text-[10.5px] font-medium text-amber-800">parâmetro de teste</span>
           </label>
         )}
 
@@ -143,7 +140,7 @@ export default function PriorityAlertsPanel({
         {done && !analysis.blocked && (
           <>
 
-            <div className="grid grid-cols-3 gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200" role="group" aria-label="Resumo da comparação">
+            <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Resumo da comparação">
               <SummaryCell label="Pontos do CSV analisados" value={analysis.analyzed} />
               <SummaryCell label="Prioritários confirmados" value={analysis.counts.confirmed} tone="text-red-700" />
               <SummaryCell label="Possíveis correspond." value={analysis.counts.possible} tone="text-amber-700" />
@@ -159,7 +156,7 @@ export default function PriorityAlertsPanel({
               </p>
             )}
 
-            <div className="rounded-md border border-petrol-100 bg-petrol-50 px-2 py-1.5 text-[12px] leading-snug text-petrol-800 max-lg:text-[13px]">
+            <div className="rounded-md border border-petrol-100 bg-petrol-50 px-2 py-1.5 text-[11.5px] leading-snug text-petrol-800 max-lg:text-[13px]">
               <button
                 type="button"
                 onClick={() => setShowLimits((v) => !v)}
@@ -192,24 +189,23 @@ export default function PriorityAlertsPanel({
                   return (
                     <li
                       key={key}
-                      className={`rounded-md border ${focused ? 'border-accent-400 bg-accent-50/50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                      className={`rounded-md border ${a.category === 'A' ? 'border-l-4 border-l-red-500' : 'border-l-4 border-l-violet-500'} ${
+                        focused ? 'border-accent-400 bg-accent-50/50' : 'border-slate-200 bg-white'
+                      }`}
                     >
                       <button
                         type="button"
                         onClick={() => { setOpenKey(open ? null : key); onFocusRecord(a.recordId, !open); }}
                         aria-expanded={open}
-                        className="w-full px-2.5 py-2 text-left max-lg:min-h-12 max-lg:px-3 max-lg:py-2.5"
+                        className="w-full px-2 py-1.5 text-left max-lg:min-h-12 max-lg:px-3 max-lg:py-2.5"
                       >
-                        <span className="flex items-center gap-1.5">
+                        <span className="flex flex-wrap items-center gap-1">
                           <CategoryChip category={a.category} compact />
-                          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-petrol-900 max-lg:text-[15px]">{a.recordId}</span>
-                          <StatusBadge tone={wf.tone} className="!px-1.5 !text-[11px]">{wf.label}</StatusBadge>
+                          <span className="text-[12.5px] font-semibold text-petrol-900 max-lg:text-[15px]">{a.recordId}</span>
+                          <StatusBadge tone={MATCH_TONE[a.matchStatus]} className="!px-1.5 !text-[10.5px]">{MATCH_LABEL[a.matchStatus]}</StatusBadge>
+                          <StatusBadge tone={wf.tone} className="!px-1.5 !text-[10.5px]">{wf.label}</StatusBadge>
                         </span>
-                        <span className={`mt-1 flex items-center gap-1.5 text-[12px] font-medium max-lg:text-[13px] ${MATCH_TEXT[a.matchStatus]}`}>
-                          <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
-                          {MATCH_LABEL[a.matchStatus]}
-                        </span>
-                        <span className="mt-0.5 block text-[12px] text-slate-500 max-lg:text-[13px]">
+                        <span className="mt-0.5 block text-[11.5px] text-slate-600 max-lg:text-[13px]">
                           CSV {a.primaryPointLabel} · {fmtMeters(a.distanceMeters)}
                           {a.primaryUnitId && unitLabel(a.primaryUnitId) ? ` · ${unitLabel(a.primaryUnitId)}` : ''}
                         </span>
@@ -234,7 +230,7 @@ export default function PriorityAlertsPanel({
           </>
         )}
       </div>
-    </Panel>
+    </section>
   );
 }
 
@@ -271,7 +267,7 @@ function AlertDetails({
 
   const field = 'w-full rounded border border-slate-300 bg-white px-2 py-1 text-[12px] text-petrol-900 max-lg:min-h-11';
   return (
-    <div className="space-y-2 border-t border-slate-100 px-2 pb-2 pt-1.5 text-[12px] leading-snug text-slate-700 max-lg:space-y-3 max-lg:px-3 max-lg:pb-3 max-lg:text-[14px]">
+    <div className="space-y-2 border-t border-slate-100 px-2 pb-2 pt-1.5 text-[11.5px] leading-snug text-slate-700 max-lg:space-y-3 max-lg:px-3 max-lg:pb-3 max-lg:text-[13.5px]">
       {onShowOnMap && (
         <button
           type="button"
@@ -329,7 +325,7 @@ function AlertDetails({
               {record.impact && (<><dt className="text-slate-500">Impacto</dt><dd>{record.impact}</dd></>)}
               {record.validationRef && (<><dt className="text-slate-500">Validação</dt><dd>{record.validationRef}</dd></>)}
               {record.notes && (<><dt className="text-slate-500">Observações</dt><dd>{record.notes}</dd></>)}
-              <dd className="col-span-2 mt-0.5 text-[11px] text-slate-500">Sem controle de acesso nesta etapa: não exiba esta área em telas compartilhadas.</dd>
+              <dd className="col-span-2 mt-0.5 text-[10.5px] text-slate-500">Sem controle de acesso nesta etapa: não exiba esta área em telas compartilhadas.</dd>
             </dl>
           ) : <p className="mt-1 text-red-700">Registro não encontrado no cadastro (pode ter sido excluído).</p>
         )}

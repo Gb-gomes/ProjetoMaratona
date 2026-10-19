@@ -49,7 +49,7 @@ export default function RegionDetailScreen({
               {title}
             </h2>
             <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[14px] text-slate-600">
-              {u.count} pontos · {u.pct.toLocaleString('pt-BR')}%
+              {u.count} pontos | {u.pct.toLocaleString('pt-BR')}%
               {speak.origin === 'operator' && (
                 <span className="rounded bg-petrol-50 px-1.5 py-px text-[12px] font-medium text-petrol-700 ring-1 ring-inset ring-petrol-100">nome alterado</span>
               )}
@@ -67,12 +67,12 @@ export default function RegionDetailScreen({
               )}
             </p>
             {isReal && u.context?.length > 0 && (
-              <p className="text-[13px] text-slate-500">{u.context.map((c) => c.value).join(' · ')}</p>
+              <p className="text-[13px] text-slate-500">{u.context.map((c) => c.value).join(' | ')}</p>
             )}
             {byProperty && (
-              <span className="mt-1 inline-flex items-center gap-1 rounded bg-accent-50 px-1.5 py-0.5 text-[13px] font-medium text-accent-800 ring-1 ring-inset ring-accent-200">
+              <span className="mt-1 inline-flex items-center gap-1 rounded bg-accent-50 px-1.5 py-0.5 text-[12.5px] font-medium text-accent-800 ring-1 ring-inset ring-accent-200">
                 <Tractor className="h-3.5 w-3.5" aria-hidden="true" />
-                Aviso pelas propriedades · {announce.countLabel}
+                Aviso pelas propriedades | {announce.countLabel}
               </span>
             )}
           </div>

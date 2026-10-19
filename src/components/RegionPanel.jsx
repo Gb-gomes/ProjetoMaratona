@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import { resolveSpeakableName } from '../lib/communicationUtils.js';
 import RegionDetailScreen from './RegionDetailScreen.jsx';
-import { Panel, PanelHeader } from './ui/Panel.jsx';
 
 export function Detail({ label, children }) {
   return (
@@ -102,30 +101,21 @@ export default function RegionPanel({
   }
 
   return (
-    <Panel labelledBy="regions-title" className={`flex min-h-0 flex-col ${className}`}>
-      <PanelHeader
-        id="regions-title"
-        icon={MapPinned}
-        title="Regiões identificadas"
-        actions={done && result.units.length > 0 && (
-          <span className="text-[12px] text-slate-500 max-lg:text-[13px]">
-            <strong className="font-semibold text-accent-700">{summary.selectedCount} de {summary.unitCount}</strong> no aviso<span className="max-lg:hidden"> · {summary.selectedPoints} pontos</span>
+    <section className={`flex min-h-0 flex-col rounded-md border border-slate-200 bg-white shadow-panel ${className}`} aria-labelledby="regions-title">
+      <div className="border-b border-slate-100 px-3.5 py-2.5">
+        <h2 id="regions-title" className="text-[13.5px] font-semibold text-petrol-900 max-lg:text-[16px]">Regiões identificadas</h2>
+        <p className="text-[12px] text-slate-500 max-lg:text-[13px]">
+          <span className="max-lg:hidden">
+            {done && result.grouping === 'place'
+              ? 'Microrregiões com pontos afetados; pontos fora delas, pela área do IBGE'
+              : 'Unidades territoriais associadas aos pontos importados'}
           </span>
-        )}
-        description={(
-          <>
-            <span className="max-lg:hidden">
-              {done && result.grouping === 'place'
-                ? 'Microrregiões com pontos afetados; pontos fora delas, pela área do IBGE'
-                : 'Unidades territoriais associadas aos pontos importados'}
-            </span>
-            <span className="lg:hidden">Toque numa região para ver os detalhes. A caixa inclui a região no aviso.</span>
-          </>
-        )}
-      />
+          <span className="lg:hidden">Toque numa região para ver os detalhes. A caixa inclui a região no aviso.</span>
+        </p>
+      </div>
 
       {/* Status da camada usada */}
-      <div className={`mx-3.5 mt-3 flex gap-2 rounded-md border px-2.5 py-2 text-[12px] leading-snug ${
+      <div className={`mx-3.5 mt-3 flex gap-2 rounded-md border px-2.5 py-2 text-[11.5px] leading-snug ${
         layerInfo.mode === 'demo' || layerInfo.mode === 'not-configured' || layerState?.status === 'error'
           ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'
       }`}
@@ -133,18 +123,17 @@ export default function RegionPanel({
         <Database className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <p>
           <span className="font-semibold">{layerInfo.title}</span>
-          <span className="max-lg:hidden" aria-hidden="true"> · </span>
-          <br className="lg:hidden" />
+          <br />
           {layerInfo.note}
           {isReal && layerState?.status === 'loaded' && (
-            <span className="block">{layerState.layer.features.length} unidades carregadas · ano de referência {layerInfo.referenceYear}</span>
+            <span className="block">{layerState.layer.features.length} unidades carregadas | ano de referência {layerInfo.referenceYear}</span>
           )}
           {isReal && layerState?.status === 'error' && <span className="block font-medium">Erro: {layerState.errors[0]}</span>}
         </p>
       </div>
 
       {isReal && (
-        <div className="mx-3.5 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-slate-600">
+        <div className="mx-3.5 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-slate-600">
           <span>{savedCount} nome(s) de região salvo(s) neste navegador</span>
           <span className="ml-auto flex gap-2">
             <button type="button" onClick={onExportNames} disabled={!savedCount} className="inline-flex items-center gap-1 font-medium max-lg:min-h-11 max-lg:text-[13px] text-petrol-600 hover:underline disabled:text-slate-400 disabled:no-underline">
@@ -167,14 +156,14 @@ export default function RegionPanel({
 
       <div ref={listRef} className="relative min-h-0 flex-1 overflow-y-auto scroll-pt-2 px-3.5 py-3 lg:max-h-[560px]">
         {phase === 'processing' && (
-          <p className="flex items-center gap-2 py-6 text-[13px] text-slate-600" role="status">
+          <p className="flex items-center gap-2 py-6 text-[12.5px] text-slate-600" role="status">
             <LoaderCircle className="h-4 w-4 animate-spin text-accent-500" aria-hidden="true" />
             Identificando unidades territoriais…
           </p>
         )}
 
         {done && isReal && (summary.unmatched > 0 || summary.ambiguous > 0) && (
-          <div className="mb-2 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[12px] text-amber-900">
+          <div className="mb-2 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11.5px] text-amber-900">
             <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <p className="flex-1">
               {summary.unmatched} ponto(s) sem correspondência e {summary.ambiguous} ambíguo(s) não entram nas contagens abaixo.
@@ -186,23 +175,24 @@ export default function RegionPanel({
         )}
 
         {done && result.units.length === 0 && (
-          <p className="py-6 text-center text-[13px] text-slate-500">Nenhum ponto associado unicamente a uma unidade.</p>
+          <p className="py-6 text-center text-[12.5px] text-slate-500">Nenhum ponto associado unicamente a uma unidade.</p>
         )}
 
         {(phase === 'idle' || phase === 'error') && (
           <div className="py-6 text-center">
             <MapPinned className="mx-auto h-6 w-6 text-slate-300" aria-hidden="true" />
-            <p className="mt-2 text-[13px] text-slate-500">Nenhuma região identificada ainda.</p>
+            <p className="mt-2 text-[12.5px] text-slate-500">Nenhuma região identificada ainda.</p>
             <p className="text-[12px] text-slate-400">Processe as coordenadas para ver os resultados.</p>
           </div>
         )}
 
         {done && (
           <>
-            <div className="mb-2 flex items-center justify-between gap-2 text-[12px] text-slate-500 max-lg:justify-end max-lg:text-[13px]">
-              <span className="max-lg:hidden">Marque as regiões citadas no aviso</span>
-              <span className="flex items-center gap-3">
+            <div className="mb-2 flex items-center justify-between text-[11.5px] text-slate-500 max-lg:text-[13px]">
+              <span>No aviso</span>
+              <span className="flex items-center gap-2">
                 <button type="button" onClick={onSelectAll} className="font-medium text-petrol-600 hover:underline max-lg:min-h-11 max-lg:px-1">Selecionar todas</button>
+                <span aria-hidden="true">|</span>
                 <button type="button" onClick={onClearSelection} className="font-medium text-petrol-600 hover:underline max-lg:min-h-11 max-lg:px-1">Limpar</button>
               </span>
             </div>
@@ -241,49 +231,49 @@ export default function RegionPanel({
                         aria-controls={mobile ? undefined : panelId}
                         className="flex min-w-0 flex-1 items-center gap-2.5 text-left max-lg:min-h-12"
                       >
-                        <span className={`grid h-6 w-7 shrink-0 place-items-center rounded text-[12px] font-semibold max-lg:h-8 max-lg:w-9 max-lg:text-[14px] ${
+                        <span className={`grid h-6 w-7 shrink-0 place-items-center rounded text-[11.5px] font-semibold max-lg:h-8 max-lg:w-9 max-lg:text-[14px] ${
                           expanded ? 'bg-petrol-800 text-white' : 'bg-accent-100 text-accent-800'
                         }`}
                         >
                           {String(i + 1).padStart(2, '0')}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className={`block text-[13px] font-semibold leading-snug max-lg:text-[15px] ${unnamed ? 'text-amber-700' : 'text-petrol-900'}`}>
+                          <span className={`block text-[12.5px] font-semibold leading-snug max-lg:text-[15px] ${unnamed ? 'text-amber-700' : 'text-petrol-900'}`}>
                             {unitTitle(u)}
                             {speak.origin === 'operator' && (
-                              <span className="ml-1.5 rounded bg-petrol-50 px-1 py-px align-middle text-[11px] font-medium text-petrol-700 ring-1 ring-inset ring-petrol-100">
+                              <span className="ml-1.5 rounded bg-petrol-50 px-1 py-px align-middle text-[10px] font-medium text-petrol-700 ring-1 ring-inset ring-petrol-100">
                                 nome alterado
                               </span>
                             )}
                             {speak.origin === 'comunidade' && (
-                              <span className="ml-1.5 rounded bg-emerald-50 px-1 py-px align-middle text-[11px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">
+                              <span className="ml-1.5 rounded bg-emerald-50 px-1 py-px align-middle text-[10px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">
                                 comunidades
                               </span>
                             )}
                             {u.kind === 'microrregiao' && speak.origin !== 'operator' && (
-                              <span className="ml-1.5 rounded bg-emerald-50 px-1 py-px align-middle text-[11px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">
+                              <span className="ml-1.5 rounded bg-emerald-50 px-1 py-px align-middle text-[10px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">
                                 microrregião
                               </span>
                             )}
                             {u.kind === 'microrregiao' && u.confianca === 'baixa' && (
-                              <span className="ml-1.5 rounded bg-amber-50 px-1 py-px align-middle text-[11px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200">
+                              <span className="ml-1.5 rounded bg-amber-50 px-1 py-px align-middle text-[10px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200">
                                 localização aproximada
                               </span>
                             )}
                             {speak.origin === 'ibge' && (
-                              <span className="ml-1.5 rounded bg-slate-100 px-1 py-px align-middle text-[11px] font-medium text-slate-600 ring-1 ring-inset ring-slate-200">
+                              <span className="ml-1.5 rounded bg-slate-100 px-1 py-px align-middle text-[10px] font-medium text-slate-600 ring-1 ring-inset ring-slate-200">
                                 nome IBGE
                               </span>
                             )}
                           </span>
-                          <span className="block text-[12px] text-slate-500 max-lg:text-[13px]">
-                            {isReal && u.context?.length > 0 && `${u.context.map((c) => c.value).join(' · ')} · `}
-                            {u.count} pontos · {u.pct.toLocaleString('pt-BR')}%
+                          <span className="block text-[11.5px] text-slate-500 max-lg:text-[13px]">
+                            {isReal && u.context?.length > 0 && `${u.context.map((c) => c.value).join(' | ')} | `}
+                            {u.count} pontos | {u.pct.toLocaleString('pt-BR')}%
                           </span>
                           {byProperty && (
-                            <span className="mt-0.5 inline-flex items-center gap-1 rounded bg-accent-50 px-1.5 py-px text-[11px] font-medium max-lg:text-[12px] text-accent-800 ring-1 ring-inset ring-accent-200">
+                            <span className="mt-0.5 inline-flex items-center gap-1 rounded bg-accent-50 px-1.5 py-px text-[10.5px] font-medium max-lg:text-[12px] text-accent-800 ring-1 ring-inset ring-accent-200">
                               <Tractor className="h-3 w-3" aria-hidden="true" />
-                              Aviso pelas propriedades · {announce.countLabel}
+                              Aviso pelas propriedades | {announce.countLabel}
                             </span>
                           )}
                         </span>
@@ -347,7 +337,23 @@ export default function RegionPanel({
           </>
         )}
       </div>
-    </Panel>
+
+      {/* Totais */}
+      <div className="grid grid-cols-3 border-t border-slate-200 bg-slate-50 text-center">
+        <div className="px-2 py-2">
+          <p className="text-[16px] font-semibold text-petrol-900">{done ? summary.unitCount : '—'}</p>
+          <p className="text-[11px] text-slate-500 max-lg:text-[12px]">regiões</p>
+        </div>
+        <div className="border-l border-slate-200 px-2 py-2">
+          <p className="text-[16px] font-semibold text-petrol-900">{done ? summary.matched : '—'}</p>
+          <p className="text-[11px] text-slate-500 max-lg:text-[12px]">pontos associados</p>
+        </div>
+        <div className="border-l border-slate-200 px-2 py-2">
+          <p className="text-[16px] font-semibold text-accent-700">{done ? `${summary.selectedCount}/${summary.unitCount}` : '—'}</p>
+          <p className="text-[11px] text-slate-500 max-lg:text-[12px]">{done ? `no aviso (${summary.selectedPoints} pts)` : 'no aviso'}</p>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -360,7 +366,7 @@ export function AnnounceControl({ item, threshold, onChange }) {
   ];
   const current = item.automatic ? 'auto' : item.mode;
   return (
-    <div className="mx-2.5 mb-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[12px] max-lg:mx-0 max-lg:px-3 max-lg:py-3 max-lg:text-[14px]">
+    <div className="mx-2.5 mb-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11.5px] max-lg:mx-0 max-lg:px-3 max-lg:py-3 max-lg:text-[14px]">
       <p className="font-semibold text-petrol-900">Como citar no aviso</p>
       <div role="radiogroup" aria-label="Como citar esta região no aviso" className="mt-1 flex flex-wrap gap-1 max-lg:gap-1.5">
         {options.map((o) => (
@@ -407,10 +413,10 @@ export function NameEditor({
     e.preventDefault();
     onSave({ name, by, note });
   };
-  const context = (unit.context ?? []).map((c) => c.value).join(' · ');
+  const context = (unit.context ?? []).map((c) => c.value).join(' | ');
 
   return (
-    <form onSubmit={submit} className="mx-2.5 mb-2 space-y-1.5 rounded-md border border-petrol-200 bg-white p-2.5 text-[12px] max-lg:mx-0 max-lg:space-y-2.5 max-lg:p-3 max-lg:text-[14px]">
+    <form onSubmit={submit} className="mx-2.5 mb-2 space-y-1.5 rounded-md border border-petrol-200 bg-white p-2.5 text-[11.5px] max-lg:mx-0 max-lg:space-y-2.5 max-lg:p-3 max-lg:text-[14px]">
       <p className="font-semibold text-petrol-900">
         {currentName ? 'Renomear região' : 'Nomear região'} {String(unit.order).padStart(2, '0')}
         {context && <span className="font-normal text-slate-500"> — {context} (IBGE)</span>}
@@ -423,7 +429,7 @@ export function NameEditor({
           onChange={(e) => setName(e.target.value)}
           maxLength={80}
           placeholder="Ex.: Córrego Bela Vista"
-          className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[13px] text-petrol-900 max-lg:min-h-11"
+          className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[12.5px] text-petrol-900 max-lg:min-h-11"
         />
       </label>
       <label className="block">
@@ -433,7 +439,7 @@ export function NameEditor({
             value={operator}
             readOnly
             title="Identificado pelo login do Cloudflare Access"
-            className="mt-0.5 w-full cursor-default rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[13px] text-petrol-800 max-lg:min-h-11"
+            className="mt-0.5 w-full cursor-default rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[12.5px] text-petrol-800 max-lg:min-h-11"
           />
         ) : (
           <input
@@ -441,7 +447,7 @@ export function NameEditor({
             onChange={(e) => setBy(e.target.value)}
             maxLength={80}
             placeholder="Nome e área"
-            className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[13px] text-petrol-900 max-lg:min-h-11"
+            className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[12.5px] text-petrol-900 max-lg:min-h-11"
           />
         )}
       </label>
@@ -452,7 +458,7 @@ export function NameEditor({
           onChange={(e) => setNote(e.target.value)}
           maxLength={200}
           placeholder="Ex.: confirmado com a equipe de campo"
-          className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[13px] text-petrol-900 max-lg:min-h-11"
+          className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-[12.5px] text-petrol-900 max-lg:min-h-11"
         />
       </label>
       <p className="text-[11px] leading-snug text-slate-500 max-lg:text-[13px]">
@@ -480,7 +486,7 @@ export function RealDetails({
     return <PlaceDetails u={u} speak={speak} current={current} history={history} result={result} layerInfo={layerInfo} panelId={panelId} />;
   }
   return (
-    <dl id={panelId} className="grid grid-cols-[104px_1fr] gap-x-2 gap-y-1 border-t border-slate-200 px-2.5 py-2 text-[12px] max-lg:grid-cols-[112px_minmax(0,1fr)] max-lg:gap-y-2 max-lg:px-0 max-lg:text-[14px]">
+    <dl id={panelId} className="grid grid-cols-[104px_1fr] gap-x-2 gap-y-1 border-t border-slate-200 px-2.5 py-2 text-[11.5px] max-lg:grid-cols-[112px_minmax(0,1fr)] max-lg:gap-y-2 max-lg:px-0 max-lg:text-[14px]">
       <Detail label="Nome no aviso">
         {speak.name
           ? <>{speak.name} <span className="text-slate-500">({ORIGIN_LABEL[speak.origin]})</span></>
@@ -559,7 +565,7 @@ function PlaceDetails({
   const community = u.kind === 'microrregiao';
   const sectors = u.sectors ?? [];
   return (
-    <dl id={panelId} className="grid grid-cols-[104px_1fr] gap-x-2 gap-y-1 border-t border-slate-200 px-2.5 py-2 text-[12px] max-lg:grid-cols-[112px_minmax(0,1fr)] max-lg:gap-y-2 max-lg:px-0 max-lg:text-[14px]">
+    <dl id={panelId} className="grid grid-cols-[104px_1fr] gap-x-2 gap-y-1 border-t border-slate-200 px-2.5 py-2 text-[11.5px] max-lg:grid-cols-[112px_minmax(0,1fr)] max-lg:gap-y-2 max-lg:px-0 max-lg:text-[14px]">
       <Detail label="Nome no aviso">
         {speak.name} <span className="text-slate-500">({ORIGIN_LABEL[speak.origin]})</span>
         {current && (
@@ -633,7 +639,7 @@ export function DemoDetails({
 }) {
   const geomOk = u.insideCount === u.count;
   return (
-    <dl id={panelId} className="grid grid-cols-[104px_1fr] gap-x-2 gap-y-1 border-t border-slate-200 px-2.5 py-2 text-[12px] max-lg:grid-cols-[112px_minmax(0,1fr)] max-lg:gap-y-2 max-lg:px-0 max-lg:text-[14px]">
+    <dl id={panelId} className="grid grid-cols-[104px_1fr] gap-x-2 gap-y-1 border-t border-slate-200 px-2.5 py-2 text-[11.5px] max-lg:grid-cols-[112px_minmax(0,1fr)] max-lg:gap-y-2 max-lg:px-0 max-lg:text-[14px]">
       <Detail label="Nome">{u.label}</Detail>
       <Detail label="Tipo">{layerInfo.unitType}</Detail>
       <Detail label="Código">{u.code}</Detail>

@@ -1094,11 +1094,7 @@ export default function App() {
         }`}
       >
         {/* Coluna esquerda: importação e informações (celular: telas Dados e Alertas) */}
-        {/* No computador a coluna fica parada sob o cabeçalho e rola sozinha: o mapa não sai da tela ao ler os alertas. */}
-        <aside
-          className={`flex flex-col gap-3 lg:sticky lg:top-[calc(3.5rem+1px+0.75rem)] lg:row-span-3 lg:max-h-[calc(100vh-3.5rem-1px-1.5rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain ${screen('dados', 'alertas')}`}
-          aria-label="Importação e informações do desligamento"
-        >
+        <aside className={`flex flex-col gap-3 lg:row-span-3 ${screen('dados', 'alertas')}`} aria-label="Importação e informações do desligamento">
           <section className={`rounded-md border border-slate-200 bg-white px-3.5 py-3 shadow-panel lg:hidden ${screen('dados')}`} aria-label="Modo de operação">
             <p className="mb-1.5 text-[13px] font-semibold text-petrol-900">Modo de operação</p>
             <ModeSwitch mode={mode} onModeChange={handleModeChange} modeLocked={phase === 'processing'} />
