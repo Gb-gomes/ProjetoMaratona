@@ -24,7 +24,7 @@ export function PointFilters({
     <ul className="space-y-0.5">
       {POINT_FILTERS.map((f) => (
         <li key={f.key}>
-          <label className={`flex min-h-6 cursor-pointer items-center gap-2 text-[12px] max-lg:min-h-11 max-lg:text-[13px] ${disabled ? 'text-slate-400' : 'text-petrol-900'}`}>
+          <label className={`flex min-h-6 cursor-pointer items-center gap-2 text-[13px] max-lg:min-h-11 max-lg:text-[14px] ${disabled ? 'text-slate-400' : 'text-petrol-900'}`}>
             <span className="flex w-5 shrink-0 items-center justify-center" aria-hidden="true"><PointSymbol dot={f.dot} /></span>
             <span className="min-w-0 flex-1">{f.label}</span>
             {counts && <span className="tabular-nums text-slate-500">{counts[f.key]}</span>}
@@ -47,7 +47,7 @@ export function PointFilters({
 export function PanelSection({ title, children }) {
   return (
     <section className="border-t border-slate-100 px-3 py-2.5 first:border-t-0">
-      {title && <h4 className="mb-1.5 text-[12px] font-semibold uppercase tracking-wide text-slate-500">{title}</h4>}
+      {title && <h4 className="mb-1.5 text-[13px] font-semibold uppercase tracking-wide text-slate-500">{title}</h4>}
       {children}
     </section>
   );
@@ -58,13 +58,13 @@ function LayerToggle({
   checked, onChange, children, subtitle, disabled = false, describedBy,
 }) {
   return (
-    <label className={`flex min-h-7 items-start gap-2 py-0.5 text-[13px] max-lg:min-h-11 max-lg:items-center max-lg:text-[14px] ${disabled ? 'cursor-not-allowed text-slate-400' : 'cursor-pointer text-petrol-900'}`}>
+    <label className={`flex min-h-7 items-start gap-2 py-0.5 text-[14px] max-lg:min-h-11 max-lg:items-center max-lg:text-[15px] ${disabled ? 'cursor-not-allowed text-slate-400' : 'cursor-pointer text-petrol-900'}`}>
       <span className="flex w-5 shrink-0 justify-center pt-0.5 max-lg:pt-0">
         <input type="checkbox" checked={checked} disabled={disabled} onChange={onChange} className={checkbox} aria-describedby={describedBy} />
       </span>
       <span className="min-w-0 leading-tight">
         <span className="font-medium">{children}</span>
-        {subtitle && <span id={describedBy} className="block text-[12px] font-normal text-slate-500">{subtitle}</span>}
+        {subtitle && <span id={describedBy} className="block text-[13px] font-normal text-slate-500">{subtitle}</span>}
       </span>
     </label>
   );

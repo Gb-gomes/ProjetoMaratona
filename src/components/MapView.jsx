@@ -296,14 +296,14 @@ export default function MapView({
       <div className={`border-b border-slate-100 px-4 py-2 max-lg:px-3 ${fullscreen ? '' : 'max-lg:[@media(max-height:500px)]:hidden'}`}>
         {/* Uma linha no computador (título · situação · camada · ações); no celular a camada desce. */}
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 max-lg:gap-x-2">
-          <h2 id="map-title" className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[14px] font-semibold text-petrol-900">
+          <h2 id="map-title" className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[17px] font-bold tracking-[-0.01em] text-petrol-900 max-lg:text-[15px]">
             <MapPinned className="h-4 w-4 text-petrol-500 max-lg:hidden" aria-hidden="true" />
             Mapa do desligamento
           </h2>
           {/* No celular o selo encolhe para o botão de tela cheia caber na mesma linha. */}
           <span className="flex min-w-0 max-lg:flex-1 max-lg:overflow-hidden">{phaseBadge}</span>
           {/* Situação da camada (antes flutuava sobre o mapa) */}
-          <div className="order-last flex min-w-0 basis-full items-center gap-2 text-[12px] lg:order-none lg:flex-1 lg:basis-0">
+          <div className="order-last flex min-w-0 basis-full items-center gap-2 text-[13px] lg:order-none lg:flex-1 lg:basis-0">
             {isDemo ? (
               <span className="inline-flex min-w-0 items-center gap-1.5 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 font-medium text-amber-900" title="Dados demonstrativos — geometrias territoriais ilustrativas">
                 <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -537,7 +537,7 @@ export default function MapView({
               onClick={() => setDockOpen((v) => !v)}
               aria-expanded={dockOpen}
               aria-controls={LAYERS_PANEL_ID}
-              className={`pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-[14px] font-medium shadow-md ${
+              className={`pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-[15px] font-medium shadow-md ${
                 dockOpen ? 'border-petrol-700 bg-petrol-700 text-white' : 'border-slate-200 bg-white text-petrol-800'
               }`}
             >
@@ -555,13 +555,13 @@ export default function MapView({
           const unit = unitsById.get(focusId);
           return (
             <div className="absolute bottom-3 left-3 right-[4.25rem] z-[600] flex items-center gap-2 rounded-md border border-slate-200 bg-white py-1.5 pl-3 pr-1 shadow-lg lg:hidden">
-              <span className="grid h-8 w-9 shrink-0 place-items-center rounded bg-petrol-800 text-[14px] font-semibold text-white">
+              <span className="grid h-8 w-9 shrink-0 place-items-center rounded bg-petrol-800 text-[15px] font-semibold text-white">
                 {String(unit.number).padStart(2, '0')}
               </span>
               <button type="button" onClick={() => onOpenDetails?.(focusId)} className="flex min-h-11 min-w-0 flex-1 items-center gap-1 text-left">
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[14px] font-semibold text-petrol-900">{nameOf(unit) ?? `Região ${String(unit.number).padStart(2, '0')}`}</span>
-                  <span className="block text-[13px] text-slate-500">{unit.count} pontos · Ver detalhes</span>
+                  <span className="block truncate text-[15px] font-semibold text-petrol-900">{nameOf(unit) ?? `Região ${String(unit.number).padStart(2, '0')}`}</span>
+                  <span className="block text-[14px] text-slate-500">{unit.count} pontos · Ver detalhes</span>
                 </span>
                 <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
               </button>
@@ -574,7 +574,7 @@ export default function MapView({
 
         {tilesUnavailable && (
           <div className="absolute bottom-3 left-1/2 z-[500] -translate-x-1/2" role="alert">
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-1.5 text-[12px] text-red-700 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-1.5 text-[13px] text-red-700 shadow-sm">
               <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" />
               Fundo cartográfico indisponível. As camadas e os resultados continuam funcionando.
             </span>
@@ -591,8 +591,8 @@ export default function MapView({
               {isDemo && phase === 'idle' && (
                 <>
                   <MapPinned className="mx-auto h-6 w-6 text-petrol-400" aria-hidden="true" />
-                  <p className="mt-2 text-[14px] font-semibold text-petrol-900">Aguardando processamento</p>
-                  <p className="mt-1 text-[13px] leading-snug text-slate-600">
+                  <p className="mt-2 text-[15px] font-semibold text-petrol-900">Aguardando processamento</p>
+                  <p className="mt-1 text-[14px] leading-snug text-slate-600">
                     Os pontos e as unidades territoriais aparecem aqui depois que as coordenadas forem processadas.
                   </p>
                 </>
@@ -600,8 +600,8 @@ export default function MapView({
               {phase === 'processing' && (
                 <>
                   <LoaderCircle className="mx-auto h-6 w-6 animate-spin text-accent-500" aria-hidden="true" />
-                  <p className="mt-2 text-[14px] font-semibold text-petrol-900">Validando pontos e cruzando dados geográficos</p>
-                  <p className="mt-1 text-[12px] text-slate-500">
+                  <p className="mt-2 text-[15px] font-semibold text-petrol-900">Validando pontos e cruzando dados geográficos</p>
+                  <p className="mt-1 text-[13px] text-slate-500">
                     {isDemo ? 'Simulação local, sem consulta a serviços externos.' : 'Cruzamento real no navegador, sem envio de coordenadas.'}
                   </p>
                 </>
@@ -609,8 +609,8 @@ export default function MapView({
               {phase === 'error' && (
                 <>
                   <CircleAlert className="mx-auto h-6 w-6 text-red-600" aria-hidden="true" />
-                  <p className="mt-2 text-[14px] font-semibold text-petrol-900">Não foi possível concluir o processamento</p>
-                  <p className="mt-1 text-[13px] text-slate-600">Confira a mensagem no painel de importação e tente novamente.</p>
+                  <p className="mt-2 text-[15px] font-semibold text-petrol-900">Não foi possível concluir o processamento</p>
+                  <p className="mt-1 text-[14px] text-slate-600">Confira a mensagem no painel de importação e tente novamente.</p>
                 </>
               )}
             </div>
@@ -627,7 +627,7 @@ function RealLayerStatus({ layerState }) {
     return (
       <>
         <LoaderCircle className="mx-auto h-6 w-6 animate-spin text-accent-500" aria-hidden="true" />
-        <p className="mt-2 text-[14px] font-semibold text-petrol-900">Carregando camada territorial oficial…</p>
+        <p className="mt-2 text-[15px] font-semibold text-petrol-900">Carregando camada territorial oficial…</p>
       </>
     );
   }
@@ -635,8 +635,8 @@ function RealLayerStatus({ layerState }) {
     return (
       <>
         <CircleAlert className="mx-auto h-6 w-6 text-red-600" aria-hidden="true" />
-        <p className="mt-2 text-[14px] font-semibold text-petrol-900">Camada oficial indisponível</p>
-        <ul className="mt-1 text-left text-[12px] leading-snug text-slate-600">
+        <p className="mt-2 text-[15px] font-semibold text-petrol-900">Camada oficial indisponível</p>
+        <ul className="mt-1 text-left text-[13px] leading-snug text-slate-600">
           {layerState.errors.slice(0, 3).map((e) => <li key={e}>• {e}</li>)}
         </ul>
       </>
@@ -645,8 +645,8 @@ function RealLayerStatus({ layerState }) {
   return (
     <>
       <Database className="mx-auto h-6 w-6 text-petrol-400" aria-hidden="true" />
-      <p className="mt-2 text-[14px] font-semibold text-petrol-900">Camada oficial não configurada</p>
-      <p className="mt-1 text-[13px] leading-snug text-slate-600">
+      <p className="mt-2 text-[15px] font-semibold text-petrol-900">Camada oficial não configurada</p>
+      <p className="mt-1 text-[14px] leading-snug text-slate-600">
         O município piloto ainda não foi definido. Prepare o recorte da malha do IBGE conforme
         docs/CAMADA_TERRITORIAL.md e atualize PILOT_CONFIG em src/config.js. Nenhuma geometria demonstrativa é exibida neste modo.
       </p>

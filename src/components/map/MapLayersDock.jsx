@@ -43,8 +43,8 @@ export default function MapLayersDock({
           <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-slate-300" aria-hidden="true" />
           <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2">
             <Layers className="h-4 w-4 text-petrol-500" aria-hidden="true" />
-            <h3 id="map-layers-title" className="flex-1 text-[14px] font-semibold text-petrol-900">Camadas e legenda</h3>
-            <button ref={closeRef} type="button" onClick={() => onOpenChange(false)} className="inline-flex min-h-11 items-center gap-1 rounded px-3 text-[14px] font-medium text-petrol-700">
+            <h3 id="map-layers-title" className="flex-1 text-[15px] font-semibold text-petrol-900">Camadas e legenda</h3>
+            <button ref={closeRef} type="button" onClick={() => onOpenChange(false)} className="inline-flex min-h-11 items-center gap-1 rounded px-3 text-[15px] font-medium text-petrol-700">
               <X className="h-5 w-5" aria-hidden="true" />
               Fechar
             </button>
@@ -67,7 +67,7 @@ export default function MapLayersDock({
         >
           <div className="flex items-center gap-2 border-b border-slate-100 py-1.5 pl-3 pr-1.5">
             <Layers className="h-4 w-4 text-petrol-500" aria-hidden="true" />
-            <h3 id="map-layers-title" className="flex-1 text-[13px] font-semibold text-petrol-900">Camadas e legenda</h3>
+            <h3 id="map-layers-title" className="flex-1 text-[14px] font-semibold text-petrol-900">Camadas e legenda</h3>
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -88,7 +88,7 @@ export default function MapLayersDock({
           onClick={() => onOpenChange(true)}
           aria-expanded={false}
           aria-controls={LAYERS_PANEL_ID}
-          className="pointer-events-auto inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white/95 px-3 py-1.5 text-[13px] font-medium text-petrol-800 shadow-md backdrop-blur-sm hover:bg-slate-50"
+          className="pointer-events-auto inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white/95 px-3 py-1.5 text-[14px] font-medium text-petrol-800 shadow-md backdrop-blur-sm hover:bg-slate-50"
         >
           <Layers className="h-4 w-4 text-petrol-500" aria-hidden="true" />
           Camadas e legenda

@@ -7,7 +7,7 @@
 /** Linha de legenda: símbolo (20 px) + texto. */
 export function LegendRow({ symbol, children, muted = false }) {
   return (
-    <li className={`flex min-h-6 items-center gap-2 text-[12px] leading-tight max-lg:min-h-8 max-lg:text-[13px] ${muted ? 'text-slate-500' : 'text-petrol-900'}`}>
+    <li className={`flex min-h-6 items-center gap-2 text-[13px] leading-tight max-lg:min-h-8 max-lg:text-[14px] ${muted ? 'text-slate-500' : 'text-petrol-900'}`}>
       <span className="flex w-5 shrink-0 items-center justify-center" aria-hidden="true">{symbol}</span>
       <span className="min-w-0">{children}</span>
     </li>
@@ -16,7 +16,7 @@ export function LegendRow({ symbol, children, muted = false }) {
 
 /** Subtítulo dentro de uma seção (ex.: "Categoria", "Situação"). */
 export function LegendSubtitle({ children }) {
-  return <p className="mt-2 text-[12px] font-medium text-slate-500 first:mt-0">{children}</p>;
+  return <p className="mt-2 text-[13px] font-medium text-slate-500 first:mt-0">{children}</p>;
 }
 
 /* Símbolos ----------------------------------------------------------- */
@@ -79,7 +79,7 @@ export function PriorityLegend() {
 /** Aviso do modo demonstração (rodapé do painel). */
 export function DemoMapNote() {
   return (
-    <p className="text-[12px] leading-snug text-slate-500">
+    <p className="text-[13px] leading-snug text-slate-500">
       Visualização demonstrativa: os polígonos não são fronteiras oficiais.
     </p>
   );
