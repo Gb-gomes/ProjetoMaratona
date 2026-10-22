@@ -1,9 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  useEffect, useMemo, useRef, useState,
+} from 'react';
 import {
   History, Sparkles, TriangleAlert, CircleAlert, Info, Save, CircleCheck, Download, Trash2, X,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
-import { WINDOW_RECENT_DAYS, WINDOW_LONG_DAYS } from '../lib/outageFacts.js';
+import {
+  WINDOW_RECENT_DAYS, WINDOW_LONG_DAYS, SCOPES, computeFacts, typeOf,
+} from '../lib/outageFacts.js';
 import { historyToCsv } from '../lib/outageHistory.js';
 
 const LEVEL = {
@@ -11,6 +15,31 @@ const LEVEL = {
   media: { label: 'Atenção média', tone: 'warning', icon: CircleAlert, row: 'border-amber-200 bg-amber-50 text-amber-900' },
   info: { label: 'Sem pontos de atenção', tone: 'info', icon: Info, row: 'border-petrol-100 bg-petrol-50 text-petrol-800' },
 };
+
+const TYPE_CHIP = {
+  programado: 'bg-white/80 text-petrol-800 ring-slate-300',
+  acidental: 'bg-red-100 text-red-800 ring-red-300',
+};
+
+/** Filtro do embasamento: todos, só programados ou só acidentais. */
+function ScopeTabs({ scope, onChange, counts }) {
+  return (
+    <div role="tablist" aria-label="Tipo de desligamento na análise" className="inline-flex rounded border border-slate-300 p-0.5 text-[12px] font-medium">
+      {SCOPES.map((s) => (
+        <button
+          key={s.value}
+          type="button"
+          role="tab"
+          aria-selected={scope === s.value}
+          onClick={() => onChange(s.value)}
+          className={`rounded px-2 py-0.5 max-lg:min-h-10 ${scope === s.value ? 'bg-petrol-700 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+        >
+          {s.label} <span className="tabular-nums opacity-80">({counts?.[s.value] ?? 0})</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const dateBr = (iso) => (iso ? iso.split('-').reverse().join('/') : '—');
 const hours = (h) => (h ? `${String(h).replace('.', ',')}h` : '—');
@@ -30,10 +59,13 @@ function AiTag() {
  * Cada alerta cita as ordens (e datas) de onde saiu.
  */
 export default function OutageAnalysisPanel({
-  phase, facts, history, currentId, canSave, saveBlocker, onSave, onRemove, savedRecord,
+  phase, record, history, currentId, canSave, saveBlocker, onSave, onRemove, savedRecord,
 }) {
   const [dialog, setDialog] = useState(null); // null | { highlight }
+  const [scope, setScope] = useState('todos');
+  const facts = useMemo(() => (record ? computeFacts(record, history, { scope }) : null), [record, history, scope]);
   const done = phase === 'done' && facts;
+  const accidental = record?.tipo === 'acidental';
   const lvl = done ? LEVEL[facts.level] : null;
 
   return (
@@ -60,10 +92,15 @@ export default function OutageAnalysisPanel({
         </p>
       ) : (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+          <div className="flex flex-wrap items-center gap-2 xl:col-span-2">
+            <span className="text-[12px] font-medium text-slate-500">Embasamento com:</span>
+            <ScopeTabs scope={scope} onChange={setScope} counts={facts.counts} />
+            {accidental && <StatusBadge tone="danger">Este registro: acidental</StatusBadge>}
+          </div>
           {/* Pontos de atenção, com referências */}
           <div>
             <p className="mb-1.5 text-[12px] font-medium text-slate-500">
-              Pontos de atenção · {facts.historyCount} desligamento(s) no histórico
+              Pontos de atenção · {facts.historyCount} desligamento(s) {{ todos: '', programado: 'programado(s) ', acidental: 'acidental(is) ' }[scope]}no histórico
             </p>
             <ul className="space-y-1.5">
               {facts.alerts.map((a, i) => {
@@ -81,10 +118,10 @@ export default function OutageAnalysisPanel({
                               key={r.id}
                               type="button"
                               onClick={() => setDialog({ highlight: r.id })}
-                              className="rounded bg-white/80 px-1.5 py-0.5 font-mono text-[11px] text-petrol-800 ring-1 ring-inset ring-slate-300 hover:bg-white"
-                              title="Abrir no histórico"
+                              className={`rounded px-1.5 py-0.5 font-mono text-[11px] ring-1 ring-inset hover:brightness-95 ${TYPE_CHIP[r.tipo]}`}
+                              title={`Desligamento ${r.tipo}. Abrir no histórico`}
                             >
-                              {r.label}
+                              {r.tipo === 'acidental' ? 'Acid. ' : ''}{r.label}
                             </button>
                           ))}
                         </p>
@@ -106,6 +143,7 @@ export default function OutageAnalysisPanel({
                     <th className="px-2 py-1 font-medium">Comunidade</th>
                     <th className="px-2 py-1 text-right font-medium" title={`Desligamentos anteriores nos últimos ${WINDOW_RECENT_DAYS} dias`}>{WINDOW_RECENT_DAYS}d</th>
                     <th className="px-2 py-1 text-right font-medium" title={`Desligamentos anteriores nos últimos ${WINDOW_LONG_DAYS} dias`}>{WINDOW_LONG_DAYS}d</th>
+                    {scope === 'todos' && <th className="px-2 py-1 text-right font-medium" title={`Desligamentos acidentais nos últimos ${WINDOW_LONG_DAYS} dias`}>Acid.</th>}
                     <th className="px-2 py-1 text-right font-medium" title={`Horas sem energia nos últimos ${WINDOW_LONG_DAYS} dias`}>Horas</th>
                     <th className="px-2 py-1 font-medium">Último</th>
                   </tr>
@@ -116,6 +154,7 @@ export default function OutageAnalysisPanel({
                       <td className="max-w-[180px] truncate px-2 py-1 text-petrol-900" title={c.nome}>{c.nome}</td>
                       <td className={`px-2 py-1 text-right tabular-nums ${c.recent.length ? 'font-semibold text-red-700' : 'text-slate-500'}`}>{c.recent.length}</td>
                       <td className="px-2 py-1 text-right tabular-nums text-slate-700">{c.long.length}</td>
+                      {scope === 'todos' && <td className={`px-2 py-1 text-right tabular-nums ${c.acid90 ? 'text-red-700' : 'text-slate-500'}`}>{c.acid90}</td>}
                       <td className="px-2 py-1 text-right tabular-nums text-slate-700">{hours(c.hours90)}</td>
                       <td className="px-2 py-1 text-slate-600">{c.last ? `${c.last.daysAgo}d atrás` : '—'}</td>
                     </tr>
@@ -136,7 +175,9 @@ export default function OutageAnalysisPanel({
             </span>
           ) : (
             <span className="text-[12px] text-slate-500">
-              {saveBlocker ?? 'O registro é salvo ao aprovar a carta, ou agora pelo botão ao lado.'}
+              {saveBlocker ?? (accidental
+                ? 'Desligamento acidental: não há carta. Registre pelo botão ao lado.'
+                : 'O registro é salvo ao aprovar a carta, ou agora pelo botão ao lado.')}
             </span>
           )}
           <button
@@ -158,6 +199,8 @@ export default function OutageAnalysisPanel({
       {dialog && (
         <HistoryDialog
           records={history}
+          scope={scope}
+          onScopeChange={setScope}
           highlight={dialog.highlight}
           currentId={currentId}
           onRemove={onRemove}
@@ -169,8 +212,15 @@ export default function OutageAnalysisPanel({
 }
 
 function HistoryDialog({
-  records, highlight, currentId, onRemove, onClose,
+  records: allRecords, scope, onScopeChange, highlight, currentId, onRemove, onClose,
 }) {
+  const counts = {
+    todos: allRecords.length,
+    programado: allRecords.filter((r) => typeOf(r) === 'programado').length,
+    acidental: allRecords.filter((r) => typeOf(r) === 'acidental').length,
+  };
+  // A referência clicada sempre aparece, mesmo fora do filtro atual.
+  const records = allRecords.filter((r) => scope === 'todos' || typeOf(r) === scope || r.id === highlight);
   const rowRef = useRef(null);
   useEffect(() => { rowRef.current?.scrollIntoView({ block: 'center' }); }, [highlight]);
   useEffect(() => {
@@ -195,7 +245,8 @@ function HistoryDialog({
         <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2.5">
           <History className="h-4 w-4 text-petrol-500" aria-hidden="true" />
           <h2 id="history-title" className="text-[14px] font-semibold text-petrol-900">Histórico de desligamentos</h2>
-          <span className="text-[12px] text-slate-500">{records.length} registro(s) · salvos neste navegador</span>
+          <span className="text-[12px] text-slate-500 max-lg:hidden">salvos neste navegador</span>
+          <ScopeTabs scope={scope} onChange={onScopeChange} counts={counts} />
           <button
             type="button"
             onClick={exportCsv}
@@ -212,12 +263,13 @@ function HistoryDialog({
         <div className="overflow-auto">
           {records.length === 0 ? (
             <p className="px-4 py-6 text-center text-[13px] text-slate-500">
-              Nenhum desligamento registrado ainda. Eles entram aqui ao aprovar a carta ou ao usar &quot;Registrar no histórico&quot;.
+              Nenhum desligamento neste filtro. Eles entram aqui ao aprovar a carta ou ao usar &quot;Registrar no histórico&quot;.
             </p>
           ) : (
             <table className="w-full text-left text-[12.5px]">
               <thead className="sticky top-0 bg-slate-50 text-slate-500">
                 <tr>
+                  <th className="px-3 py-1.5 font-medium">Tipo</th>
                   <th className="px-3 py-1.5 font-medium">Data</th>
                   <th className="px-3 py-1.5 font-medium">Horário</th>
                   <th className="px-3 py-1.5 font-medium">Ordem</th>
@@ -236,6 +288,9 @@ function HistoryDialog({
                     ref={r.id === highlight ? rowRef : null}
                     className={`border-t border-slate-100 align-top ${r.id === highlight ? 'bg-accent-50' : ''}`}
                   >
+                    <td className="px-3 py-1.5">
+                      <StatusBadge tone={typeOf(r) === 'acidental' ? 'danger' : 'info'}>{typeOf(r) === 'acidental' ? 'Acidental' : 'Programado'}</StatusBadge>
+                    </td>
                     <td className="whitespace-nowrap px-3 py-1.5 tabular-nums">{dateBr(r.data)}</td>
                     <td className="whitespace-nowrap px-3 py-1.5 tabular-nums">{r.inicio ?? '—'}–{r.termino ?? '—'}{r.duracaoH ? ` (${hours(r.duracaoH)})` : ''}</td>
                     <td className="whitespace-nowrap px-3 py-1.5 font-mono text-[12px]">

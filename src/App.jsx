@@ -58,7 +58,7 @@ import {
 import { useIsMobile } from './hooks/useIsMobile.js';
 import { useMapWorkspace } from './lib/useMapWorkspace.jsx';
 import { useOutageHistory } from './lib/outageHistory.js';
-import { buildOutageRecord, computeFacts } from './lib/outageFacts.js';
+import { buildOutageRecord } from './lib/outageFacts.js';
 import { PointFilters } from './components/LayerControl.jsx';
 
 const DEMO_FILE = {
@@ -424,10 +424,6 @@ export default function App() {
       by: operator,
     });
   }, [isReal, phase, result, outageRecordId, outageForm, outage, selectedUnits, nameOptions, mode, operator]);
-  const outageFacts = useMemo(
-    () => (currentOutageRecord ? computeFacts(currentOutageRecord, outageHistory.records) : null),
-    [currentOutageRecord, outageHistory.records],
-  );
   const outageSaveBlocker = !currentOutageRecord ? null
     : !currentOutageRecord.data ? 'Informe a data do desligamento para registrar no histórico.'
       : !currentOutageRecord.comunidades.length ? 'Selecione pelo menos uma região para registrar.'
@@ -1198,7 +1194,7 @@ export default function App() {
           {isReal && (
             <OutageAnalysisPanel
               phase={phase}
-              facts={outageFacts}
+              record={currentOutageRecord}
               history={outageHistory.records}
               currentId={outageRecordId}
               canSave={!!currentOutageRecord && !outageSaveBlocker}
@@ -1208,6 +1204,8 @@ export default function App() {
               onRemove={handleRemoveOutage}
             />
           )}
+          {/* Acidental não tem aviso prévio: sem carta para as rádios. */}
+          {!(isReal && outageForm.type === 'acidental') && (
           <CommunicationPanel
             mode={mode}
             phase={phase}
@@ -1224,6 +1222,7 @@ export default function App() {
             notes={currentNotice.notes}
             approvalBlocker={approvalBlocker}
           />
+          )}
         </div>
       </main>
 

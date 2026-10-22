@@ -75,7 +75,7 @@ export function useOutageHistory(mode, { onError } = {}) {
   return { records, status, save, remove };
 }
 
-const CSV_COLS = ['ordem', 'alimentador', 'motivo', 'data', 'inicio', 'termino', 'duracaoH', 'dataAviso', 'antecedenciaDias', 'totalPontos', 'comunidades', 'savedBy', 'savedAt'];
+const CSV_COLS = ['tipo', 'ordem', 'alimentador', 'motivo', 'data', 'inicio', 'termino', 'duracaoH', 'dataAviso', 'antecedenciaDias', 'totalPontos', 'comunidades', 'savedBy', 'savedAt'];
 
 /** CSV do histórico (separador ";", comunidades como "Nome (pontos)"). */
 export function historyToCsv(records) {
@@ -85,6 +85,6 @@ export function historyToCsv(records) {
   };
   const rows = records.map((r) => CSV_COLS.map((c) => cell(c === 'comunidades'
     ? r.comunidades.map((x) => `${x.nome} (${x.pontos})`).join(', ')
-    : r[c])).join(';'));
+    : c === 'tipo' ? (r.tipo ?? 'programado') : r[c])).join(';'));
   return [CSV_COLS.join(';'), ...rows].join('\n');
 }

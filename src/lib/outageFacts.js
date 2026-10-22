@@ -40,6 +40,21 @@ export function durationHours(start, end) {
 const joinNames = (names) => (names.length <= 3
   ? names.join(', ').replace(/, ([^,]*)$/, ' e $1')
   : `${names.slice(0, 3).join(', ')} e mais ${names.length - 3}`);
+/** Registros antigos (antes do tipo) contam como programados. */
+export const typeOf = (r) => (r?.tipo === 'acidental' ? 'acidental' : 'programado');
+export const SCOPES = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'programado', label: 'Programado' },
+  { value: 'acidental', label: 'Acidental' },
+];
+const inScope = (scope) => (r) => scope === 'todos' || typeOf(r) === scope;
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+/** "; antes deste: 2 programados e 1 acidental" — só quando há os dois tipos. */
+const breakdown = (list) => {
+  const a = list.filter((r) => typeOf(r) === 'acidental').length;
+  const p = list.length - a;
+  return a && p ? `; antes deste: ${plural(p, 'programado', 'programados')} e ${plural(a, 'acidental', 'acidentais')}` : '';
+};
 const dateBr = (iso) => (iso ? iso.split('-').reverse().join('/') : 'sem data');
 const fmtH = (h) => `${String(h).replace('.', ',')}h`;
 
@@ -49,6 +64,7 @@ export function refOf(r) {
     id: r.id,
     label: `${r.ordem || 'sem ordem'} (${dateBr(r.data).slice(0, 5)})`,
     ordem: r.ordem || null,
+    tipo: typeOf(r),
     data: r.data,
     inicio: r.inicio,
     termino: r.termino,
@@ -66,8 +82,15 @@ const overlaps = (a, b) => {
  * @param {object} current desligamento em análise (mesmo formato do registro salvo)
  * @param {object[]} history registros salvos
  */
-export function computeFacts(current, history) {
-  const others = (history ?? []).filter((r) => r.id !== current.id && r.status !== 'cancelado');
+export function computeFacts(current, history, { scope = 'todos' } = {}) {
+  const all = (history ?? []).filter((r) => r.id !== current.id && r.status !== 'cancelado');
+  const counts = {
+    todos: all.length,
+    programado: all.filter((r) => typeOf(r) === 'programado').length,
+    acidental: all.filter((r) => typeOf(r) === 'acidental').length,
+  };
+  const others = all.filter(inScope(scope));
+  const currentType = typeOf(current);
   const day = dayMs(current.data);
   const communities = current.comunidades ?? [];
   const alerts = [];
@@ -95,9 +118,12 @@ export function computeFacts(current, history) {
       total: touching.length,
       recent: recent.map(refOf),
       long: long.map(refOf),
+      recentRaw: recent,
+      acid90: long.filter((r) => typeOf(r) === 'acidental').length,
       hours90: Math.round(hours90 * 10) / 10,
       last: last ? { ...refOf(last), daysAgo: Math.round((day - dayMs(last.data)) / DAY) } : null,
-      near: near.map(refOf),
+      // Agrupar serviços só vale entre desligamentos programados.
+      near: currentType === 'programado' ? near.filter((r) => typeOf(r) === 'programado').map(refOf) : [],
       sameDay: sameDay.map(refOf),
     };
   });
@@ -112,10 +138,11 @@ export function computeFacts(current, history) {
   byCommunity.forEach((c) => {
     if (c.sameDay.length) addFor(c, 'alta', 'já existe desligamento registrado no mesmo dia e horário.', c.sameDay);
     if (c.recent.length >= RECURRENT_MIN) {
-      addFor(c, 'alta', `este será o ${c.recent.length + 1}º desligamento em ${WINDOW_RECENT_DAYS} dias`
+      addFor(c, 'alta', `este ${currentType === 'acidental' ? 'é' : 'será'} o ${c.recent.length + 1}º desligamento em ${WINDOW_RECENT_DAYS} dias`
+        + breakdown(c.recentRaw)
         + `${c.hours90 ? `, com ${fmtH(c.hours90)} sem energia nos últimos ${WINDOW_LONG_DAYS} dias` : ''}.`, c.recent);
     } else if (c.recent.length === 1) {
-      addFor(c, 'media', `teve desligamento há ${c.last?.daysAgo ?? '?'} dia(s).`, c.recent);
+      addFor(c, 'media', `teve desligamento ${c.recent[0].tipo} há ${Math.round((day - dayMs(c.recent[0].data)) / DAY)} dia(s).`, c.recent);
     }
     const groupable = c.near.filter((r) => !c.sameDay.some((s) => s.id === r.id));
     if (groupable.length) {
@@ -136,16 +163,16 @@ export function computeFacts(current, history) {
     if (same.length + 1 >= FEEDER_RECURRENT_MIN) {
       alerts.push({
         level: 'media',
-        text: `Alimentador ${feeder.name}: ${same.length + 1} desligamentos em ${WINDOW_LONG_DAYS} dias. Pode indicar problema recorrente na rede.`,
+        text: `Alimentador ${feeder.name}: ${same.length + 1} desligamentos em ${WINDOW_LONG_DAYS} dias, contando este${breakdown(same)}. Pode indicar problema recorrente na rede.`,
         refs: feeder.refs,
       });
     }
   }
 
-  // Antecedência do aviso
-  const notices = others.map((r) => r.antecedenciaDias).filter((n) => Number.isFinite(n) && n >= 0);
+  // Antecedência do aviso (só entre programados: acidental não tem aviso prévio)
+  const notices = others.filter((r) => typeOf(r) === 'programado').map((r) => r.antecedenciaDias).filter((n) => Number.isFinite(n) && n >= 0);
   const avgNotice = notices.length ? Math.round((notices.reduce((s, n) => s + n, 0) / notices.length) * 10) / 10 : null;
-  if (Number.isFinite(current.antecedenciaDias) && avgNotice != null && current.antecedenciaDias < avgNotice) {
+  if (currentType === 'programado' && Number.isFinite(current.antecedenciaDias) && avgNotice != null && current.antecedenciaDias < avgNotice) {
     alerts.push({
       level: 'info',
       text: `Aviso com ${current.antecedenciaDias} dia(s) de antecedência, abaixo da média registrada (${String(avgNotice).replace('.', ',')} dias).`,
@@ -154,7 +181,13 @@ export function computeFacts(current, history) {
   }
 
   if (!others.length) {
-    alerts.push({ level: 'info', text: 'Primeiro desligamento no histórico: as análises passam a valer a partir dos próximos registros.', refs: [] });
+    alerts.push({
+      level: 'info',
+      text: scope === 'todos'
+        ? 'Primeiro desligamento no histórico: as análises passam a valer a partir dos próximos registros.'
+        : `Nenhum desligamento ${scope} no histórico ainda.`,
+      refs: [],
+    });
   } else if (!alerts.length) {
     alerts.push({ level: 'info', text: 'Nenhuma recorrência ou conflito encontrado no histórico para estas comunidades.', refs: [] });
   }
@@ -163,6 +196,8 @@ export function computeFacts(current, history) {
   const level = alerts.reduce((m, a) => (LEVELS[a.level] > LEVELS[m] ? a.level : m), 'info');
 
   return {
+    scope,
+    counts,
     historyCount: others.length,
     level,
     alerts,
@@ -180,6 +215,7 @@ export function buildOutageRecord({
   return {
     id,
     mode,
+    tipo: form.type === 'acidental' ? 'acidental' : 'programado',
     ordem: form.orderId?.trim() || null,
     alimentador: form.feeder?.trim() || null,
     motivo: form.reason?.trim() || null,
@@ -187,11 +223,11 @@ export function buildOutageRecord({
     inicio: form.start || null,
     termino: form.end || null,
     duracaoH: durationHours(form.start, form.end),
-    dataAviso: form.noticeDate || null,
+    dataAviso: form.type === 'acidental' ? null : (form.noticeDate || null),
     antecedenciaDias: outageView?.noticeDaysBefore ?? null,
     comunidades,
     totalPontos: comunidades.reduce((s, c) => s + c.pontos, 0),
-    status: 'aprovado',
+    status: form.type === 'acidental' ? 'registrado' : 'aprovado',
     savedBy: by || null,
     savedAt: new Date().toISOString(),
   };

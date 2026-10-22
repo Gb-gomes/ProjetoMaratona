@@ -6,8 +6,13 @@
  * do aviso quando são necessários ao texto (data e horários).
  */
 
+export const OUTAGE_TYPES = [
+  { value: 'programado', label: 'Programado' },
+  { value: 'acidental', label: 'Acidental' },
+];
+
 export const EMPTY_OUTAGE_FORM = {
-  orderId: '', feeder: '', reason: '', date: '', start: '', end: '', noticeDate: '', audience: '',
+  type: 'programado', orderId: '', feeder: '', reason: '', date: '', start: '', end: '', noticeDate: '', audience: '',
 };
 
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto',
@@ -42,7 +47,9 @@ export function timeLabel(value) {
  */
 export function buildOutageView(form, { defaultAudience = null } = {}) {
   const date = parseIsoDate(form.date);
-  const notice = parseIsoDate(form.noticeDate);
+  const accidental = form.type === 'acidental';
+  // Acidental não tem aviso prévio: a data do aviso não entra.
+  const notice = accidental ? null : parseIsoDate(form.noticeDate);
   const start = timeLabel(form.start);
   const end = timeLabel(form.end);
   const problems = [];
@@ -54,6 +61,7 @@ export function buildOutageView(form, { defaultAudience = null } = {}) {
   }
   return {
     source: 'form',
+    type: accidental ? 'acidental' : 'programado',
     id: form.orderId || NOT_INFORMED,
     feeder: form.feeder || NOT_INFORMED,
     reason: form.reason || NOT_INFORMED,

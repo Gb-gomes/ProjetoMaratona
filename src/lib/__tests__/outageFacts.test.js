@@ -62,7 +62,34 @@ describe('agrupamento dos alertas', () => {
     const f = computeFacts(rec('a', '2026-11-05', ['A', 'B']), [rec('1', '2026-10-30', ['A', 'B'])]);
     const lines = f.alerts.filter((x) => /teve desligamento/.test(x.text));
     expect(lines).toHaveLength(1);
-    expect(lines[0].text).toMatch(/^A e B: teve desligamento há 6 dia/);
+    expect(lines[0].text).toMatch(/^A e B: teve desligamento programado há 6 dia/);
+  });
+});
+
+describe('programado x acidental', () => {
+  const hist = [
+    rec('1', '2026-10-20', ['A'], { alimentador: 'F1' }),
+    rec('2', '2026-10-25', ['A'], { tipo: 'acidental', alimentador: 'F1' }),
+    rec('3', '2026-10-30', ['A'], { tipo: 'acidental', alimentador: 'F1' }),
+  ];
+  it('todos: soma os dois tipos e detalha a composição', () => {
+    const f = computeFacts(rec('a', '2026-11-05', ['A'], { alimentador: 'F1' }), hist);
+    expect(f.counts).toEqual({ todos: 3, programado: 1, acidental: 2 });
+    const a = f.alerts.find((x) => /4º desligamento/.test(x.text));
+    expect(a.text).toMatch(/antes deste: 1 programado e 2 acidentais/);
+    expect(a.refs.map((r) => r.tipo).sort()).toEqual(['acidental', 'acidental', 'programado']);
+  });
+  it('filtro por tipo considera só aquele tipo', () => {
+    const f = computeFacts(rec('a', '2026-11-05', ['A']), hist, { scope: 'acidental' });
+    expect(f.historyCount).toBe(2);
+    expect(f.byCommunity[0].recent).toHaveLength(2);
+    const p = computeFacts(rec('a', '2026-11-05', ['A']), hist, { scope: 'programado' });
+    expect(p.byCommunity[0].recent).toHaveLength(1);
+    expect(p.alerts.some((x) => /teve desligamento programado há 16 dia/.test(x.text))).toBe(true);
+  });
+  it('acidental não sugere agrupar nem compara antecedência', () => {
+    const f = computeFacts(rec('a', '2026-10-21', ['A'], { tipo: 'acidental', antecedenciaDias: null }), [rec('1', '2026-10-28', ['A'], { antecedenciaDias: 5 })]);
+    expect(f.alerts.some((x) => /agrupar|antecedência/.test(x.text))).toBe(false);
   });
 });
 
@@ -76,7 +103,19 @@ describe('buildOutageRecord', () => {
       nameOf: (u) => (u.id === 'u1' ? 'Palmeiras' : null),
       keyOf: (u) => u.code,
     });
-    expect(r).toMatchObject({ ordem: 'OS-9', alimentador: null, duracaoH: 4, antecedenciaDias: 4, totalPontos: 10 });
+    expect(r).toMatchObject({ tipo: 'programado', ordem: 'OS-9', alimentador: null, duracaoH: 4, antecedenciaDias: 4, totalPontos: 10 });
     expect(r.comunidades).toEqual([{ key: '3138401-PALMEIRAS', nome: 'Palmeiras', pontos: 7 }, { key: '3138401-TRES', nome: '3138401-TRES', pontos: 3 }]);
+  });
+});
+
+describe('buildOutageRecord acidental', () => {
+  it('não guarda data de aviso nem antecedência', () => {
+    const r = buildOutageRecord({
+      id: 'y', mode: 'real',
+      form: { type: 'acidental', orderId: 'OC-1', date: '2026-11-05', start: '14:10', end: '16:40', noticeDate: '2026-11-01' },
+      outageView: { noticeDaysBefore: null },
+      units: [{ id: 'u1', code: 'X', count: 2 }], nameOf: () => 'X', keyOf: (u) => u.code,
+    });
+    expect(r).toMatchObject({ tipo: 'acidental', dataAviso: null, antecedenciaDias: null, duracaoH: 2.5, status: 'registrado' });
   });
 });
