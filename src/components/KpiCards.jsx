@@ -79,15 +79,15 @@ export default function KpiCards({
       />
       <Card
         icon={CalendarClock}
-        label="Desligamento programado"
+        label={outage.type === 'acidental' ? 'Desligamento acidental' : 'Desligamento programado'}
         value={outage.dateLabel}
         description={outage.start && outage.end ? `${outage.start} às ${outage.end}` : 'Horário não informado'}
       />
       <Card
         icon={Radio}
         label="Aviso ao cliente"
-        value={outage.noticeDate ?? 'Não informado'}
-        description={outage.noticeDaysBefore != null ? `${outage.noticeDaysBefore} dias antes` : 'Antecedência não informada'}
+        value={outage.type === 'acidental' ? 'Sem aviso prévio' : (outage.noticeDate ?? 'Não informado')}
+        description={outage.type === 'acidental' ? 'Desligamento acidental' : (outage.noticeDaysBefore != null ? `${outage.noticeDaysBefore} dias antes` : 'Antecedência não informada')}
       />
     </div>
   );

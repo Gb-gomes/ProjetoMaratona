@@ -8,11 +8,13 @@ import CsvUpload from './components/CsvUpload.jsx';
 import RealImportPanel from './components/RealImportPanel.jsx';
 import OutageInfo from './components/OutageInfo.jsx';
 import OutageForm from './components/OutageForm.jsx';
+import OutageTabs from './components/OutageTabs.jsx';
 import Timeline from './components/Timeline.jsx';
 import KpiCards, { KpiStrip } from './components/KpiCards.jsx';
 import MapView from './components/MapView.jsx';
 import RegionPanel from './components/RegionPanel.jsx';
 import CommunicationPanel from './components/CommunicationPanel.jsx';
+import OutageAnalysisPanel from './components/OutageAnalysisPanel.jsx';
 import AuditDialog from './components/AuditDialog.jsx';
 import Toasts from './components/Toasts.jsx';
 import PriorityAlertsPanel from './components/PriorityAlertsPanel.jsx';
@@ -56,6 +58,8 @@ import {
 } from './lib/priorityAlerts.js';
 import { useIsMobile } from './hooks/useIsMobile.js';
 import { useMapWorkspace } from './lib/useMapWorkspace.jsx';
+import { useOutageHistory } from './lib/outageHistory.js';
+import { buildOutageRecord } from './lib/outageFacts.js';
 import { PointFilters } from './components/LayerControl.jsx';
 
 const DEMO_FILE = {
@@ -65,6 +69,7 @@ const DEMO_FILE = {
   status: 'queued',
   validation: null,
 };
+const isRealMode = (m) => m === 'real';
 const EMPTY_NOTICE = { text: '', status: 'draft', dirty: false, stale: false };
 const DEFAULT_LAYERS = { points: true, territories: true, priority: true };
 const EMPTY_IMPORT = {
@@ -109,6 +114,10 @@ export default function App() {
   // Somente modo real (mantidos em memória; nunca em localStorage).
   const [imp, setImp] = useState(EMPTY_IMPORT);
   const [outageForm, setOutageForm] = useState(EMPTY_OUTAGE_FORM);
+  // Aba do modo real: programado | acidental. Cada aba guarda o próprio formulário.
+  const [workflow, setWorkflow] = useState('programado');
+  const formsByWorkflow = useRef({});
+  const accidentalTab = isRealMode(mode) && workflow === 'acidental';
   const [layerState, setLayerState] = useState({ status: 'idle', layer: null, errors: [], warnings: [], correspondence: {} });
   // Nomes de região definidos pelo operador (salvos neste navegador, com histórico).
   const [regionStore, setRegionStore] = useState(() => loadStore(PILOT_CONFIG.territory.ibgeCode));
@@ -134,6 +143,8 @@ export default function App() {
   const [analysisRef, setAnalysisRef] = useState(null); // desligamento analisado (congelado no processamento)
   const [priorityFocus, setPriorityFocus] = useState(null); // { recordId, pointKeys, nonce }
   const [registryNav, setRegistryNav] = useState(null); // null | { view: 'list' } | { view: 'form', editingId }
+  // Desligamento em análise: um id por processamento (aprovar de novo atualiza o mesmo registro).
+  const [outageRecordId, setOutageRecordId] = useState(null);
 
   // Celular/tablet (abaixo de lg): uma tela por vez, escolhida na barra inferior.
   // Todas as telas continuam montadas; só a apresentação muda (nenhum estado se perde).
@@ -162,6 +173,9 @@ export default function App() {
     setToasts((list) => [...list.slice(-3), { id, type, message }]);
     setTimeout(() => dismissToast(id), 4000);
   }, [dismissToast]);
+
+  // Histórico de desligamentos (só dados do sistema; ver lib/outageHistory.js).
+  const outageHistory = useOutageHistory(mode, { onError: (msg) => notify('error', msg) });
 
   const clearTimers = () => {
     timers.current.forEach(clearTimeout);
@@ -402,6 +416,45 @@ export default function App() {
     return null;
   }, [isReal, notice.text, currentNotice.pendingUnits.length, outage.problems, priorityGate]);
 
+  /* ---------------- Histórico e análise do desligamento ---------------- */
+  const currentOutageRecord = useMemo(() => {
+    if (!isReal || phase !== 'done' || !result || !outageRecordId) return null;
+    return buildOutageRecord({
+      id: outageRecordId,
+      form: outageForm,
+      outageView: outage,
+      units: selectedUnits,
+      nameOf: (u) => resolveSpeakableName(u, nameOptions).name,
+      keyOf: (u) => u.code || u.id,
+      mode,
+      by: operator,
+    });
+  }, [isReal, phase, result, outageRecordId, outageForm, outage, selectedUnits, nameOptions, mode, operator]);
+  const outageSaveBlocker = !currentOutageRecord ? null
+    : !currentOutageRecord.data ? 'Informe a data do desligamento para registrar no histórico.'
+      : !currentOutageRecord.comunidades.length ? 'Selecione pelo menos uma região para registrar.'
+        : (outage.problems?.[0] ?? null);
+  const savedOutage = outageHistory.records.find((r) => r.id === outageRecordId) ?? null;
+
+  const handleSaveOutage = async ({ silent = false } = {}) => {
+    if (!currentOutageRecord || outageSaveBlocker) return;
+    try {
+      await outageHistory.save(currentOutageRecord);
+      if (!silent) notify('success', savedOutage ? 'Registro do desligamento atualizado no histórico.' : 'Desligamento registrado no histórico.');
+    } catch (err) {
+      notify('error', `Não foi possível salvar no histórico: ${err.message}`);
+    }
+  };
+
+  const handleRemoveOutage = async (id) => {
+    try {
+      await outageHistory.remove(id);
+      notify('info', 'Registro excluído do histórico.');
+    } catch (err) {
+      notify('error', err.message);
+    }
+  };
+
   const focusPriority = useCallback((recordId, force) => {
     setPriorityFocus((cur) => {
       const close = force === false || (force === undefined && cur?.recordId === recordId);
@@ -598,6 +651,7 @@ export default function App() {
     setAnalysisRef(null);
     setPriorityFocus(null);
     setRegionDetailId(null);
+    setOutageRecordId(null);
   };
 
   /** Troca de modo: nenhum resultado é compartilhado entre os modos. */
@@ -608,11 +662,28 @@ export default function App() {
     setFile(DEMO_FILE);
     setImp(EMPTY_IMPORT);
     setOutageForm(EMPTY_OUTAGE_FORM);
+    setWorkflow('programado');
+    formsByWorkflow.current = {};
     setMode(next);
     setMobileTab('dados');
     notify('info', next === 'real'
       ? 'Modo Teste com Dados Reais: dados demonstrativos removidos da tela.'
       : 'Modo Demonstração: dados do teste real descartados da memória.');
+  };
+
+  /** Troca de aba (programado / acidental): o processamento atual é descartado; o formulário fica guardado. */
+  const handleWorkflowChange = (next) => {
+    if (next === workflow || phase === 'processing') return;
+    if (phase === 'done' && result?.units.length && !savedOutage) {
+      // eslint-disable-next-line no-alert
+      if (!window.confirm('O processamento atual ainda não foi registrado no histórico. Trocar de aba descarta o resultado. Continuar?')) return;
+    }
+    formsByWorkflow.current[workflow] = outageForm;
+    resetResults();
+    setImp(EMPTY_IMPORT);
+    setOutageForm(formsByWorkflow.current[next] ?? { ...EMPTY_OUTAGE_FORM, type: next });
+    setWorkflow(next);
+    setMobileTab('dados');
   };
 
   /* ---------------- Importação (demonstração) ---------------- */
@@ -749,6 +820,7 @@ export default function App() {
     setResult(joined);
     setSelectedIds(ids);
     setPhase('done');
+    setOutageRecordId(globalThis.crypto?.randomUUID?.() ?? `d-${Date.now()}`);
     // Celular: com pelo menos uma região, a tela principal passa a ser a lista de regiões.
     // Sem regiões, permanece em Dados, onde o motivo é exibido.
     if (ids.length > 0) setMobileTab('regioes');
@@ -918,8 +990,9 @@ export default function App() {
     setNotice((prev) => ({
       ...prev, status: 'approved', approvedBy: identity?.email ?? null, approvedAt: new Date().toISOString(),
     }));
+    if (isReal && currentOutageRecord && !outageSaveBlocker) handleSaveOutage({ silent: true });
     notify('success', isReal
-      ? 'Carta aprovada no ambiente de teste. Nenhuma mensagem foi enviada.'
+      ? 'Carta aprovada e desligamento registrado no histórico. Nenhuma mensagem foi enviada.'
       : 'Carta aprovada para demonstração. Nenhuma mensagem foi enviada.');
   };
 
@@ -962,6 +1035,7 @@ export default function App() {
         identity={identity}
       />
 
+      {isReal && <OutageTabs value={workflow} onChange={handleWorkflowChange} disabled={phase === 'processing'} />}
       <main
         ref={mainRef}
         onScroll={(e) => { scrollByScreen.current[screenKeyRef.current] = e.currentTarget.scrollTop; }}
@@ -992,6 +1066,8 @@ export default function App() {
               phase={phase}
               stepIndex={stepIndex}
               errorMessage={errorMessage}
+              title={accidentalTab ? 'Importação dos pontos afetados (acidental)' : 'Importação de pontos'}
+              accent={accidentalTab}
               onSelectFile={handleSelectRealFile}
               onMappingChange={handleMappingChange}
               onCrsChange={handleCrsChange}
@@ -1046,7 +1122,7 @@ export default function App() {
               />
             )
             : <OutageInfo outage={OUTAGE} />}
-          <Timeline outage={outage} phase={phase} noticeStatus={notice.status} mode={mode} priorityPending={priorityGate.blocked} />
+          {!accidentalTab && <Timeline outage={outage} phase={phase} noticeStatus={notice.status} mode={mode} priorityPending={priorityGate.blocked} />}
           </div>
         </aside>
 
@@ -1140,7 +1216,22 @@ export default function App() {
         />
 
         {/* Inferior: comunicação (celular: tela Aviso) */}
-        <div className={`lg:col-start-2 ${screen('aviso')}`}>
+        <div className={`flex flex-col gap-3 lg:col-start-2 ${screen('aviso')}`}>
+          {isReal && (
+            <OutageAnalysisPanel
+              phase={phase}
+              record={currentOutageRecord}
+              history={outageHistory.records}
+              currentId={outageRecordId}
+              canSave={!!currentOutageRecord && !outageSaveBlocker}
+              saveBlocker={outageSaveBlocker}
+              savedRecord={savedOutage}
+              onSave={() => handleSaveOutage()}
+              onRemove={handleRemoveOutage}
+            />
+          )}
+          {/* Acidental não tem aviso prévio: sem carta para as rádios. */}
+          {!accidentalTab && (
           <CommunicationPanel
             mode={mode}
             phase={phase}
@@ -1157,6 +1248,7 @@ export default function App() {
             notes={currentNotice.notes}
             approvalBlocker={approvalBlocker}
           />
+          )}
         </div>
       </main>
 
