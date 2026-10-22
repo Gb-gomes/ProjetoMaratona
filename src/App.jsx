@@ -13,6 +13,7 @@ import KpiCards, { KpiStrip } from './components/KpiCards.jsx';
 import MapView from './components/MapView.jsx';
 import RegionPanel from './components/RegionPanel.jsx';
 import CommunicationPanel from './components/CommunicationPanel.jsx';
+import OutageAnalysisPanel from './components/OutageAnalysisPanel.jsx';
 import AuditDialog from './components/AuditDialog.jsx';
 import Toasts from './components/Toasts.jsx';
 import PriorityAlertsPanel from './components/PriorityAlertsPanel.jsx';
@@ -56,6 +57,8 @@ import {
 } from './lib/priorityAlerts.js';
 import { useIsMobile } from './hooks/useIsMobile.js';
 import { useMapWorkspace } from './lib/useMapWorkspace.jsx';
+import { useOutageHistory } from './lib/outageHistory.js';
+import { buildOutageRecord, computeFacts } from './lib/outageFacts.js';
 import { PointFilters } from './components/LayerControl.jsx';
 
 const DEMO_FILE = {
@@ -134,6 +137,8 @@ export default function App() {
   const [analysisRef, setAnalysisRef] = useState(null); // desligamento analisado (congelado no processamento)
   const [priorityFocus, setPriorityFocus] = useState(null); // { recordId, pointKeys, nonce }
   const [registryNav, setRegistryNav] = useState(null); // null | { view: 'list' } | { view: 'form', editingId }
+  // Desligamento em análise: um id por processamento (aprovar de novo atualiza o mesmo registro).
+  const [outageRecordId, setOutageRecordId] = useState(null);
 
   // Celular/tablet (abaixo de lg): uma tela por vez, escolhida na barra inferior.
   // Todas as telas continuam montadas; só a apresentação muda (nenhum estado se perde).
@@ -162,6 +167,9 @@ export default function App() {
     setToasts((list) => [...list.slice(-3), { id, type, message }]);
     setTimeout(() => dismissToast(id), 4000);
   }, [dismissToast]);
+
+  // Histórico de desligamentos (só dados do sistema; ver lib/outageHistory.js).
+  const outageHistory = useOutageHistory(mode, { onError: (msg) => notify('error', msg) });
 
   const clearTimers = () => {
     timers.current.forEach(clearTimeout);
@@ -402,6 +410,49 @@ export default function App() {
     return null;
   }, [isReal, notice.text, currentNotice.pendingUnits.length, outage.problems, priorityGate]);
 
+  /* ---------------- Histórico e análise do desligamento ---------------- */
+  const currentOutageRecord = useMemo(() => {
+    if (!isReal || phase !== 'done' || !result || !outageRecordId) return null;
+    return buildOutageRecord({
+      id: outageRecordId,
+      form: outageForm,
+      outageView: outage,
+      units: selectedUnits,
+      nameOf: (u) => resolveSpeakableName(u, nameOptions).name,
+      keyOf: (u) => u.code || u.id,
+      mode,
+      by: operator,
+    });
+  }, [isReal, phase, result, outageRecordId, outageForm, outage, selectedUnits, nameOptions, mode, operator]);
+  const outageFacts = useMemo(
+    () => (currentOutageRecord ? computeFacts(currentOutageRecord, outageHistory.records) : null),
+    [currentOutageRecord, outageHistory.records],
+  );
+  const outageSaveBlocker = !currentOutageRecord ? null
+    : !currentOutageRecord.data ? 'Informe a data do desligamento para registrar no histórico.'
+      : !currentOutageRecord.comunidades.length ? 'Selecione pelo menos uma região para registrar.'
+        : (outage.problems?.[0] ?? null);
+  const savedOutage = outageHistory.records.find((r) => r.id === outageRecordId) ?? null;
+
+  const handleSaveOutage = async ({ silent = false } = {}) => {
+    if (!currentOutageRecord || outageSaveBlocker) return;
+    try {
+      await outageHistory.save(currentOutageRecord);
+      if (!silent) notify('success', savedOutage ? 'Registro do desligamento atualizado no histórico.' : 'Desligamento registrado no histórico.');
+    } catch (err) {
+      notify('error', `Não foi possível salvar no histórico: ${err.message}`);
+    }
+  };
+
+  const handleRemoveOutage = async (id) => {
+    try {
+      await outageHistory.remove(id);
+      notify('info', 'Registro excluído do histórico.');
+    } catch (err) {
+      notify('error', err.message);
+    }
+  };
+
   const focusPriority = useCallback((recordId, force) => {
     setPriorityFocus((cur) => {
       const close = force === false || (force === undefined && cur?.recordId === recordId);
@@ -598,6 +649,7 @@ export default function App() {
     setAnalysisRef(null);
     setPriorityFocus(null);
     setRegionDetailId(null);
+    setOutageRecordId(null);
   };
 
   /** Troca de modo: nenhum resultado é compartilhado entre os modos. */
@@ -749,6 +801,7 @@ export default function App() {
     setResult(joined);
     setSelectedIds(ids);
     setPhase('done');
+    setOutageRecordId(globalThis.crypto?.randomUUID?.() ?? `d-${Date.now()}`);
     // Celular: com pelo menos uma região, a tela principal passa a ser a lista de regiões.
     // Sem regiões, permanece em Dados, onde o motivo é exibido.
     if (ids.length > 0) setMobileTab('regioes');
@@ -918,8 +971,9 @@ export default function App() {
     setNotice((prev) => ({
       ...prev, status: 'approved', approvedBy: identity?.email ?? null, approvedAt: new Date().toISOString(),
     }));
+    if (isReal && currentOutageRecord && !outageSaveBlocker) handleSaveOutage({ silent: true });
     notify('success', isReal
-      ? 'Carta aprovada no ambiente de teste. Nenhuma mensagem foi enviada.'
+      ? 'Carta aprovada e desligamento registrado no histórico. Nenhuma mensagem foi enviada.'
       : 'Carta aprovada para demonstração. Nenhuma mensagem foi enviada.');
   };
 
@@ -1140,7 +1194,20 @@ export default function App() {
         />
 
         {/* Inferior: comunicação (celular: tela Aviso) */}
-        <div className={`lg:col-start-2 ${screen('aviso')}`}>
+        <div className={`flex flex-col gap-3 lg:col-start-2 ${screen('aviso')}`}>
+          {isReal && (
+            <OutageAnalysisPanel
+              phase={phase}
+              facts={outageFacts}
+              history={outageHistory.records}
+              currentId={outageRecordId}
+              canSave={!!currentOutageRecord && !outageSaveBlocker}
+              saveBlocker={outageSaveBlocker}
+              savedRecord={savedOutage}
+              onSave={() => handleSaveOutage()}
+              onRemove={handleRemoveOutage}
+            />
+          )}
           <CommunicationPanel
             mode={mode}
             phase={phase}
