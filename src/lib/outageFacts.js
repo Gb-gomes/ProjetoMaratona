@@ -30,11 +30,14 @@ const minutes = (hhmm) => {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 };
 
-/** Duração em horas (uma casa decimal) ou null. */
-export function durationHours(start, end) {
+/** Duração em horas (uma casa decimal) ou null. Com datas diferentes, atravessa a meia-noite. */
+export function durationHours(start, end, date = null, endDate = null) {
   const s = minutes(start);
   const e = minutes(end);
-  return s != null && e != null && e > s ? Math.round(((e - s) / 60) * 10) / 10 : null;
+  if (s == null || e == null) return null;
+  const days = date && endDate && endDate !== date ? (dayMs(endDate) - dayMs(date)) / DAY : 0;
+  const total = days * 1440 + e - s;
+  return Number.isFinite(total) && total > 0 ? Math.round((total / 60) * 10) / 10 : null;
 }
 
 const joinNames = (names) => (names.length <= 3
@@ -153,6 +156,23 @@ export function computeFacts(current, history, { scope = 'todos' } = {}) {
     alerts.push({ level, text: `${joinNames(names)}: ${tail}`, refs });
   });
 
+  // Causa recorrente (acidentais): mesma causa nas mesmas comunidades em 90 dias.
+  const cause = current.motivo?.trim().toLowerCase();
+  if (currentType === 'acidental' && cause && day != null) {
+    const keys = new Set(communities.map((c) => c.key));
+    const same = others.filter((r) => typeOf(r) === 'acidental' && r.motivo?.trim().toLowerCase() === cause
+      && dayMs(r.data) != null && dayMs(r.data) < day && dayMs(r.data) >= day - WINDOW_LONG_DAYS * DAY
+      && r.comunidades?.some((x) => keys.has(x.key)));
+    if (same.length) {
+      alerts.push({
+        level: 'alta',
+        text: `Causa recorrente: "${current.motivo.trim()}" ${same.length + 1} vezes em ${WINDOW_LONG_DAYS} dias nestas comunidades.`
+          + `${/árvore|galho/i.test(current.motivo) ? ' Avaliar poda preventiva em um desligamento programado.' : ' Avaliar ação preventiva na rede.'}`,
+        refs: same.map(refOf),
+      });
+    }
+  }
+
   // Alimentador
   let feeder = null;
   const feederKey = current.alimentador?.trim().toUpperCase();
@@ -222,7 +242,10 @@ export function buildOutageRecord({
     data: form.date || null,
     inicio: form.start || null,
     termino: form.end || null,
-    duracaoH: durationHours(form.start, form.end),
+    dataFim: form.type === 'acidental' ? (form.endDate || form.date || null) : (form.date || null),
+    duracaoH: durationHours(form.start, form.end, form.date, form.type === 'acidental' ? form.endDate : null),
+    equipamento: form.type === 'acidental' ? (form.device?.trim() || null) : null,
+    observacoes: form.type === 'acidental' ? (form.notes?.trim() || null) : null,
     dataAviso: form.type === 'acidental' ? null : (form.noticeDate || null),
     antecedenciaDias: outageView?.noticeDaysBefore ?? null,
     comunidades,

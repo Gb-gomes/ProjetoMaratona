@@ -119,3 +119,26 @@ describe('buildOutageRecord acidental', () => {
     expect(r).toMatchObject({ tipo: 'acidental', dataAviso: null, antecedenciaDias: null, duracaoH: 2.5, status: 'registrado' });
   });
 });
+
+describe('aba acidental', () => {
+  it('duração atravessa a meia-noite com a data do restabelecimento', () => {
+    expect(durationHours('22:30', '01:00', '2026-11-05', '2026-11-06')).toBe(2.5);
+    expect(durationHours('22:30', '01:00', '2026-11-05', '2026-11-05')).toBeNull();
+  });
+  it('causa recorrente nas mesmas comunidades sugere ação preventiva', () => {
+    const hist = [rec('1', '2026-09-20', ['A'], { tipo: 'acidental', motivo: 'Queda de árvore ou galho' })];
+    const f = computeFacts(rec('a', '2026-11-05', ['A'], { tipo: 'acidental', motivo: 'Queda de árvore ou galho' }), hist);
+    const a = f.alerts.find((x) => /Causa recorrente/.test(x.text));
+    expect(a.level).toBe('alta');
+    expect(a.text).toMatch(/2 vezes em 90 dias.*poda preventiva/);
+    expect(a.refs[0].ordem).toBe('OS-1');
+  });
+  it('registro acidental guarda data de fim, equipamento e observações', () => {
+    const r = buildOutageRecord({
+      id: 'z', mode: 'real',
+      form: { type: 'acidental', orderId: 'OC-9', date: '2026-11-05', start: '22:00', endDate: '2026-11-06', end: '02:30', device: 'Religador R-12', notes: 'Chuva forte' },
+      outageView: {}, units: [], nameOf: () => '', keyOf: (u) => u.id,
+    });
+    expect(r).toMatchObject({ dataFim: '2026-11-06', duracaoH: 4.5, equipamento: 'Religador R-12', observacoes: 'Chuva forte' });
+  });
+});

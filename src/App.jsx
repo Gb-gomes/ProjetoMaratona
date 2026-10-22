@@ -8,6 +8,7 @@ import CsvUpload from './components/CsvUpload.jsx';
 import RealImportPanel from './components/RealImportPanel.jsx';
 import OutageInfo from './components/OutageInfo.jsx';
 import OutageForm from './components/OutageForm.jsx';
+import OutageTabs from './components/OutageTabs.jsx';
 import Timeline from './components/Timeline.jsx';
 import KpiCards, { KpiStrip } from './components/KpiCards.jsx';
 import MapView from './components/MapView.jsx';
@@ -68,6 +69,7 @@ const DEMO_FILE = {
   status: 'queued',
   validation: null,
 };
+const isRealMode = (m) => m === 'real';
 const EMPTY_NOTICE = { text: '', status: 'draft', dirty: false, stale: false };
 const DEFAULT_LAYERS = { points: true, territories: true, priority: true };
 const EMPTY_IMPORT = {
@@ -112,6 +114,10 @@ export default function App() {
   // Somente modo real (mantidos em memória; nunca em localStorage).
   const [imp, setImp] = useState(EMPTY_IMPORT);
   const [outageForm, setOutageForm] = useState(EMPTY_OUTAGE_FORM);
+  // Aba do modo real: programado | acidental. Cada aba guarda o próprio formulário.
+  const [workflow, setWorkflow] = useState('programado');
+  const formsByWorkflow = useRef({});
+  const accidentalTab = isRealMode(mode) && workflow === 'acidental';
   const [layerState, setLayerState] = useState({ status: 'idle', layer: null, errors: [], warnings: [], correspondence: {} });
   // Nomes de região definidos pelo operador (salvos neste navegador, com histórico).
   const [regionStore, setRegionStore] = useState(() => loadStore(PILOT_CONFIG.territory.ibgeCode));
@@ -656,11 +662,28 @@ export default function App() {
     setFile(DEMO_FILE);
     setImp(EMPTY_IMPORT);
     setOutageForm(EMPTY_OUTAGE_FORM);
+    setWorkflow('programado');
+    formsByWorkflow.current = {};
     setMode(next);
     setMobileTab('dados');
     notify('info', next === 'real'
       ? 'Modo Teste com Dados Reais: dados demonstrativos removidos da tela.'
       : 'Modo Demonstração: dados do teste real descartados da memória.');
+  };
+
+  /** Troca de aba (programado / acidental): o processamento atual é descartado; o formulário fica guardado. */
+  const handleWorkflowChange = (next) => {
+    if (next === workflow || phase === 'processing') return;
+    if (phase === 'done' && result?.units.length && !savedOutage) {
+      // eslint-disable-next-line no-alert
+      if (!window.confirm('O processamento atual ainda não foi registrado no histórico. Trocar de aba descarta o resultado. Continuar?')) return;
+    }
+    formsByWorkflow.current[workflow] = outageForm;
+    resetResults();
+    setImp(EMPTY_IMPORT);
+    setOutageForm(formsByWorkflow.current[next] ?? { ...EMPTY_OUTAGE_FORM, type: next });
+    setWorkflow(next);
+    setMobileTab('dados');
   };
 
   /* ---------------- Importação (demonstração) ---------------- */
@@ -1012,6 +1035,7 @@ export default function App() {
         identity={identity}
       />
 
+      {isReal && <OutageTabs value={workflow} onChange={handleWorkflowChange} disabled={phase === 'processing'} />}
       <main
         ref={mainRef}
         onScroll={(e) => { scrollByScreen.current[screenKeyRef.current] = e.currentTarget.scrollTop; }}
@@ -1042,6 +1066,8 @@ export default function App() {
               phase={phase}
               stepIndex={stepIndex}
               errorMessage={errorMessage}
+              title={accidentalTab ? 'Importação dos pontos afetados (acidental)' : 'Importação de pontos'}
+              accent={accidentalTab}
               onSelectFile={handleSelectRealFile}
               onMappingChange={handleMappingChange}
               onCrsChange={handleCrsChange}
@@ -1096,7 +1122,7 @@ export default function App() {
               />
             )
             : <OutageInfo outage={OUTAGE} />}
-          <Timeline outage={outage} phase={phase} noticeStatus={notice.status} mode={mode} priorityPending={priorityGate.blocked} />
+          {!accidentalTab && <Timeline outage={outage} phase={phase} noticeStatus={notice.status} mode={mode} priorityPending={priorityGate.blocked} />}
           </div>
         </aside>
 
@@ -1205,7 +1231,7 @@ export default function App() {
             />
           )}
           {/* Acidental não tem aviso prévio: sem carta para as rádios. */}
-          {!(isReal && outageForm.type === 'acidental') && (
+          {!accidentalTab && (
           <CommunicationPanel
             mode={mode}
             phase={phase}

@@ -31,7 +31,7 @@ function importStatus(imp) {
  * Tudo acontece no navegador; nada é enviado.
  */
 export default function RealImportPanel({
-  imp, layerState, phase, stepIndex, errorMessage,
+  imp, layerState, phase, stepIndex, errorMessage, title = 'Importação de pontos', accent = false,
   onSelectFile, onMappingChange, onCrsChange, onValidate, onProcess, onReset, onOpenAudit,
 }) {
   const inputRef = useRef(null);
@@ -64,8 +64,8 @@ export default function RealImportPanel({
     <section className="rounded-md border border-slate-200 bg-white shadow-panel" aria-labelledby="upload-title">
       <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3.5 py-2.5">
         <h2 id="upload-title" className="flex items-center gap-2 text-[13.5px] font-semibold text-petrol-900">
-          <FileSpreadsheet className="h-4 w-4 text-petrol-500" aria-hidden="true" />
-          Importação de pontos
+          <FileSpreadsheet className={`h-4 w-4 ${accent ? 'text-red-600' : 'text-petrol-500'}`} aria-hidden="true" />
+          {title}
         </h2>
         <StatusBadge tone="info">Dados reais</StatusBadge>
       </div>

@@ -274,7 +274,7 @@ function HistoryDialog({
                   <th className="px-3 py-1.5 font-medium">Horário</th>
                   <th className="px-3 py-1.5 font-medium">Ordem</th>
                   <th className="px-3 py-1.5 font-medium">Alimentador</th>
-                  <th className="px-3 py-1.5 font-medium">Motivo</th>
+                  <th className="px-3 py-1.5 font-medium">Motivo / causa</th>
                   <th className="px-3 py-1.5 font-medium">Comunidades</th>
                   <th className="px-3 py-1.5 text-right font-medium">Pontos</th>
                   <th className="px-3 py-1.5 text-right font-medium">Aviso</th>
@@ -292,13 +292,19 @@ function HistoryDialog({
                       <StatusBadge tone={typeOf(r) === 'acidental' ? 'danger' : 'info'}>{typeOf(r) === 'acidental' ? 'Acidental' : 'Programado'}</StatusBadge>
                     </td>
                     <td className="whitespace-nowrap px-3 py-1.5 tabular-nums">{dateBr(r.data)}</td>
-                    <td className="whitespace-nowrap px-3 py-1.5 tabular-nums">{r.inicio ?? '—'}–{r.termino ?? '—'}{r.duracaoH ? ` (${hours(r.duracaoH)})` : ''}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 tabular-nums">
+                      {r.inicio ?? '—'}–{r.dataFim && r.dataFim !== r.data ? `${dateBr(r.dataFim).slice(0, 5)} ` : ''}{r.termino ?? '—'}
+                      {r.duracaoH ? ` (${hours(r.duracaoH)})` : ''}
+                    </td>
                     <td className="whitespace-nowrap px-3 py-1.5 font-mono text-[12px]">
                       {r.ordem ?? '—'}
                       {r.id === currentId && <span className="ml-1 font-sans text-[11px] text-accent-700">(atual)</span>}
                     </td>
                     <td className="px-3 py-1.5">{r.alimentador ?? '—'}</td>
-                    <td className="max-w-[160px] px-3 py-1.5">{r.motivo ?? '—'}</td>
+                    <td className="max-w-[180px] px-3 py-1.5">
+                      {r.motivo ?? '—'}
+                      {r.equipamento && <span className="block text-[11px] text-slate-500">{r.equipamento}</span>}
+                    </td>
                     <td className="max-w-[260px] px-3 py-1.5 text-slate-700">{r.comunidades.map((c) => c.nome).join(', ')}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{r.totalPontos}</td>
                     <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums">{r.antecedenciaDias != null ? `${r.antecedenciaDias}d` : '—'}</td>

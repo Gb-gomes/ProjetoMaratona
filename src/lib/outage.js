@@ -6,13 +6,29 @@
  * do aviso quando são necessários ao texto (data e horários).
  */
 
+import { durationHours } from './outageFacts.js';
+
+/** Causas de desligamento acidental (lista fechada, para a análise por causa). */
+export const ACCIDENT_CAUSES = [
+  'Descarga atmosférica',
+  'Queda de árvore ou galho',
+  'Vento ou temporal',
+  'Falha de equipamento',
+  'Abalroamento (veículo)',
+  'Animal na rede',
+  'Vandalismo ou furto',
+  'Sobrecarga',
+  'Causa desconhecida',
+  'Outra',
+];
+
 export const OUTAGE_TYPES = [
   { value: 'programado', label: 'Programado' },
   { value: 'acidental', label: 'Acidental' },
 ];
 
 export const EMPTY_OUTAGE_FORM = {
-  type: 'programado', orderId: '', feeder: '', reason: '', date: '', start: '', end: '', noticeDate: '', audience: '',
+  type: 'programado', device: '', endDate: '', notes: '', orderId: '', feeder: '', reason: '', date: '', start: '', end: '', noticeDate: '', audience: '',
 };
 
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto',
@@ -53,7 +69,15 @@ export function buildOutageView(form, { defaultAudience = null } = {}) {
   const start = timeLabel(form.start);
   const end = timeLabel(form.end);
   const problems = [];
-  if (form.start && form.end && form.start >= form.end) problems.push('O horário final deve ser posterior ao inicial.');
+  if (accidental) {
+    // A falta pode passar da meia-noite: o restabelecimento tem data própria.
+    const sameDay = !form.endDate || form.endDate === form.date;
+    if (form.endDate && form.date && form.endDate < form.date) problems.push('A data do restabelecimento é anterior à data da falta.');
+    else if (sameDay && form.start && form.end && form.start >= form.end) {
+      problems.push('O restabelecimento deve ser posterior ao início. Se passou da meia-noite, informe a data do restabelecimento.');
+    }
+  } else if (form.start && form.end && form.start >= form.end) problems.push('O horário final deve ser posterior ao inicial.');
+  const duration = durationHours(form.start, form.end, form.date, accidental ? form.endDate : null);
   let noticeDaysBefore = null;
   if (date && notice) {
     noticeDaysBefore = Math.round((date - notice) / 86400000);
@@ -76,6 +100,7 @@ export function buildOutageView(form, { defaultAudience = null } = {}) {
     letterEnd: timeLetter(form.end),
     audience: (form.audience?.trim() || defaultAudience || '').toUpperCase() || null,
     noticeDaysBefore,
+    durationLabel: duration ? `${String(duration).replace('.', ',')}h` : null,
     planningDaysBefore: null,
     hasDate: !!date,
     hasTimes: !!start && !!end,
