@@ -175,11 +175,93 @@ export function suggestMapping(headers) {
   const used = new Set();
   const mapping = {};
   MAPPABLE_FIELDS.forEach(({ key }) => {
-    const idx = norm.findIndex((h, i) => !used.has(i) && SUGGESTIONS[key].includes(h));
+    // Na ordem das sugestões: "lat" ganha de "coord_y" mesmo que COORD_Y venha antes na planilha.
+    let idx = -1;
+    SUGGESTIONS[key].some((name) => {
+      idx = norm.findIndex((h, i) => !used.has(i) && h === name);
+      return idx >= 0;
+    });
     mapping[key] = idx >= 0 ? idx : null;
     if (idx >= 0) used.add(idx);
   });
   return mapping;
+}
+
+/* ------------------------------------------------------------------ */
+/* Detecção das coordenadas pelos valores                              */
+/* ------------------------------------------------------------------ */
+
+/** Colunas X e Y da planilha (letras do Excel): latitude e longitude no modelo da Energisa. */
+export const TEMPLATE_LAT_COLUMN = 23; // X
+export const TEMPLATE_LNG_COLUMN = 24; // Y
+
+/** Letra da coluna da planilha ("X", "AB") a partir do índice (0 = A). */
+export function columnLetter(idx) {
+  let n = idx + 1;
+  let s = '';
+  while (n > 0) {
+    const r = (n - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+/** Fração dos valores preenchidos da coluna que são graus decimais dentro do intervalo. */
+function degreeShare(rows, idx, min, max, sample = 300) {
+  if (idx == null || idx < 0) return 0;
+  let filledCount = 0;
+  let ok = 0;
+  for (const row of rows.slice(0, sample)) {
+    const raw = (row[idx] ?? '').trim();
+    if (!raw) continue;
+    filledCount += 1;
+    const n = parseDecimal(raw);
+    // Graus decimais têm casas decimais; UTM (metros) fica fora do intervalo.
+    if (Number.isFinite(n) && n >= min && n <= max && /[.,]\d/.test(raw)) ok += 1;
+  }
+  return filledCount ? ok / filledCount : 0;
+}
+
+const latShare = (rows, idx) => degreeShare(rows, idx, -34, 5.5);
+const lngShare = (rows, idx) => degreeShare(rows, idx, -74.1, -28.6);
+
+/**
+ * Mapeamento sugerido conferido pelos valores. Latitude e longitude só ficam
+ * numa coluna que tenha graus decimais do Brasil; ordem de tentativa:
+ *  1. o que os cabeçalhos sugerem (LAT, LONG, latitude…);
+ *  2. as colunas X (latitude) e Y (longitude) do modelo da planilha;
+ *  3. a primeira coluna com cara de latitude e a primeira com cara de longitude.
+ * @returns {{ mapping: Record<string, number|null>, coordSource: 'cabecalho'|'colunas_xy'|'valores'|null }}
+ */
+export function suggestMappingFromData(headers, rows) {
+  const mapping = suggestMapping(headers);
+  const good = (lat, lng) => lat != null && lng != null && lat !== lng && latShare(rows, lat) >= 0.8 && lngShare(rows, lng) >= 0.8;
+  if (good(mapping.lat, mapping.lng)) return { mapping, coordSource: 'cabecalho' };
+
+  const take = (lat, lng, coordSource) => {
+    const next = { ...mapping };
+    // A coluna escolhida sai de outro campo que a tivesse pegado.
+    Object.keys(next).forEach((k) => { if (k !== 'lat' && k !== 'lng' && (next[k] === lat || next[k] === lng)) next[k] = null; });
+    return { mapping: { ...next, lat, lng }, coordSource };
+  };
+  if (headers.length > TEMPLATE_LNG_COLUMN && good(TEMPLATE_LAT_COLUMN, TEMPLATE_LNG_COLUMN)) {
+    return take(TEMPLATE_LAT_COLUMN, TEMPLATE_LNG_COLUMN, 'colunas_xy');
+  }
+  const cols = headers.map((_, i) => i);
+  const lat = cols.find((i) => latShare(rows, i) >= 0.8 && lngShare(rows, i) < 0.8);
+  const lng = cols.find((i) => i !== lat && lngShare(rows, i) >= 0.8);
+  if (lat != null && lng != null) return take(lat, lng, 'valores');
+  return { mapping, coordSource: null };
+}
+
+/**
+ * Referencial sugerido: com latitude e longitude em graus decimais do Brasil,
+ * SIRGAS 2000 (EPSG:4674, padrão das bases brasileiras). O operador pode trocar.
+ */
+export function suggestCrs(rows, mapping) {
+  if (mapping?.lat == null || mapping?.lng == null) return '';
+  return latShare(rows, mapping.lat) >= 0.8 && lngShare(rows, mapping.lng) >= 0.8 ? 'EPSG:4674' : '';
 }
 
 /* ------------------------------------------------------------------ */
@@ -325,7 +407,9 @@ export function validateRecords(parsed, mapping) {
         }
       }
       if (!issues.some((x) => x.code === 'duplicate-id')) {
-        const rowKey = [lat, lng, fields.id, fields.client, fields.equipment, fields.property].join('|');
+        // Linha inteira (todas as colunas): unidades consumidoras diferentes no mesmo ponto e
+        // transformador (NUMCDC, nome) não são "repetidas"; só a cópia exata da linha é.
+        const rowKey = row.map((c) => String(c ?? '').trim()).join('\u0001');
         const coordKey = `${lat}|${lng}`;
         if (seenRows.has(rowKey)) {
           err('duplicate-row', `Registro repetido (idêntico à linha ${seenRows.get(rowKey)}).`);

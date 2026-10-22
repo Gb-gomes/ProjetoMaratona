@@ -2,8 +2,11 @@ import { useRef, useState } from 'react';
 import {
   FileSpreadsheet, Upload, LoaderCircle, CircleCheck, CircleAlert, Info, RotateCcw, Play, ShieldCheck, ListChecks, TriangleAlert,
 } from 'lucide-react';
+import { ACCEPT_ATTR } from '../lib/spreadsheet.js';
 import StatusBadge from './StatusBadge.jsx';
-import { MAPPABLE_FIELDS, CRS_OPTIONS, isProcessableCrs } from '../lib/csv.js';
+import {
+  MAPPABLE_FIELDS, CRS_OPTIONS, isProcessableCrs, columnLetter,
+} from '../lib/csv.js';
 import { REAL_PROCESSING_STEPS } from '../config.js';
 
 const DELIMITER_LABEL = { ',': 'vírgula', ';': 'ponto e vírgula', '\t': 'tabulação' };
@@ -31,7 +34,7 @@ function importStatus(imp) {
  * Tudo acontece no navegador; nada é enviado.
  */
 export default function RealImportPanel({
-  imp, layerState, phase, stepIndex, errorMessage, title = 'Importação de pontos', accent = false,
+  imp, placesReady = true, phase, stepIndex, errorMessage, title = 'Importação de pontos', accent = false,
   onSelectFile, onMappingChange, onCrsChange, onValidate, onProcess, onReset, onOpenAudit,
 }) {
   const inputRef = useRef(null);
@@ -44,10 +47,10 @@ export default function RealImportPanel({
   const parsed = imp.parsed;
   const v = imp.validation;
 
-  const layerReady = layerState.status === 'loaded';
+  const layerReady = placesReady;
   const crsOk = isProcessableCrs(imp.crs);
   const blockers = [
-    !layerReady && 'camada territorial oficial carregada',
+    !layerReady && 'comunidades dos municípios carregadas (aguarde o aviso de carregamento)',
     !crsOk && 'referencial das coordenadas declarado (graus decimais WGS84 ou SIRGAS 2000)',
     !(v?.ok) && 'arquivo validado com ao menos um registro válido',
   ].filter(Boolean);
@@ -85,8 +88,8 @@ export default function RealImportPanel({
             } ${processing ? 'opacity-60' : ''}`}
           >
             <Upload className="mx-auto h-5 w-5 text-petrol-400" aria-hidden="true" />
-            <p className="mt-1 text-[12.5px] text-slate-600 max-lg:hidden">Arraste o CSV da engenharia ou clique para procurar</p>
-            <p className="mt-1 text-[14px] text-slate-600 lg:hidden">Escolha o arquivo CSV da engenharia</p>
+            <p className="mt-1 text-[12.5px] text-slate-600 max-lg:hidden">Arraste a planilha (CSV ou Excel) ou clique para procurar</p>
+            <p className="mt-1 text-[14px] text-slate-600 lg:hidden">Escolha a planilha (CSV ou Excel)</p>
             <button
               type="button"
               disabled={processing}
@@ -94,14 +97,14 @@ export default function RealImportPanel({
               className="mt-2 rounded border border-petrol-200 bg-white px-3 py-1 text-[12.5px] font-medium text-petrol-700 hover:border-petrol-400 disabled:cursor-not-allowed max-lg:min-h-12 max-lg:w-full max-lg:text-[15px]"
             >
               <span className="max-lg:hidden">Selecionar arquivo</span>
-              <span className="lg:hidden">Escolher arquivo CSV</span>
+              <span className="lg:hidden">Escolher planilha</span>
             </button>
             <input
               ref={inputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept={ACCEPT_ATTR}
               className="sr-only"
-              aria-label="Selecionar arquivo CSV"
+              aria-label="Selecionar planilha CSV ou Excel"
               onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }}
             />
             <p className="mt-1.5 flex items-center justify-center gap-1 text-[11px] text-slate-500">
@@ -167,7 +170,7 @@ export default function RealImportPanel({
                   className="min-w-0 rounded border border-slate-300 bg-white px-1.5 py-1 text-[12px] text-petrol-900 max-lg:min-h-11"
                 >
                   <option value="">{f.required ? 'Selecione…' : 'Não disponível'}</option>
-                  {parsed.headers.map((h, i) => <option key={i} value={i}>{h || `(coluna ${i + 1})`}</option>)}
+                  {parsed.headers.map((h, i) => <option key={i} value={i}>{`${columnLetter(i)} · ${h || `(coluna ${i + 1})`}`}</option>)}
                 </select>
               </label>
             ))}
@@ -188,8 +191,16 @@ export default function RealImportPanel({
                 são convertidas nesta versão e não podem ser processadas.
               </p>
             )}
+            {imp.coordSource && (
+              <p className="flex gap-1.5 rounded bg-emerald-50 px-2 py-1.5 text-[11px] leading-snug text-emerald-900">
+                <CircleCheck className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+                Coordenadas identificadas: latitude na coluna {columnLetter(imp.mapping.lat)} ({parsed.headers[imp.mapping.lat]}) e
+                longitude na coluna {columnLetter(imp.mapping.lng)} ({parsed.headers[imp.mapping.lng]}), em graus decimais
+                {imp.coordSource === 'colunas_xy' ? ', pelas colunas X e Y do modelo' : ''}.
+              </p>
+            )}
             <p className="text-[11px] leading-snug text-slate-500">
-              A sugestão automática usa só os nomes dos cabeçalhos. Confira antes de validar.
+              A sugestão automática usa os cabeçalhos e confere os valores (graus decimais do Brasil). Confira antes de validar.
             </p>
             <button
               type="button"

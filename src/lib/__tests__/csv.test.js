@@ -105,6 +105,11 @@ describe('validateRecords', () => {
     const noId = validate('latitude;longitude\n-13,7;-56,2\n-13,7;-56,2\n');
     expect(issueCodes(noId.records[1])).toContain('duplicate-row');
     expect(noId.valid).toBe(1);
+
+    // Unidades consumidoras diferentes no mesmo ponto (coluna não mapeada muda): alerta, não descarte.
+    const sameSpot = validate('latitude;longitude;numcdc\n-13,7;-56,2;111\n-13,7;-56,2;222\n');
+    expect(sameSpot.valid).toBe(2);
+    expect(issueCodes(sameSpot.records[1])).toContain('duplicate-coord');
   });
 
   it('respeita o mapeamento manual de colunas com nomes não convencionais', () => {

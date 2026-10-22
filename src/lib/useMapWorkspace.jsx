@@ -150,6 +150,7 @@ export function useMapWorkspace({
   // Cada município só uma vez (settings.communitiesAutoImported): o que o operador excluir
   // depois não volta sozinho. A importação manual continua disponível.
   const autoImportRan = useRef(false);
+  const [autoImporting, setAutoImporting] = useState(false);
   useEffect(() => {
     if (!enabled || autoImportRan.current || regionsHook.status !== 'ready' || !hierarchy || !manifest) return;
     autoImportRan.current = true;
@@ -158,6 +159,7 @@ export function useMapWorkspace({
     const pending = (manifest.arquivos ?? []).filter((f) => !present.has(f.codIbgeMun) && !stamped[f.codIbgeMun]
       && hierarchy.byCode.get(f.codIbgeMun)?.level === 'municipio');
     if (!pending.length) return;
+    setAutoImporting(true);
     (async () => {
       // A área da Energisa tem dezenas de municípios (~30 s de processamento): avisa e cede a vez à tela entre eles.
       if (pending.length > 3) notify('info', `Carregando as microrregiões de ${pending.length} municípios. O mapa continua utilizável.`);
@@ -203,7 +205,7 @@ export function useMapWorkspace({
         ? `${done.reduce((s, d) => s + d.created, 0)} comunidades em ${done.length} municípios`
         : done.map((d) => d.label).join(', ');
       notify('info', `Microrregiões do projeto carregadas: ${which}. Relatório em Sub-regiões › Comunidades.`);
-    })();
+    })().finally(() => setAutoImporting(false));
   }, [enabled, regionsHook, hierarchy, manifest, rules, notify]);
 
   const registry = useLayerRegistry({ orgId: ORGANIZATION.id, enabled, onError: (m) => notify('error', m) });
@@ -1420,6 +1422,8 @@ export function useMapWorkspace({
       </div>
     ) : null,
     locator,
+    // Pronto para cruzar pontos: malha de lugares montada e comunidades do projeto já carregadas.
+    placesReady: !!locator && regionsHook.status === 'ready' && !autoImporting,
     communitiesVisible: visibleCommunityMuns.length > 0,
     dialogs,
     editing: !!editor,

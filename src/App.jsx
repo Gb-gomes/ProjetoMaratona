@@ -27,7 +27,8 @@ import {
   TERRITORIAL_LAYER, PROCESSING_STEPS, PROCESSING_DURATION_MS, PILOT_CONFIG, PILOT_STATUS_LABEL, ANNOUNCEMENT_RULES, PRIORITY_MATCH,
 } from './config.js';
 import { mockSpatialJoin } from './lib/mockSpatialJoin.js';
-import { spatialJoin } from './lib/spatialJoin.js';
+import { placeJoin } from './lib/placeJoin.js';
+import { readPointsFile } from './lib/spreadsheet.js';
 import { loadLayer, loadNameCorrespondence } from './lib/layer.js';
 import {
   buildTraditionalNotice, buildTraditionalFromNames, buildRadioLetterFromLines, hasPlaceholders, resolveSpeakableName,
@@ -38,7 +39,7 @@ import {
   loadStore, saveStore, loadOperator, saveOperator,
 } from './lib/regionNames.js';
 import {
-  parseCsv, validateCoordinates, readFileAsText, readFileWithEncoding, suggestMapping, validateRecords, isProcessableCrs,
+  parseCsv, validateCoordinates, readFileAsText, validateRecords, isProcessableCrs, suggestMappingFromData, suggestCrs,
 } from './lib/csv.js';
 import { buildOutageView, EMPTY_OUTAGE_FORM } from './lib/outage.js';
 import {
@@ -73,7 +74,7 @@ const isRealMode = (m) => m === 'real';
 const EMPTY_NOTICE = { text: '', status: 'draft', dirty: false, stale: false };
 const DEFAULT_LAYERS = { points: true, territories: true, priority: true };
 const EMPTY_IMPORT = {
-  status: 'empty', fileName: '', encoding: '', parsed: null, mapping: {}, crs: '', validation: null, error: '',
+  status: 'empty', fileName: '', encoding: '', parsed: null, mapping: {}, crs: '', validation: null, error: '', coordSource: null,
 };
 
 /** Metadados exibidos da camada no modo real. */
@@ -720,29 +721,40 @@ export default function App() {
 
   /* ---------------- Importação (dados reais) ---------------- */
   const handleSelectRealFile = async (selected) => {
-    if (!/\.csv$/i.test(selected.name) && selected.type !== 'text/csv') {
-      notify('error', 'Formato não suportado. Selecione um arquivo .csv.');
+    if (!/\.(csv|txt|tsv|xlsx|xlsm|xls|ods)$/i.test(selected.name) && selected.type !== 'text/csv') {
+      notify('error', 'Formato não suportado. Selecione uma planilha CSV ou Excel (.xlsx).');
       return;
     }
     resetResults();
     setImp({ ...EMPTY_IMPORT, status: 'reading', fileName: selected.name });
     try {
-      const { text, encoding } = await readFileWithEncoding(selected);
-      const parsed = parseCsv(text);
-      if (!parsed.headers.length) throw new Error('O arquivo está vazio ou não pôde ser interpretado como CSV.');
-      if (parsed.headers.length < 2) {
-        throw new Error('Foi encontrada apenas uma coluna. Confira se o separador é vírgula, ponto e vírgula ou tabulação.');
+      // CSV ou Excel (.xlsx): a aba usada é a que tem mais colunas reconhecidas.
+      const book = await readPointsFile(selected);
+      const { table, name: sheetName } = book.sheets[book.sheetIndex];
+      if (!table.headers.length) throw new Error('O arquivo está vazio ou não pôde ser interpretado como tabela.');
+      if (table.headers.length < 2) {
+        throw new Error(book.format === 'csv'
+          ? 'Foi encontrada apenas uma coluna. Confira se o separador é vírgula, ponto e vírgula ou tabulação.'
+          : 'A aba escolhida tem apenas uma coluna.');
       }
+      // Latitude e longitude: cabeçalho (LAT/LONG), colunas X e Y do modelo ou valores em graus decimais.
+      const { mapping, coordSource } = suggestMappingFromData(table.headers, table.rows);
+      const crs = suggestCrs(table.rows, mapping);
       setImp({
         ...EMPTY_IMPORT,
         status: 'parsed',
         fileName: selected.name,
-        encoding,
+        encoding: book.encoding,
         // O conteúdo completo fica só em memória, para validação e processamento.
-        parsed: { ...parsed, rowCount: parsed.rows.length, preview: parsed.rows.slice(0, 5) },
-        mapping: suggestMapping(parsed.headers),
+        parsed: { ...table, rowCount: table.rows.length, preview: table.rows.slice(0, 5) },
+        mapping,
+        crs,
+        coordSource,
       });
-      notify('info', `${parsed.rows.length} registro(s) lido(s). Confira o mapeamento e o referencial e clique em Validar.`);
+      const where = book.sheets.length > 1 ? ` da aba "${sheetName}"` : '';
+      notify('info', coordSource
+        ? `${table.rows.length} registro(s) lido(s)${where}. Latitude e longitude identificadas${crs ? ' (graus decimais, SIRGAS 2000)' : ''}: confira e clique em Validar.`
+        : `${table.rows.length} registro(s) lido(s)${where}. Indique as colunas de latitude e longitude e o referencial, e clique em Validar.`);
     } catch (err) {
       setImp({ ...EMPTY_IMPORT, status: 'error', fileName: selected.name, error: err.message });
       notify('error', err.message);
@@ -753,7 +765,10 @@ export default function App() {
     if (phase === 'done' || phase === 'error') resetResults();
     setImp((s) => ({ ...s, ...patch, status: s.status === 'validated' ? 'parsed' : s.status, validation: null }));
   };
-  const handleMappingChange = (key, idx) => invalidateValidation({ mapping: { ...imp.mapping, [key]: idx } });
+  const handleMappingChange = (key, idx) => invalidateValidation({
+    mapping: { ...imp.mapping, [key]: idx },
+    ...(key === 'lat' || key === 'lng' ? { coordSource: null } : {}),
+  });
   const handleCrsChange = (crs) => setImp((s) => ({ ...s, crs }));
 
   const handleValidate = () => {
@@ -794,7 +809,12 @@ export default function App() {
       setStepIndex(1);
       timers.current.push(setTimeout(() => {
         try {
-          const joined = spatialJoin(imp.validation, layerState.layer, { mapping: imp.mapping });
+          // Cruzamento pela malha de lugares (município → comunidade) dos 67 municípios; setores só como detalhe.
+          const joined = placeJoin(imp.validation, {
+            locator: ws.locator,
+            sectorLayer: layerState.status === 'loaded' ? layerState.layer : null,
+            mapping: imp.mapping,
+          });
           setStepIndex(2);
           if (!joined.checks.unitSumEqualsMatched || !joined.checks.statusSumEqualsValid) {
             throw new Error('Verificação de consistência falhou: as contagens não fecham. Resultado descartado.');
@@ -857,7 +877,7 @@ export default function App() {
       return;
     }
     if (isReal) {
-      if (layerState.status !== 'loaded') { notify('error', 'A camada territorial oficial não está carregada.'); return; }
+      if (!ws.placesReady) { notify('error', 'Aguarde as comunidades dos municípios terminarem de carregar.'); return; }
       if (!isProcessableCrs(imp.crs)) { notify('error', 'Declare o referencial das coordenadas antes de processar.'); return; }
       if (!imp.validation?.ok) { notify('error', 'Valide o arquivo antes de processar.'); return; }
     }
@@ -1067,6 +1087,7 @@ export default function App() {
               stepIndex={stepIndex}
               errorMessage={errorMessage}
               title={accidentalTab ? 'Importação dos pontos afetados (acidental)' : 'Importação de pontos'}
+              placesReady={ws.placesReady}
               accent={accidentalTab}
               onSelectFile={handleSelectRealFile}
               onMappingChange={handleMappingChange}
