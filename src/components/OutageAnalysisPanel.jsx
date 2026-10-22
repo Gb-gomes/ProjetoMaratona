@@ -2,13 +2,14 @@ import {
   useEffect, useMemo, useRef, useState,
 } from 'react';
 import {
-  History, Sparkles, TriangleAlert, CircleAlert, Info, Save, CircleCheck, Download, Trash2, X,
+  History, Sparkles, TriangleAlert, CircleAlert, Info, Save, CircleCheck, Download, Trash2, X, BarChart3,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
 import {
   WINDOW_RECENT_DAYS, WINDOW_LONG_DAYS, SCOPES, computeFacts, typeOf,
 } from '../lib/outageFacts.js';
 import { historyToCsv } from '../lib/outageHistory.js';
+import { buildReport, reportToCsv, PERIODS } from '../lib/outageReport.js';
 
 const LEVEL = {
   alta: { label: 'Atenção alta', tone: 'danger', icon: TriangleAlert, row: 'border-red-200 bg-red-50 text-red-900' },
@@ -77,8 +78,16 @@ export default function OutageAnalysisPanel({
         <AiTag />
         <button
           type="button"
-          onClick={() => setDialog({ highlight: null })}
+          onClick={() => setDialog({ view: 'relatorio', highlight: null })}
           className="ml-auto inline-flex items-center gap-1.5 rounded border border-slate-300 px-2 py-1 text-[12px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11"
+        >
+          <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" />
+          Relatório
+        </button>
+        <button
+          type="button"
+          onClick={() => setDialog({ view: 'registros', highlight: null })}
+          className="inline-flex items-center gap-1.5 rounded border border-slate-300 px-2 py-1 text-[12px] font-medium text-petrol-800 hover:bg-slate-50 max-lg:min-h-11"
         >
           <History className="h-3.5 w-3.5" aria-hidden="true" />
           Histórico ({history.length})
@@ -117,7 +126,7 @@ export default function OutageAnalysisPanel({
                             <button
                               key={r.id}
                               type="button"
-                              onClick={() => setDialog({ highlight: r.id })}
+                              onClick={() => setDialog({ view: 'registros', highlight: r.id })}
                               className={`rounded px-1.5 py-0.5 font-mono text-[11px] ring-1 ring-inset hover:brightness-95 ${TYPE_CHIP[r.tipo]}`}
                               title={`Desligamento ${r.tipo}. Abrir no histórico`}
                             >
@@ -202,6 +211,7 @@ export default function OutageAnalysisPanel({
           scope={scope}
           onScopeChange={setScope}
           highlight={dialog.highlight}
+          initialView={dialog.view}
           currentId={currentId}
           onRemove={onRemove}
           onClose={() => setDialog(null)}
@@ -211,9 +221,25 @@ export default function OutageAnalysisPanel({
   );
 }
 
+const download = (text, name) => {
+  const blob = new Blob([`\ufeff${text}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const SCOPE_LABEL = { todos: 'Todos (programado + acidental)', programado: 'Programado', acidental: 'Acidental' };
+
 function HistoryDialog({
-  records: allRecords, scope, onScopeChange, highlight, currentId, onRemove, onClose,
+  records: allRecords, scope, onScopeChange, highlight, initialView = 'registros', currentId, onRemove, onClose,
 }) {
+  const [view, setView] = useState(initialView);
+  const [period, setPeriod] = useState('all');
+  const report = useMemo(() => buildReport(allRecords, { scope, period }), [allRecords, scope, period]);
+  const periodLabel = PERIODS.find((p) => p.value === period)?.label;
   const counts = {
     todos: allRecords.length,
     programado: allRecords.filter((r) => typeOf(r) === 'programado').length,
@@ -229,28 +255,46 @@ function HistoryDialog({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const exportCsv = () => {
-    const blob = new Blob([`﻿${historyToCsv(records)}`], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `historico_desligamentos_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const stamp = new Date().toISOString().slice(0, 10);
+  const exportCsv = () => (view === 'relatorio'
+    ? download(reportToCsv(report, { scopeLabel: SCOPE_LABEL[scope], periodLabel }), `relatorio_desligamentos_${scope}_${stamp}.csv`)
+    : download(historyToCsv(records), `historico_desligamentos_${scope}_${stamp}.csv`));
 
   return (
     <div className="fixed inset-0 z-[2000] grid place-items-center bg-black/50 p-3 max-lg:p-0" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div role="dialog" aria-modal="true" aria-labelledby="history-title" className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-md bg-white shadow-xl max-lg:h-[100dvh] max-lg:max-h-none max-lg:rounded-none">
         <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2.5">
           <History className="h-4 w-4 text-petrol-500" aria-hidden="true" />
-          <h2 id="history-title" className="text-[14px] font-semibold text-petrol-900">Histórico de desligamentos</h2>
-          <span className="text-[12px] text-slate-500 max-lg:hidden">salvos neste navegador</span>
+          <h2 id="history-title" className="text-[14px] font-semibold text-petrol-900">Desligamentos</h2>
+          <div role="tablist" aria-label="Visão" className="inline-flex rounded border border-slate-300 p-0.5 text-[12px] font-medium">
+            {[['registros', 'Registros'], ['relatorio', 'Relatório']].map(([v, l]) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => setView(v)}
+                className={`rounded px-2 py-0.5 ${view === v ? 'bg-accent-500 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
           <ScopeTabs scope={scope} onChange={onScopeChange} counts={counts} />
+          {view === 'relatorio' && (
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              aria-label="Período do relatório"
+              className="rounded border border-slate-300 px-1.5 py-1 text-[12px] text-petrol-900"
+            >
+              {PERIODS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          )}
           <button
             type="button"
             onClick={exportCsv}
-            disabled={!records.length}
+            disabled={view === 'relatorio' ? !report.summary.total : !records.length}
             className="ml-auto inline-flex items-center gap-1.5 rounded border border-slate-300 px-2 py-1 text-[12px] font-medium text-petrol-800 hover:bg-slate-50 disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5" aria-hidden="true" />
@@ -261,7 +305,7 @@ function HistoryDialog({
           </button>
         </div>
         <div className="overflow-auto">
-          {records.length === 0 ? (
+          {view === 'relatorio' ? <ReportView report={report} scope={scope} periodLabel={periodLabel} /> : records.length === 0 ? (
             <p className="px-4 py-6 text-center text-[13px] text-slate-500">
               Nenhum desligamento neste filtro. Eles entram aqui ao aprovar a carta ou ao usar &quot;Registrar no histórico&quot;.
             </p>
@@ -327,6 +371,80 @@ function HistoryDialog({
             </table>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, tone = 'text-petrol-900' }) {
+  return (
+    <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
+      <p className={`text-[20px] font-semibold leading-tight tabular-nums ${tone}`}>{value}</p>
+      <p className="text-[11.5px] text-slate-500">{label}</p>
+    </div>
+  );
+}
+
+function ReportTable({ title, first, rows, scope }) {
+  const both = scope === 'todos';
+  return (
+    <div className="min-w-0">
+      <h3 className="mb-1 text-[12.5px] font-semibold text-petrol-900">{title}</h3>
+      <div className="max-h-[260px] overflow-auto rounded border border-slate-200">
+        <table className="w-full text-left text-[12px]">
+          <thead className="sticky top-0 bg-slate-50 text-slate-500">
+            <tr>
+              <th className="px-2 py-1 font-medium">{first}</th>
+              <th className="px-2 py-1 text-right font-medium">Total</th>
+              {both && <th className="px-2 py-1 text-right font-medium">Prog.</th>}
+              {both && <th className="px-2 py-1 text-right font-medium">Acid.</th>}
+              <th className="px-2 py-1 text-right font-medium">Horas</th>
+              <th className="px-2 py-1 text-right font-medium">Pontos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((g) => (
+              <tr key={g.key} className="border-t border-slate-100">
+                <td className="max-w-[200px] truncate px-2 py-1 text-petrol-900" title={g.label}>{g.label}</td>
+                <td className="px-2 py-1 text-right font-semibold tabular-nums">{g.total}</td>
+                {both && <td className="px-2 py-1 text-right tabular-nums text-slate-600">{g.programado}</td>}
+                {both && <td className={`px-2 py-1 text-right tabular-nums ${g.acidental ? 'text-red-700' : 'text-slate-400'}`}>{g.acidental}</td>}
+                <td className="px-2 py-1 text-right tabular-nums text-slate-700">{hours(g.horas)}</td>
+                <td className="px-2 py-1 text-right tabular-nums text-slate-700">{g.pontos}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/** Relatório do histórico: visão geral (programado + acidental) ou de um tipo, por período. */
+function ReportView({ report, scope, periodLabel }) {
+  const s = report.summary;
+  if (!s.total) {
+    return <p className="px-4 py-6 text-center text-[13px] text-slate-500">Nenhum desligamento neste recorte ({periodLabel.toLowerCase()}).</p>;
+  }
+  return (
+    <div className="space-y-4 p-4">
+      <p className="text-[12px] text-slate-500">
+        {SCOPE_LABEL[scope]} · {periodLabel}. Base para o relatório por IA: os números abaixo são calculados pelo sistema.
+      </p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="Desligamentos" value={s.total} />
+        <Stat label="Programados" value={s.programado} />
+        <Stat label="Acidentais" value={s.acidental} tone={s.acidental ? 'text-red-700' : 'text-petrol-900'} />
+        <Stat label="Horas sem energia" value={hours(s.horas)} />
+        <Stat label="Comunidades afetadas" value={s.comunidades} />
+        <Stat label="Pontos afetados (soma)" value={s.pontos} />
+        <Stat label="Duração média" value={s.duracaoMedia ? hours(s.duracaoMedia) : '—'} />
+        <Stat label="Antecedência média (programados)" value={s.antecedenciaMedia != null ? `${String(s.antecedenciaMedia).replace('.', ',')} dias` : '—'} />
+      </div>
+      <ReportTable title="Comunidades mais afetadas" first="Comunidade" rows={report.communities} scope={scope} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ReportTable title="Por alimentador" first="Alimentador" rows={report.feeders} scope={scope} />
+        <ReportTable title="Por motivo / causa" first="Motivo / causa" rows={report.reasons} scope={scope} />
       </div>
     </div>
   );
