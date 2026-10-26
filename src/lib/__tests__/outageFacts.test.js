@@ -111,6 +111,8 @@ describe('buildOutageRecord', () => {
       { key: '3138401-TRES', nome: '3138401-TRES', distrito: null, municipio: null, pontos: 3 },
     ]);
     expect(communityLabel(r.comunidades[0])).toBe('Palmeiras (distrito de Ribeiro Junqueira)');
+    expect(communityLabel({ nome: 'Palmeiras', distrito: 'Leopoldina, Ribeiro Junqueira' })).toBe('Palmeiras (distritos de Leopoldina e Ribeiro Junqueira)');
+    expect(communityLabel({ nome: 'Área urbana de Leopoldina', distrito: 'Leopoldina' })).toBe('Área urbana de Leopoldina');
   });
 });
 

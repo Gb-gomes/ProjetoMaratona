@@ -27,9 +27,8 @@ const byName = (a, b) => (a ?? '').localeCompare(b ?? '', 'pt-BR');
 const uniq = (list) => [...new Set(list.filter(Boolean))];
 
 /**
- * Nome para a carta e para o registro: comunidade + distrito ("Palmeiras (distrito de
- * Ribeiro Junqueira)"). Comunidades com o mesmo nome, ou uma comunidade que atravessa a
- * divisa entre distritos, ficam distintas para quem ouve o aviso.
+ * "distrito de Leopoldina" / "distritos de Leopoldina e Ribeiro Junqueira": distritos
+ * onde estão os pontos afetados de uma região (a carta agrupa as áreas por distrito).
  */
 export function districtPhrase(distritos) {
   const names = (distritos ?? []).map((d) => d.nome).filter(Boolean);
@@ -44,12 +43,12 @@ export const withDistrict = (nome, distritos) => {
 
 /**
  * Chave de agrupamento de um ponto associado (null = fica no setor).
- * Comunidade é separada por distrito: a parte de uma comunidade em cada distrito vira
- * uma região própria (a mesma comunidade pode atravessar a divisa).
+ * A comunidade é uma região só, mesmo atravessando a divisa entre distritos; a região
+ * guarda os distritos onde estão os pontos afetados (só um, os dois…).
  */
 export function placeKeyOf(place) {
   if (!place?.municipio) return null;
-  if (place.comunidade) return `com:${place.comunidade.regionId}${place.distrito?.cod ? `@${place.distrito.cod}` : ''}`;
+  if (place.comunidade) return `com:${place.comunidade.regionId}`;
   if (place.local) return `area:${place.municipio.cod}:${place.distrito?.cod ?? place.local}`;
   return null;
 }
@@ -109,7 +108,8 @@ export function groupByPlace(placed, { locator, sectorLayer } = {}) {
       const geometry = c?.geometry ?? null;
       const nome = c?.nome ?? first.comunidade.nome;
       const distritos = [...new Map(g.points.filter((p) => p.place?.distrito)
-        .map((p) => [p.place.distrito.cod, { cod: p.place.distrito.cod, nome: p.place.distrito.nome, sede: !!p.place.distrito.sede }])).values()];
+        .map((p) => [p.place.distrito.cod, { cod: p.place.distrito.cod, nome: p.place.distrito.nome, sede: !!p.place.distrito.sede }])).values()]
+        .sort((a, b) => Number(b.sede) - Number(a.sede) || byName(a.nome, b.nome)); // sede primeiro
       if (geometry) features.push({ type: 'Feature', properties: { id: g.key, code: first.comunidade.id, name: nome }, geometry });
       return {
         ...base,
@@ -120,8 +120,7 @@ export function groupByPlace(placed, { locator, sectorLayer } = {}) {
         name: null,
         label: nome,
         placeName: nome,
-        // Carta e registro: com o distrito.
-        speakName: withDistrict(nome, distritos),
+        // Distritos dos pontos afetados: a carta agrupa por distrito e o registro grava.
         distritos,
         confianca: c?.confianca ?? first.comunidade.confianca,
         nearCount: g.points.filter((p) => p.place?.origem_nome === 'comunidade_proxima').length,
@@ -145,6 +144,7 @@ export function groupByPlace(placed, { locator, sectorLayer } = {}) {
         name: null,
         label: first.local,
         placeName: first.local,
+        distritos: first.distrito ? [{ cod: first.distrito.cod, nome: first.distrito.nome, sede: !!first.distrito.sede }] : [],
         context: munLabel ? [{ label: 'Município', value: munLabel }] : [],
         municipio: mun ?? null,
         bounds: polys.length ? featureBounds({ geometry: { type: 'MultiPolygon', coordinates: polys } }) : sectorBounds(g),

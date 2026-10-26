@@ -52,7 +52,7 @@ export function countClients(unitPoints, clientMapped) {
  * }}
  */
 export function buildAnnouncement(units, points, {
-  nameOf, namesOf = null, threshold = 3, overrides = {}, clientMapped = false, propertyMapped = false,
+  nameOf, namesOf = null, threshold = 3, overrides = {}, clientMapped = false, propertyMapped = false, groupOf = null,
 }) {
   const byUnit = new Map();
   (points ?? []).forEach((p) => {
@@ -117,12 +117,25 @@ export function buildAnnouncement(units, points, {
     if (!seen.has(key)) { seen.add(key); lines.push(l); }
   }));
 
+  // Seções da carta (ex.: por distrito), na ordem em que aparecem, sem repetir nomes.
+  const groups = [];
+  if (groupOf) {
+    const byLabel = new Map();
+    items.forEach((it) => {
+      const label = groupOf(it.unit) ?? null;
+      if (!byLabel.has(label)) { byLabel.set(label, { label, lines: [], seen: new Set() }); groups.push(byLabel.get(label)); }
+      const g = byLabel.get(label);
+      it.lines.forEach((l) => { const k = fold(l); if (!g.seen.has(k)) { g.seen.add(k); g.lines.push(l); } });
+    });
+    groups.forEach((g) => delete g.seen);
+  }
+
   const notes = items.flatMap((it) => it.notes);
   const byProperty = items.filter((it) => it.mode === ANNOUNCE_MODE.properties);
   if (byProperty.length) {
     notes.unshift(`${byProperty.length} região(ões) citada(s) pelo nome das propriedades (menos de ${threshold} clientes ou escolha do operador): ${byProperty.map((it) => num(it.unit)).join(', ')}.`);
   }
   return {
-    items, lines, notes, pendingUnits,
+    items, lines, groups, notes, pendingUnits,
   };
 }

@@ -45,7 +45,7 @@ import { buildOutageView, EMPTY_OUTAGE_FORM } from './lib/outage.js';
 import {
   summarize, DEFAULT_POINT_FILTER, attachPlaces, communitiesByUnit,
 } from './lib/summary.js';
-import { groupByPlace } from './lib/placeRegions.js';
+import { groupByPlace, districtPhrase } from './lib/placeRegions.js';
 import { placeSnapshot, placeChanged } from './lib/placeNames.js';
 import { isValidCoordinate } from './lib/priorityRecords.js';
 import { useTheme } from './lib/theme.js';
@@ -339,9 +339,11 @@ export default function App() {
       overrides,
       clientMapped: !demo && imp.mapping.client != null,
       propertyMapped: demo || imp.mapping.property != null,
+      // Carta agrupada por distrito (modo real): "Áreas afetadas, distrito de Leopoldina: …".
+      groupOf: demo ? null : (u) => districtPhrase(u.distritos),
     });
     return {
-      ...buildRadioLetterFromLines(announcement.lines, outageView),
+      ...buildRadioLetterFromLines(announcement.lines, outageView, { groups: announcement.groups }),
       pendingUnits: announcement.pendingUnits,
       notes: announcement.notes,
       items: announcement.items,
@@ -432,10 +434,7 @@ export default function App() {
       units: selectedUnits,
       // Registro: nome da comunidade e distrito em campos separados; a chave separa a parte de cada distrito.
       nameOf: (u) => u.placeName ?? resolveSpeakableName(u, nameOptions).name,
-      keyOf: (u) => {
-        const base = u.code || u.id;
-        return u.kind === 'microrregiao' && u.distritos?.length === 1 ? `${base}@${u.distritos[0].cod}` : base;
-      },
+      keyOf: (u) => u.code || u.id,
       mode,
       by: operator,
     });

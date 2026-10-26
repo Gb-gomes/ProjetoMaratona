@@ -70,8 +70,7 @@ export function resolveSpeakableName(unit, { correspondence = {}, officialNameAp
   const entry = correspondence[unit.code] ?? correspondence[unit.id];
   if (entry?.name) return { name: entry.name, origin: entry.origin ?? 'correspondence', entry };
   // Região por microrregião (lib/placeRegions.js): o nome da comunidade ou da área do IBGE.
-  // Comunidade: com o distrito ("Palmeiras (distrito de Leopoldina)"), para não confundir homônimas.
-  if (unit.placeName) return { name: unit.speakName ?? unit.placeName, origin: unit.kind === 'microrregiao' ? 'microrregiao' : 'ibge' };
+  if (unit.placeName) return { name: unit.placeName, origin: unit.kind === 'microrregiao' ? 'microrregiao' : 'ibge' };
   if (officialNameApproved && unit.name) return { name: unit.name, origin: 'official' };
   // Comunidades dos pontos afetados (arquivo de comunidades; lib/communities.js).
   // Pontos fora de qualquer comunidade mantêm também o nome automático do IBGE,
@@ -180,7 +179,22 @@ export function buildRadioLetter(units, outage, { nameOf = (u) => u.name ?? null
  * ou de propriedades; ver lib/announcement.js).
  * @returns {{text:string, missingOutage:string[], names:string[]}}
  */
-export function buildRadioLetterFromLines(lines, outage) {
+const joinList = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}` : names[0] ?? '');
+
+/**
+ * Áreas da carta agrupadas por distrito:
+ *   Áreas afetadas, distrito de Leopoldina:
+ *   Fortaleza, Recanto dos Sonhos e Palmeiras.
+ * Grupos sem distrito (demonstração, municípios sem malha) ficam na lista simples.
+ */
+export function districtSections(groups) {
+  return (groups ?? []).flatMap((g, i) => {
+    const head = g.label ? `Áreas afetadas, ${g.label}:` : RADIO_LETTER.addressesLabel;
+    return [...(i ? [''] : []), head, `${joinList(g.lines)}.`];
+  });
+}
+
+export function buildRadioLetterFromLines(lines, outage, { groups = null } = {}) {
   const missingOutage = [
     !outage?.letterDate && 'data',
     !outage?.letterStart && 'horário inicial',
@@ -200,8 +214,8 @@ export function buildRadioLetterFromLines(lines, outage) {
     '',
     body,
     '',
-    RADIO_LETTER.addressesLabel,
-    ...lines,
+    // Com distritos: uma seção por distrito; sem, a lista de ENDEREÇOS (uma área por linha).
+    ...(groups?.some((g) => g.label) ? districtSections(groups) : [RADIO_LETTER.addressesLabel, ...lines]),
     '',
     ...RADIO_LETTER.closing.flatMap((c, i) => (i ? ['', c] : [c])),
   ].join('\n');

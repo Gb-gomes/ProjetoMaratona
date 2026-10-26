@@ -7,8 +7,10 @@ import { createPlaceLocator } from '../placeNames.js';
 import { validateLayer } from '../layer.js';
 import { spatialJoin } from '../spatialJoin.js';
 import { attachPlaces, summarize, auditRows } from '../summary.js';
-import { groupByPlace, placeKeyOf, withDistrict } from '../placeRegions.js';
-import { resolveSpeakableName } from '../communicationUtils.js';
+import {
+  groupByPlace, placeKeyOf, withDistrict, districtPhrase,
+} from '../placeRegions.js';
+import { resolveSpeakableName, buildRadioLetterFromLines } from '../communicationUtils.js';
 import { buildAnnouncement } from '../announcement.js';
 
 const read = (p) => JSON.parse(readFileSync(p, 'utf8'));
@@ -74,8 +76,8 @@ describe('regiões por microrregião (modo real)', () => {
 
   it('nome no aviso: operador > microrregião / área do IBGE; uma linha por região na carta', () => {
     const jv = grouped.units.find((u) => u.externalCode === 'JOAQUIM_VIEIRA');
-    // Carta: comunidade com o distrito, para não confundir comunidades de mesmo nome.
-    expect(resolveSpeakableName(jv, {})).toMatchObject({ name: 'Joaquim Vieira (distrito de Glória de Cataguases)', origin: 'microrregiao' });
+    expect(resolveSpeakableName(jv, {})).toMatchObject({ name: 'Joaquim Vieira', origin: 'microrregiao' });
+    // Distritos dos pontos afetados (a carta agrupa por distrito).
     expect(jv.distritos.map((d) => d.nome)).toEqual(['Glória de Cataguases']);
     const area = grouped.units.find((u) => u.kind === 'area_ibge');
     expect(resolveSpeakableName(area, {})).toMatchObject({ name: 'Área urbana de Cataguases', origin: 'ibge' });
@@ -85,7 +87,7 @@ describe('regiões por microrregião (modo real)', () => {
     const ann = buildAnnouncement(grouped.units, grouped.points, {
       nameOf: (u) => resolveSpeakableName(u, {}).name, threshold: 1, clientMapped: true,
     });
-    expect(ann.lines).toEqual(grouped.units.map((u) => u.speakName ?? u.placeName));
+    expect(ann.lines).toEqual(grouped.units.map((u) => u.placeName));
     expect(ann.pendingUnits).toEqual([]);
   });
 
@@ -112,8 +114,24 @@ describe('comunidade e distrito', () => {
     expect(withDistrict('Palmeiras', [{ nome: 'Leopoldina' }, { nome: 'Ribeiro Junqueira' }])).toBe('Palmeiras (distritos de Leopoldina e Ribeiro Junqueira)');
     expect(withDistrict('Palmeiras', [])).toBe('Palmeiras');
   });
-  it('a mesma comunidade em dois distritos vira duas regiões', () => {
+  it('a mesma comunidade em dois distritos continua uma região só', () => {
     const place = (cod, nome) => ({ municipio: { cod: '3138401' }, distrito: { cod, nome }, comunidade: { regionId: 'r-palmeiras' } });
-    expect(placeKeyOf(place('313840105', 'Leopoldina'))).not.toBe(placeKeyOf(place('313840110', 'Ribeiro Junqueira')));
+    expect(placeKeyOf(place('313840105', 'Leopoldina'))).toBe(placeKeyOf(place('313840110', 'Ribeiro Junqueira')));
+  });
+
+  it('carta agrupada por distrito; comunidade nos dois distritos vai para a seção dos dois', () => {
+    const u = (id, name, ds) => ({ id, order: 1, name, distritos: ds.map((nome) => ({ nome })) });
+    const units = [
+      u('a', 'Fortaleza', ['Leopoldina']), u('b', 'Recanto dos Sonhos', ['Leopoldina']),
+      u('c', 'Palmeiras', ['Leopoldina', 'Ribeiro Junqueira']), u('d', 'Area urbana de Leopoldina', ['Leopoldina']),
+      u('e', 'Corrego das Virgens', ['Ribeiro Junqueira']),
+    ];
+    const points = units.flatMap((x) => [1, 2, 3].map((n) => ({ status: 'matched', unitId: x.id, key: `${x.id}${n}` })));
+    const ann = buildAnnouncement(units, points, { nameOf: (x) => x.name, groupOf: (x) => districtPhrase(x.distritos) });
+    const { text } = buildRadioLetterFromLines(ann.lines, { letterDate: '10 NOVEMBRO 2026', letterStart: '08:00h', letterEnd: '12:00h', audience: 'LEOPOLDINA' }, { groups: ann.groups });
+    expect(text).toContain('Áreas afetadas, distrito de Leopoldina:\nFortaleza, Recanto dos Sonhos e Area urbana de Leopoldina.');
+    expect(text).toContain('Áreas afetadas, distritos de Leopoldina e Ribeiro Junqueira:\nPalmeiras.');
+    expect(text).toContain('Áreas afetadas, distrito de Ribeiro Junqueira:\nCorrego das Virgens.');
+    expect(text).not.toContain('ENDEREÇOS:');
   });
 });

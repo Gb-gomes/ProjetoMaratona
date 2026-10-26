@@ -44,7 +44,13 @@ const joinNames = (names) => (names.length <= 3
   ? names.join(', ').replace(/, ([^,]*)$/, ' e $1')
   : `${names.slice(0, 3).join(', ')} e mais ${names.length - 3}`);
 /** "Palmeiras (distrito de Leopoldina)": nome da comunidade com o distrito, quando gravado. */
-export const communityLabel = (c) => (c?.distrito ? `${c.nome} (distrito de ${c.distrito})` : c?.nome ?? '');
+export const communityLabel = (c) => {
+  const nome = c?.nome ?? '';
+  const ds = (c?.distrito ?? '').split(', ').filter(Boolean);
+  // Sem distrito, ou o nome já diz ("Área urbana de Leopoldina", "Sede do distrito de …").
+  if (!ds.length || (ds.length === 1 && nome.includes(ds[0]))) return nome;
+  return ds.length === 1 ? `${nome} (distrito de ${ds[0]})` : `${nome} (distritos de ${ds.slice(0, -1).join(', ')} e ${ds[ds.length - 1]})`;
+};
 
 /** Registros antigos (antes do tipo) contam como programados. */
 export const typeOf = (r) => (r?.tipo === 'acidental' ? 'acidental' : 'programado');
