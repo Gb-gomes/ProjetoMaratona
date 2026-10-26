@@ -26,10 +26,30 @@ export const PLACE_KIND = {
 const byName = (a, b) => (a ?? '').localeCompare(b ?? '', 'pt-BR');
 const uniq = (list) => [...new Set(list.filter(Boolean))];
 
-/** Chave de agrupamento de um ponto associado (null = fica no setor). */
+/**
+ * Nome para a carta e para o registro: comunidade + distrito ("Palmeiras (distrito de
+ * Ribeiro Junqueira)"). Comunidades com o mesmo nome, ou uma comunidade que atravessa a
+ * divisa entre distritos, ficam distintas para quem ouve o aviso.
+ */
+export function districtPhrase(distritos) {
+  const names = (distritos ?? []).map((d) => d.nome).filter(Boolean);
+  if (!names.length) return null;
+  if (names.length === 1) return `distrito de ${names[0]}`;
+  return `distritos de ${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
+}
+export const withDistrict = (nome, distritos) => {
+  const phrase = districtPhrase(distritos);
+  return phrase ? `${nome} (${phrase})` : nome;
+};
+
+/**
+ * Chave de agrupamento de um ponto associado (null = fica no setor).
+ * Comunidade é separada por distrito: a parte de uma comunidade em cada distrito vira
+ * uma região própria (a mesma comunidade pode atravessar a divisa).
+ */
 export function placeKeyOf(place) {
   if (!place?.municipio) return null;
-  if (place.comunidade) return `com:${place.comunidade.regionId}`;
+  if (place.comunidade) return `com:${place.comunidade.regionId}${place.distrito?.cod ? `@${place.distrito.cod}` : ''}`;
   if (place.local) return `area:${place.municipio.cod}:${place.distrito?.cod ?? place.local}`;
   return null;
 }
@@ -88,6 +108,8 @@ export function groupByPlace(placed, { locator, sectorLayer } = {}) {
       const c = locator.community?.(first.comunidade.regionId);
       const geometry = c?.geometry ?? null;
       const nome = c?.nome ?? first.comunidade.nome;
+      const distritos = [...new Map(g.points.filter((p) => p.place?.distrito)
+        .map((p) => [p.place.distrito.cod, { cod: p.place.distrito.cod, nome: p.place.distrito.nome, sede: !!p.place.distrito.sede }])).values()];
       if (geometry) features.push({ type: 'Feature', properties: { id: g.key, code: first.comunidade.id, name: nome }, geometry });
       return {
         ...base,
@@ -98,6 +120,9 @@ export function groupByPlace(placed, { locator, sectorLayer } = {}) {
         name: null,
         label: nome,
         placeName: nome,
+        // Carta e registro: com o distrito.
+        speakName: withDistrict(nome, distritos),
+        distritos,
         confianca: c?.confianca ?? first.comunidade.confianca,
         nearCount: g.points.filter((p) => p.place?.origem_nome === 'comunidade_proxima').length,
         context: [

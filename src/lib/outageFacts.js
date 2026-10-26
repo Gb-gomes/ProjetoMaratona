@@ -43,6 +43,9 @@ export function durationHours(start, end, date = null, endDate = null) {
 const joinNames = (names) => (names.length <= 3
   ? names.join(', ').replace(/, ([^,]*)$/, ' e $1')
   : `${names.slice(0, 3).join(', ')} e mais ${names.length - 3}`);
+/** "Palmeiras (distrito de Leopoldina)": nome da comunidade com o distrito, quando gravado. */
+export const communityLabel = (c) => (c?.distrito ? `${c.nome} (distrito de ${c.distrito})` : c?.nome ?? '');
+
 /** Registros antigos (antes do tipo) contam como programados. */
 export const typeOf = (r) => (r?.tipo === 'acidental' ? 'acidental' : 'programado');
 export const SCOPES = [
@@ -116,7 +119,7 @@ export function computeFacts(current, history, { scope = 'todos' } = {}) {
     const sameDay = day == null ? [] : dated.filter((r) => dayMs(r.data) === day && overlaps(r, current));
     return {
       key: c.key,
-      nome: c.nome,
+      nome: communityLabel(c),
       pontos: c.pontos,
       total: touching.length,
       recent: recent.map(refOf),
@@ -231,7 +234,13 @@ export function computeFacts(current, history, { scope = 'todos' } = {}) {
 export function buildOutageRecord({
   id, form, outageView, units, nameOf, keyOf, mode, by,
 }) {
-  const comunidades = units.map((u) => ({ key: keyOf(u), nome: nameOf(u) || u.label || u.code || u.id, pontos: u.count ?? 0 }));
+  const comunidades = units.map((u) => ({
+    key: keyOf(u),
+    nome: nameOf(u) || u.label || u.code || u.id,
+    distrito: (u.distritos ?? []).map((d) => d.nome).join(', ') || null,
+    municipio: u.municipio?.nome ?? null,
+    pontos: u.count ?? 0,
+  }));
   return {
     id,
     mode,

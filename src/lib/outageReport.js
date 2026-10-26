@@ -3,7 +3,7 @@
  * ou de um tipo só, sem depender de um desligamento em análise.
  * Só agrega o que está salvo (sem dado de cliente).
  */
-import { typeOf, dayMs } from './outageFacts.js';
+import { typeOf, dayMs, communityLabel } from './outageFacts.js';
 
 export const PERIODS = [
   { value: 'all', label: 'Todo o histórico', days: null },
@@ -49,7 +49,7 @@ export function buildReport(records, { scope = 'todos', period = 'all', now = to
   const programados = list.filter((r) => typeOf(r) === 'programado');
   const notices = programados.map((r) => r.antecedenciaDias).filter((n) => Number.isFinite(n) && n >= 0);
   const withDuration = list.filter((r) => r.duracaoH);
-  const communities = groupBy(list, (r) => (r.comunidades ?? []).map((c) => ({ key: c.key, label: c.nome, pontos: c.pontos })));
+  const communities = groupBy(list, (r) => (r.comunidades ?? []).map((c) => ({ key: c.key, label: communityLabel(c), pontos: c.pontos })));
 
   return {
     scope,

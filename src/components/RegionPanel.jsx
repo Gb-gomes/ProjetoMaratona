@@ -276,6 +276,14 @@ export default function RegionPanel({
                               Aviso pelas propriedades | {announce.countLabel}
                             </span>
                           )}
+                          {isReal && u.nearCount > 0 && (
+                            <span
+                              className="mt-0.5 ml-1 inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-px text-[10.5px] font-medium max-lg:text-[12px] text-amber-800 ring-1 ring-inset ring-amber-200"
+                              title="Ponto fora do contorno da comunidade, a até 100 m dela: atribuído à comunidade mais próxima."
+                            >
+                              {u.nearCount} ponto(s) a até 100 m do contorno
+                            </span>
+                          )}
                         </span>
                         <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform max-lg:h-5 max-lg:w-5 max-lg:-rotate-90 ${expanded && !mobile ? 'rotate-180' : ''}`} aria-hidden="true" />
                       </button>

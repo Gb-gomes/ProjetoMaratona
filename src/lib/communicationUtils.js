@@ -70,7 +70,8 @@ export function resolveSpeakableName(unit, { correspondence = {}, officialNameAp
   const entry = correspondence[unit.code] ?? correspondence[unit.id];
   if (entry?.name) return { name: entry.name, origin: entry.origin ?? 'correspondence', entry };
   // Região por microrregião (lib/placeRegions.js): o nome da comunidade ou da área do IBGE.
-  if (unit.placeName) return { name: unit.placeName, origin: unit.kind === 'microrregiao' ? 'microrregiao' : 'ibge' };
+  // Comunidade: com o distrito ("Palmeiras (distrito de Leopoldina)"), para não confundir homônimas.
+  if (unit.placeName) return { name: unit.speakName ?? unit.placeName, origin: unit.kind === 'microrregiao' ? 'microrregiao' : 'ibge' };
   if (officialNameApproved && unit.name) return { name: unit.name, origin: 'official' };
   // Comunidades dos pontos afetados (arquivo de comunidades; lib/communities.js).
   // Pontos fora de qualquer comunidade mantêm também o nome automático do IBGE,

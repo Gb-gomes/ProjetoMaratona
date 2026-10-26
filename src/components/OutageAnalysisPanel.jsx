@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
 import {
-  WINDOW_RECENT_DAYS, WINDOW_LONG_DAYS, SCOPES, computeFacts, typeOf,
+  WINDOW_RECENT_DAYS, WINDOW_LONG_DAYS, SCOPES, computeFacts, typeOf, communityLabel,
 } from '../lib/outageFacts.js';
 import { historyToCsv } from '../lib/outageHistory.js';
 import { buildReport, reportToCsv, PERIODS } from '../lib/outageReport.js';
@@ -349,7 +349,7 @@ function HistoryDialog({
                       {r.motivo ?? '—'}
                       {r.equipamento && <span className="block text-[11px] text-slate-500">{r.equipamento}</span>}
                     </td>
-                    <td className="max-w-[260px] px-3 py-1.5 text-slate-700">{r.comunidades.map((c) => c.nome).join(', ')}</td>
+                    <td className="max-w-[260px] px-3 py-1.5 text-slate-700">{r.comunidades.map(communityLabel).join('; ')}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{r.totalPontos}</td>
                     <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums">{r.antecedenciaDias != null ? `${r.antecedenciaDias}d` : '—'}</td>
                     <td className="px-2 py-1.5 text-right">

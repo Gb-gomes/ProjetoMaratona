@@ -9,6 +9,7 @@
 import {
   useCallback, useEffect, useRef, useState,
 } from 'react';
+import { communityLabel } from './outageFacts.js';
 
 export const HISTORY_DB = 'conecta-rural-desligamentos';
 const STORE = 'outages';
@@ -84,7 +85,7 @@ export function historyToCsv(records) {
     return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const rows = records.map((r) => CSV_COLS.map((c) => cell(c === 'comunidades'
-    ? r.comunidades.map((x) => `${x.nome} (${x.pontos})`).join(', ')
+    ? r.comunidades.map((x) => `${communityLabel(x)}: ${x.pontos} ponto(s)`).join(' | ')
     : c === 'tipo' ? (r.tipo ?? 'programado') : r[c])).join(';'));
   return [CSV_COLS.join(';'), ...rows].join('\n');
 }

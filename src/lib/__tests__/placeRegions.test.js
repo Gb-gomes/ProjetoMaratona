@@ -7,7 +7,7 @@ import { createPlaceLocator } from '../placeNames.js';
 import { validateLayer } from '../layer.js';
 import { spatialJoin } from '../spatialJoin.js';
 import { attachPlaces, summarize, auditRows } from '../summary.js';
-import { groupByPlace, placeKeyOf } from '../placeRegions.js';
+import { groupByPlace, placeKeyOf, withDistrict } from '../placeRegions.js';
 import { resolveSpeakableName } from '../communicationUtils.js';
 import { buildAnnouncement } from '../announcement.js';
 
@@ -74,7 +74,9 @@ describe('regiões por microrregião (modo real)', () => {
 
   it('nome no aviso: operador > microrregião / área do IBGE; uma linha por região na carta', () => {
     const jv = grouped.units.find((u) => u.externalCode === 'JOAQUIM_VIEIRA');
-    expect(resolveSpeakableName(jv, {})).toMatchObject({ name: 'Joaquim Vieira', origin: 'microrregiao' });
+    // Carta: comunidade com o distrito, para não confundir comunidades de mesmo nome.
+    expect(resolveSpeakableName(jv, {})).toMatchObject({ name: 'Joaquim Vieira (distrito de Glória de Cataguases)', origin: 'microrregiao' });
+    expect(jv.distritos.map((d) => d.nome)).toEqual(['Glória de Cataguases']);
     const area = grouped.units.find((u) => u.kind === 'area_ibge');
     expect(resolveSpeakableName(area, {})).toMatchObject({ name: 'Área urbana de Cataguases', origin: 'ibge' });
     const renamed = resolveSpeakableName(jv, { correspondence: { [jv.code]: { name: 'Vila Joaquim', origin: 'operator' } } });
@@ -83,7 +85,7 @@ describe('regiões por microrregião (modo real)', () => {
     const ann = buildAnnouncement(grouped.units, grouped.points, {
       nameOf: (u) => resolveSpeakableName(u, {}).name, threshold: 1, clientMapped: true,
     });
-    expect(ann.lines).toEqual(grouped.units.map((u) => u.placeName));
+    expect(ann.lines).toEqual(grouped.units.map((u) => u.speakName ?? u.placeName));
     expect(ann.pendingUnits).toEqual([]);
   });
 
@@ -101,5 +103,17 @@ describe('regiões por microrregião (modo real)', () => {
     const noPlace = { ...joined, points: joined.points.map((p) => ({ ...p, place: null })) };
     expect(groupByPlace(noPlace, { locator, sectorLayer: layer })).toBe(noPlace);
     expect(placeKeyOf(null)).toBeNull();
+  });
+});
+
+describe('comunidade e distrito', () => {
+  it('nome com o distrito (um ou mais)', () => {
+    expect(withDistrict('Palmeiras', [{ nome: 'Ribeiro Junqueira' }])).toBe('Palmeiras (distrito de Ribeiro Junqueira)');
+    expect(withDistrict('Palmeiras', [{ nome: 'Leopoldina' }, { nome: 'Ribeiro Junqueira' }])).toBe('Palmeiras (distritos de Leopoldina e Ribeiro Junqueira)');
+    expect(withDistrict('Palmeiras', [])).toBe('Palmeiras');
+  });
+  it('a mesma comunidade em dois distritos vira duas regiões', () => {
+    const place = (cod, nome) => ({ municipio: { cod: '3138401' }, distrito: { cod, nome }, comunidade: { regionId: 'r-palmeiras' } });
+    expect(placeKeyOf(place('313840105', 'Leopoldina'))).not.toBe(placeKeyOf(place('313840110', 'Ribeiro Junqueira')));
   });
 });

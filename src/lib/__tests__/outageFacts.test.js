@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { computeFacts, durationHours, buildOutageRecord } from '../outageFacts.js';
+import {
+  computeFacts, durationHours, buildOutageRecord, communityLabel,
+} from '../outageFacts.js';
 
 const rec = (id, data, comms, extra = {}) => ({
   id, ordem: `OS-${id}`, data, inicio: '08:00', termino: '12:00', duracaoH: 4,
@@ -99,12 +101,16 @@ describe('buildOutageRecord', () => {
       id: 'x', mode: 'real', by: 'ana',
       form: { orderId: ' OS-9 ', feeder: '', reason: 'Poda', date: '2026-11-05', start: '08:00', end: '12:00', noticeDate: '2026-11-01' },
       outageView: { noticeDaysBefore: 4 },
-      units: [{ id: 'u1', code: '3138401-PALMEIRAS', count: 7 }, { id: 'u2', code: '3138401-TRES', count: 3 }],
+      units: [{ id: 'u1', code: '3138401-PALMEIRAS', count: 7, distritos: [{ cod: '313840110', nome: 'Ribeiro Junqueira' }], municipio: { nome: 'Leopoldina' } }, { id: 'u2', code: '3138401-TRES', count: 3 }],
       nameOf: (u) => (u.id === 'u1' ? 'Palmeiras' : null),
       keyOf: (u) => u.code,
     });
     expect(r).toMatchObject({ tipo: 'programado', ordem: 'OS-9', alimentador: null, duracaoH: 4, antecedenciaDias: 4, totalPontos: 10 });
-    expect(r.comunidades).toEqual([{ key: '3138401-PALMEIRAS', nome: 'Palmeiras', pontos: 7 }, { key: '3138401-TRES', nome: '3138401-TRES', pontos: 3 }]);
+    expect(r.comunidades).toEqual([
+      { key: '3138401-PALMEIRAS', nome: 'Palmeiras', distrito: 'Ribeiro Junqueira', municipio: 'Leopoldina', pontos: 7 },
+      { key: '3138401-TRES', nome: '3138401-TRES', distrito: null, municipio: null, pontos: 3 },
+    ]);
+    expect(communityLabel(r.comunidades[0])).toBe('Palmeiras (distrito de Ribeiro Junqueira)');
   });
 });
 

@@ -71,6 +71,11 @@ const DEMO_FILE = {
   validation: null,
 };
 const isRealMode = (m) => m === 'real';
+/** "Pessoal de …" padrão: município(s) dos pontos afetados (sem resultado, o município piloto). */
+const audienceOf = (units) => {
+  const names = [...new Set((units ?? []).map((u) => u.municipio?.nome).filter(Boolean))];
+  return names.length ? names.join(' e ') : PILOT_CONFIG.territory.name;
+};
 const EMPTY_NOTICE = { text: '', status: 'draft', dirty: false, stale: false };
 const DEFAULT_LAYERS = { points: true, territories: true, priority: true };
 const EMPTY_IMPORT = {
@@ -295,8 +300,8 @@ export default function App() {
 
   /* ---------------- Derivados ---------------- */
   const outage = useMemo(
-    () => (isReal ? buildOutageView(outageForm, { defaultAudience: PILOT_CONFIG.territory.name }) : OUTAGE),
-    [isReal, outageForm],
+    () => (isReal ? buildOutageView(outageForm, { defaultAudience: audienceOf(result?.units) }) : OUTAGE),
+    [isReal, outageForm, result],
   );
   const layerInfo = isReal ? REAL_LAYER_INFO : TERRITORIAL_LAYER;
   const nameOptions = useMemo(() => ({
@@ -425,8 +430,12 @@ export default function App() {
       form: outageForm,
       outageView: outage,
       units: selectedUnits,
-      nameOf: (u) => resolveSpeakableName(u, nameOptions).name,
-      keyOf: (u) => u.code || u.id,
+      // Registro: nome da comunidade e distrito em campos separados; a chave separa a parte de cada distrito.
+      nameOf: (u) => u.placeName ?? resolveSpeakableName(u, nameOptions).name,
+      keyOf: (u) => {
+        const base = u.code || u.id;
+        return u.kind === 'microrregiao' && u.distritos?.length === 1 ? `${base}@${u.distritos[0].cod}` : base;
+      },
       mode,
       by: operator,
     });
@@ -821,6 +830,11 @@ export default function App() {
           }
           const view = finishProcessing(joined);
           const parts = [`${joined.matched} associado(s) em ${view.units.length} região(ões)`];
+          // Fora do contorno, a até 100 m: comunidade mais próxima. Mais longe: área urbana / sede do distrito.
+          const near = view.units.reduce((n, u) => n + (u.nearCount ?? 0), 0);
+          const outside = view.units.filter((u) => u.kind === 'area_ibge').reduce((n, u) => n + u.count, 0);
+          if (near) parts.push(`${near} fora do contorno, a até 100 m, atribuído(s) à comunidade mais próxima`);
+          if (outside) parts.push(`${outside} fora das comunidades (área urbana ou sede de distrito)`);
           if (joined.unmatched) parts.push(`${joined.unmatched} sem correspondência`);
           if (joined.ambiguous) parts.push(`${joined.ambiguous} ambíguo(s)`);
           notify(joined.unmatched || joined.ambiguous ? 'warning' : 'success', `Cruzamento concluído: ${parts.join(', ')}.`);
@@ -847,7 +861,7 @@ export default function App() {
     // O texto inicial é montado a partir do resultado recém-calculado.
     const outageView = joined.source === 'demo'
       ? OUTAGE
-      : buildOutageView(outageForm, { defaultAudience: PILOT_CONFIG.territory.name });
+      : buildOutageView(outageForm, { defaultAudience: audienceOf(view.units) });
     const { text } = letterFor(view, ids, outageView, {});
     setNotice({ text, status: 'draft', dirty: false, stale: false });
     // Referência do desligamento usada nos alertas de pontos prioritários.
@@ -1138,7 +1152,7 @@ export default function App() {
               <OutageForm
                 form={outageForm}
                 view={outage}
-                defaultAudience={PILOT_CONFIG.territory.name}
+                defaultAudience={audienceOf(result?.units)}
                 onChange={(k, v) => setOutageForm((f) => ({ ...f, [k]: v }))}
               />
             )
